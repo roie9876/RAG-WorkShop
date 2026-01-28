@@ -3,6 +3,11 @@
 ## Project Overview
 Educational workshop teaching production-grade RAG systems for complex technical documents using Microsoft AI technologies. Focus is on **architectural decisions**, not just implementation.
 
+## ⚠️ IMPORTANT: Development Files Location
+- **PRD**: `.dev/PRD.md` - Full workshop specification
+- **Progress Tracker**: `.dev/PROGRESS.md` - Current state and next steps
+- **Read PROGRESS.md first** at the start of each session!
+
 ## Technology Stack (Mandatory)
 - **Document Processing**: Azure AI Document Intelligence (prebuilt-layout model)
 - **Supported Formats**: PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx)

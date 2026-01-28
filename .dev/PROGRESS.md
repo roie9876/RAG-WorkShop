@@ -66,17 +66,38 @@
 
 ## In Progress 🔄
 
-### Current Focus: Module Implementation
-- [ ] Module 0: `setup.ipynb` - Interactive setup wizard
-- [ ] Module 0: `health-check.ipynb` - Validate environment
+### Current Focus: Module 1 Implementation
+- [ ] Module 1: `lab.ipynb` - Naive RAG demonstration
+- [ ] Module 1: `solution.ipynb` - Reference solution
 - [ ] Sample documents to add to `/data/`
+
+---
+
+## Completed Recently ✅
+
+### Module 0: Environment Setup (COMPLETE)
+- [x] `setup.ipynb` - Interactive setup wizard with:
+  - Prerequisites check (Python, Azure CLI, poppler)
+  - Azure login verification
+  - Automated Bicep deployment
+  - Manual configuration option
+  - Auto-generation of `.env` file
+  - Quick validation tests
+- [x] `health-check.ipynb` - Comprehensive validation with:
+  - Environment variables check
+  - Azure OpenAI tests (GPT-4.1, GPT-4.1-mini, embeddings)
+  - Azure AI Search connectivity
+  - Document Intelligence connectivity
+  - Content Understanding GA API test
+  - Azure Storage connectivity
+  - Python dependencies verification
+  - Summary dashboard
 
 ---
 
 ## Not Started 📋
 
-### Phase 2: Module 0-1 Implementation
-- [ ] Module 0: setup.ipynb, health-check.ipynb
+### Phase 2: Module 1 Implementation
 - [ ] Module 1: naive-rag lab.ipynb, solution.ipynb
 
 ### Phase 3: Extraction Modules
@@ -118,7 +139,7 @@ RAG-WorkShop/
 ├── .github/
 │   └── copilot-instructions.md
 ├── modules/
-│   ├── module-0-setup/          ✅ README.md
+│   ├── module-0-setup/          ✅ README.md, setup.ipynb, health-check.ipynb
 │   ├── module-1-naive-rag/      ✅ README.md
 │   ├── module-2-doc-intelligence/ ✅ README.md
 │   ├── module-3-content-understanding/ ✅ README.md
@@ -151,6 +172,22 @@ RAG-WorkShop/
 - **Azure resources expanded**: Added AI Foundry Hub/Project, cost estimates
 - **Appendices expanded**: Full env vars, resource list, API links
 
+### Session 2 (Jan 28, 2026)
+- **Module 0 COMPLETE**: Created setup.ipynb and health-check.ipynb
+- setup.ipynb features:
+  - Prerequisites check (Python version, Azure CLI, jq, poppler)
+  - Azure login and subscription verification
+  - Option A: Automated Bicep deployment with .env generation
+  - Option B: Manual configuration wizard
+  - Quick connectivity validation
+- health-check.ipynb features:
+  - 7 comprehensive tests for all Azure services
+  - Azure OpenAI (3 model deployments)
+  - Azure AI Search, Document Intelligence, Content Understanding (GA API)
+  - Azure Storage connectivity
+  - Python dependencies check
+  - Summary dashboard with pass/fail status
+
 ---
 
 ## How to Use This File
@@ -177,5 +214,5 @@ Python: 3.11+
 Format: Jupyter notebooks
 Modules: 0-7 (all core, no optional)
 Key files: PRD.md, .github/copilot-instructions.md, PROGRESS.md
-Current phase: PRD review (awaiting user approval)
+Current phase: Module 0 COMPLETE, starting Module 1
 ```
