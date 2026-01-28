@@ -1,0 +1,56 @@
+# RAG Workshop - Python Dependencies
+# Python Version: >=3.11, <3.14
+
+# ===========================================
+# Azure AI Core
+# ===========================================
+azure-identity>=1.19.0
+azure-core>=1.30.0
+aiohttp>=3.9.0
+
+# ===========================================
+# Azure AI Services
+# ===========================================
+azure-ai-documentintelligence>=1.0.2
+azure-search-documents==11.7.0b2
+azure-ai-projects>=1.0.0
+azure-ai-agents>=1.1.0
+azure-ai-evaluation>=1.14.0
+azure-storage-blob>=12.19.0
+
+# ===========================================
+# OpenAI
+# ===========================================
+openai>=2.0.0
+
+# ===========================================
+# GraphRAG
+# ===========================================
+graphrag>=2.7.0
+
+# ===========================================
+# Data Processing
+# ===========================================
+pandas>=2.0.0
+numpy>=1.24.0
+pillow>=10.0.0
+pdf2image>=1.16.0
+python-docx>=0.8.11
+openpyxl>=3.1.0
+python-pptx>=0.6.21
+
+# ===========================================
+# Jupyter & Development
+# ===========================================
+jupyter>=1.0.0
+ipykernel>=6.0.0
+ipywidgets>=8.0.0
+python-dotenv>=1.0.0
+tqdm>=4.65.0
+
+# ===========================================
+# Visualization (optional)
+# ===========================================
+matplotlib>=3.7.0
+networkx>=3.0.0
+pyvis>=0.3.0

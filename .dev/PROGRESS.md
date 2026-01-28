@@ -2,16 +2,36 @@
 
 > **AI Agent Note**: Read this file at the start of each session to understand current project state.
 
-## Project Status: 🟡 PRD Phase
+## Project Status: � Scaffolding Complete
 
 ---
 
 ## Completed ✅
 
-### Documents Created
+### Phase 0: Planning & PRD
 - [x] `.github/copilot-instructions.md` - AI agent instructions for codebase
-- [x] `PRD.md` - Full Product Requirements Document (comprehensive)
-- [x] `PROGRESS.md` - This tracking file
+- [x] `PRD.md` - Full Product Requirements Document (moved to `.dev/`)
+- [x] `PROGRESS.md` - This tracking file (moved to `.dev/`)
+
+### Phase 1: Scaffolding (COMPLETE)
+- [x] Folder structure for all modules (0-7)
+- [x] `README.md` for each module with learning objectives
+- [x] `failure-examples/` folders for each module
+- [x] `/src/` package structure with stub files:
+  - [x] `__init__.py`
+  - [x] `document_processing.py` (stubs)
+  - [x] `chunking.py` (stubs)
+  - [x] `embeddings.py` (stubs)
+  - [x] `search.py` (stubs)
+  - [x] `utils.py` (implemented)
+- [x] `/data/` folders with .gitkeep placeholders
+- [x] `/infra/main.bicep` - Azure resource deployment
+- [x] `/infra/deploy.sh` - One-click deployment script
+- [x] `.env.template` - Environment variable template
+- [x] `requirements.txt` - Python dependencies
+- [x] `pyproject.toml` - Project configuration
+- [x] `.gitignore` - Git ignore rules
+- [x] Root `README.md` - Workshop overview & quick start
 
 ### Key Decisions Made
 1. **Module order**: 0-Setup → 1-Naive RAG → 2-DI → 3-Content Understanding → 4-Chunking → 5-Tables/Figures → 6-Search/Retrieval → 7-GraphRAG
@@ -24,10 +44,11 @@
 8. **Region**: `swedencentral` | `westus` | `australiaeast` (Content Understanding GA API 2025-11-01)
 9. **Python**: ≥3.11, <3.14 (aligned with GraphRAG requirements)
 10. **Vision Model**: GPT-4.1 (single deployment for text + vision, replaces GPT-4o-vision)
-11. **Module 6 expanded**: Comprehensive retrieval techniques landscape (13 patterns)
+11. **Module 6 expanded**: Azure AI Search fundamentals + 13 retrieval patterns
 12. **Agentic retrieval**: Ties to Azure AI Foundry agents
 13. **Content Understanding GA**: API version 2025-11-01 (no longer preview)
 14. **Required models**: gpt-4.1, gpt-4.1-mini (for CU), text-embedding-3-large
+15. **Dev files location**: PRD.md and PROGRESS.md in `.dev/` folder (internal only)
 
 ### SDK Versions Researched (Jan 2026)
 | SDK | Version | Notes |
@@ -41,56 +62,41 @@
 | `openai` | 2.16.0 | Python ≥3.9 |
 | `graphrag` | 2.7.x / 3.0.0 (dev) | Requires Python ≥3.11,<3.14 |
 
-### PRD Sections Expanded
-- [x] Module 4 (Chunking) - Full landscape with 9 strategies + labs
-- [x] Module 5 (Tables/Figures) - Detailed multimodal processing
-- [x] Module 6 (Retrieval) - 13 retrieval patterns + 8 labs
-- [x] Module 7 (GraphRAG) - Full architecture + 7 labs
-- [x] Section 5.1 (Prerequisites) - Python versions, SDKs, regions
-- [x] Section 5.1 (SDK Versions) - Updated with researched versions
-- [x] Appendix A - Complete environment variables (updated with CU GA)
-- [x] Appendix B - Full Azure resource list with costs
-- [x] Appendix C - API documentation links
-
 ---
 
 ## In Progress 🔄
 
-### Current Focus: PRD Review
-- [x] SDK version research completed
-- [x] Content Understanding updated to GA (2025-11-01)
-- [ ] User review of expanded PRD sections
-- [ ] User to provide sample documents
-- [ ] Final PRD approval before scaffolding
+### Current Focus: Module Implementation
+- [ ] Module 0: `setup.ipynb` - Interactive setup wizard
+- [ ] Module 0: `health-check.ipynb` - Validate environment
+- [ ] Sample documents to add to `/data/`
 
 ---
 
 ## Not Started 📋
 
-### Phase 1: Foundation
-- [ ] Create folder structure for all modules
-- [ ] `infra/main.bicep` - Azure resource deployment
+### Phase 2: Module 0-1 Implementation
 - [ ] Module 0: setup.ipynb, health-check.ipynb
-- [ ] Module 1: naive-rag lab.ipynb
+- [ ] Module 1: naive-rag lab.ipynb, solution.ipynb
 
-### Phase 2: Extraction
-- [ ] Module 2: Document Intelligence lab
-- [ ] Module 3: Content Understanding lab
+### Phase 3: Extraction Modules
+- [ ] Module 2: Document Intelligence lab.ipynb, solution.ipynb
+- [ ] Module 3: Content Understanding lab.ipynb, solution.ipynb
 
-### Phase 3: Core Processing
+### Phase 4: Core Processing Modules
 - [ ] Module 4: Chunking strategies lab (5 labs)
 - [ ] Module 5: Tables and figures lab (6 labs)
 
-### Phase 4: Integration
-- [ ] Module 6: Search/Retrieval labs (8 labs)
-- [ ] `/src/` shared utilities
+### Phase 5: Integration Modules
+- [ ] Module 6: Search fundamentals + retrieval labs (14 labs total)
+- [ ] Implement `/src/` utilities (currently stubs)
 
-### Phase 5: Advanced
+### Phase 6: Advanced Module
 - [ ] Module 7: GraphRAG lab (7 labs)
 
-### Phase 6: Polish
+### Phase 7: Polish
 - [ ] Hebrew sample documents
-- [ ] Instructor materials
+- [ ] Instructor materials (slide decks)
 - [ ] End-to-end testing
 
 ---
@@ -98,6 +104,37 @@
 ## Questions / Blockers ❓
 
 1. **Sample documents**: User will provide - waiting for files
+
+---
+
+## File Structure (Current)
+
+```
+RAG-WorkShop/
+├── .dev/                        # Internal development docs
+│   ├── PRD.md
+│   ├── PROGRESS.md
+│   └── README.md
+├── .github/
+│   └── copilot-instructions.md
+├── modules/
+│   ├── module-0-setup/          ✅ README.md
+│   ├── module-1-naive-rag/      ✅ README.md
+│   ├── module-2-doc-intelligence/ ✅ README.md
+│   ├── module-3-content-understanding/ ✅ README.md
+│   ├── module-4-chunking/       ✅ README.md
+│   ├── module-5-tables-figures/ ✅ README.md
+│   ├── module-6-search/         ✅ README.md
+│   └── module-7-graphrag/       ✅ README.md
+├── src/                         ✅ Package with stubs
+├── data/                        ✅ Placeholder folders
+├── infra/                       ✅ Bicep + deploy.sh
+├── README.md                    ✅ Workshop overview
+├── requirements.txt             ✅ Dependencies
+├── pyproject.toml              ✅ Project config
+├── .env.template               ✅ Env template
+└── .gitignore                  ✅ Git rules
+```
 
 ---
 

@@ -1,0 +1,36 @@
+[project]
+name = "rag-workshop"
+version = "0.1.0"
+description = "RAG & Multimodal Knowledge Workshop - Microsoft AI Stack"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = {text = "MIT"}
+authors = [
+    {name = "RAG Workshop Team"}
+]
+keywords = ["rag", "azure", "ai", "document-intelligence", "graphrag"]
+
+[project.urls]
+Repository = "https://github.com/your-org/RAG-WorkShop"
+Documentation = "https://github.com/your-org/RAG-WorkShop/blob/main/PRD.md"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py311', 'py312']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true

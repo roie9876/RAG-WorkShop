@@ -842,10 +842,197 @@ Participants can handle any multimodal technical document with tables, figures, 
 
 ### Module 6 – Azure AI Search & Retrieval Design
 
-**Objective**: Master the full landscape of RAG retrieval techniques.
+**Objective**: Master Azure AI Search architecture and the full landscape of RAG retrieval techniques.
 
 **Key Message**: 
-> Retrieval strategy is as important as chunking – the right technique depends on your content and questions.
+> Azure AI Search is more than a vector database – it's a complete search platform with indexing pipelines, AI enrichment, and multiple retrieval modes.
+
+---
+
+#### 6.0 Azure AI Search Fundamentals
+
+**Learning Objectives**:
+- Understand the Azure AI Search architecture and how components work together
+- Know when to use Push vs Pull ingestion patterns
+- Configure indexes with vector fields for RAG workloads
+- Build AI enrichment pipelines with skillsets
+- Choose the appropriate search mode for different scenarios
+
+---
+
+##### 6.0.1 Core Architecture & Components
+
+**Topics to Cover**:
+- Azure AI Search service tiers and capacity planning
+- The indexing pipeline: Data Source → Indexer → Skillset → Index
+- Knowledge Store as secondary output for non-search scenarios
+- Query pipeline: Vectorizer → Search Engine → Semantic Ranker
+
+**Key Concepts**:
+| Component | What Participants Must Understand |
+|-----------|-----------------------------------|
+| Search Service | Resource hosting, tiers (Free/Basic/Standard), partition/replica model |
+| Index | Schema design, field types and attributes (searchable, filterable, etc.) |
+| Data Source | Supported sources (Blob, SQL, Cosmos DB, OneLake, SharePoint) |
+| Indexer | Automated crawler, 4-stage pipeline, scheduling |
+| Skillset | AI enrichment pipeline, built-in vs custom skills |
+| Knowledge Store | Projections to Azure Storage (tables, objects, files) |
+
+---
+
+##### 6.0.2 Index Design for RAG
+
+**Topics to Cover**:
+- Index schema design principles for RAG workloads
+- Field types: Edm.String, Collection(Edm.Single) for vectors
+- Field attributes: searchable, filterable, sortable, facetable, retrievable
+- Vector field configuration: dimensions, algorithm profiles, vectorizers
+- Semantic configuration for L2 reranking
+
+**Design Decisions to Explain**:
+- How to structure metadata fields (page_number, section_header, content_type)
+- Vector dimensions alignment with embedding model (3072 for text-embedding-3-large)
+- When to use analyzers (language-specific vs standard)
+
+---
+
+##### 6.0.3 Data Ingestion Patterns
+
+**Topics to Cover**:
+- **Pull Model (Indexer)**: Automated ingestion from supported data sources
+- **Push Model (SDK/API)**: Direct document upload for custom pipelines
+- Change detection and incremental indexing
+- Indexer stages: document cracking, field mappings, skillset execution, output mappings
+
+**Decision Framework**:
+| Scenario | Recommended Pattern |
+|----------|---------------------|
+| Supported data source, batch updates | Pull (Indexer) |
+| Custom chunking/embedding logic | Push (SDK) |
+| Real-time updates | Push (SDK) |
+| Quick demos | Pull (Indexer) |
+
+---
+
+##### 6.0.4 AI Enrichment & Skillsets
+
+**Topics to Cover**:
+- Skillset as AI transformation pipeline
+- Built-in cognitive skills: OCR, entity recognition, key phrase extraction, language detection
+- Text Split skill for chunking
+- Azure OpenAI Embedding skill for vector generation
+- Custom skills (Azure Functions integration)
+- Cognitive Services attachment for billing
+
+**Key Skills for RAG**:
+| Skill | RAG Purpose |
+|-------|-------------|
+| Text Split | Document chunking |
+| Azure OpenAI Embedding | Vector generation |
+| OCR | Extract text from images/scans |
+| Entity Recognition | Metadata enrichment |
+
+---
+
+##### 6.0.5 Knowledge Store
+
+**Topics to Cover**:
+- Purpose: Persist enriched content for non-search scenarios
+- Projection types: Tables, Objects, Files
+- Use cases: Power BI analytics, data science, debugging pipelines
+- Shaper skill for projection preparation
+
+**When to Use**:
+- Feeding enriched data to Power BI dashboards
+- Exporting extracted images for separate processing
+- Debugging and inspecting enrichment output
+
+---
+
+##### 6.0.6 Vector Search Configuration
+
+**Topics to Cover**:
+- Vector search algorithms: HNSW (approximate) vs Exhaustive KNN (exact)
+- HNSW parameters: m, efConstruction, efSearch and their trade-offs
+- Integrated vectorization: query-time embedding generation
+- Vector profiles linking algorithms and vectorizers
+
+**Trade-offs to Explain**:
+| Parameter | Higher Value Impact |
+|-----------|---------------------|
+| m | Better recall, more memory |
+| efConstruction | Better index quality, slower build |
+| efSearch | Better recall, slower queries |
+
+---
+
+##### 6.0.7 Search Modes
+
+**Topics to Cover**:
+- **Text Search (BM25)**: Traditional keyword matching
+- **Vector Search (kNN)**: Semantic similarity via embeddings
+- **Hybrid Search**: Combined BM25 + vector with RRF ranking
+- **Semantic Ranking**: L2 reranking with Microsoft Bing model
+
+**Comparison Table** (for participants):
+| Mode | When to Use | Pros | Cons |
+|------|-------------|------|------|
+| Text only | Exact matches, keywords | Fast, interpretable | Misses synonyms |
+| Vector only | Semantic similarity | Handles paraphrasing | May miss exact terms |
+| Hybrid | General RAG | Best of both | Slightly more complex |
+| Hybrid + Semantic | Production RAG | Highest relevance | Higher latency/cost |
+
+---
+
+##### 6.0.8 Semantic Ranker
+
+**Topics to Cover**:
+- What semantic ranking is (L2 reranking over initial results)
+- Semantic configuration: title, content, keywords fields
+- Reranker score interpretation (0-4 scale)
+- Semantic captions and answers
+- Query rewrite feature (up to 10 variants)
+
+**Key Points**:
+- Operates on top 50 results from BM25/RRF
+- Dramatically improves relevance for RAG
+- Required for agentic retrieval
+
+---
+
+##### 6.0.9 Agentic Retrieval (Preview)
+
+**Topics to Cover**:
+- Difference between classic search and agentic retrieval
+- Knowledge Base: orchestrator connecting LLM + sources
+- Knowledge Source: wrapper around search index
+- LLM query planning: complex query → focused subqueries
+- Parallel subquery execution and result synthesis
+- Chat context integration
+
+**When to Use**:
+- Complex, multi-part questions
+- Chat applications requiring context
+- Agent-to-agent workflows
+- High-quality grounding for LLM responses
+
+**Limitations to Explain**:
+- Preview status (API 2025-11-01-preview)
+- Supported models: gpt-4o, gpt-4.1, gpt-5
+- Added latency and cost from LLM calls
+
+---
+
+##### 6.0.10 Labs (Fundamentals)
+
+| Lab | Objective |
+|-----|-----------|
+| 6.0.1 | Provision Azure AI Search service and configure settings |
+| 6.0.2 | Create index schema with vector fields using Push model |
+| 6.0.3 | Build indexer pipeline with skillset (Pull model) |
+| 6.0.4 | Compare text, vector, and hybrid search results |
+| 6.0.5 | Configure and test semantic ranker |
+| 6.0.6 | Set up agentic retrieval with knowledge base (Preview) |
 
 ---
 
