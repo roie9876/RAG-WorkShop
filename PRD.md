@@ -48,13 +48,12 @@ By the end of the workshop, participants will be able to:
 |-----------|--------|
 | Set up Azure AI resources with minimal effort | Module 0 |
 | Explain the difference between OCR vs Document Intelligence vs Content Understanding | Modules 2-3 |
-| Design a RAG pipeline for large technical documents | Modules 1-6 |
+| Design a RAG pipeline for large technical documents (including Hebrew/multilingual) | Modules 1-6 |
 | Use Content Understanding for semantic extraction and chunking | Module 3 |
 | Choose the right chunking strategy and explain tradeoffs | Module 4 |
 | Handle tables, figures, and infographics correctly | Module 5 |
 | Build a multi-content retriever with Azure AI Search | Module 6 |
 | Implement GraphRAG for cross-document reasoning | Module 7 |
-| Process Hebrew/RTL and multilingual documents | Throughout |
 
 ---
 
@@ -84,8 +83,8 @@ By the end of the workshop, participants will be able to:
 | Semantic Extraction | Azure AI Content Understanding |
 | Search & Retrieval | Azure AI Search (vector + hybrid + semantic ranker) |
 | LLM Orchestration | Azure AI Foundry |
-| Text Models | Azure OpenAI GPT-4o |
-| Vision Models | Azure OpenAI GPT-4o-vision |
+| Text Models | Azure OpenAI GPT-4.1 |
+| Vision Models | Azure OpenAI GPT-4.1 (vision-capable) |
 | Embeddings | Azure OpenAI text-embedding-3-large |
 | Graph Processing | Microsoft GraphRAG |
 | Infrastructure | Azure Bicep (one-click deployment) |
@@ -103,41 +102,71 @@ By the end of the workshop, participants will be able to:
 
 ## 5.1 Prerequisites & Requirements
 
-### Azure Region: **Sweden Central** (Recommended)
+### Azure Region: **Sweden Central** (Required)
 
 > ⚠️ **Critical**: Deploy ALL resources to `swedencentral` for full feature compatibility.
 
 **Why Sweden Central?**
+
+Azure AI Content Understanding is now **Generally Available (GA)** with API version `2025-11-01`. While the service is now available in more regions, we recommend using Sweden Central for:
+- Full feature compatibility across all services
+- EU data residency requirements
+- Consistent workshop experience
+
+**Content Understanding GA Supported Regions:**
+
+| Identifier | Region | Geography | Data Zone |
+|------------|--------|-----------|------------|
+| `westus` | West US | United States | United States |
+| `swedencentral` | Sweden Central | Sweden | European Union |
+| `australiaeast` | Australia East | Australia | N/A |
+
+> 📖 **Reference**: [Content Understanding Language & Region Support](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/language-region-support)
+
+**Service Availability Summary:**
 | Service | Sweden Central | Other Regions |
 |---------|----------------|---------------|
+| Content Understanding (2025-11-01 GA) | ✅ Available | ✅ Expanding |
 | Azure AI Search (Semantic Ranker) | ✅ Available | ⚠️ Limited |
-| Content Understanding (2025-05-01-preview) | ✅ Available | ❌ Not available |
-| Azure OpenAI GPT-4o | ✅ Available | ✅ Available |
+| Azure OpenAI GPT-4.1 | ✅ Available | ✅ Available |
 | Document Intelligence | ✅ Available | ✅ Available |
 | Azure AI Foundry | ✅ Available | ✅ Available |
 
+We recommend **Sweden Central** for EU data residency. US-based workshops can use **West US**.
+
 ### Python Requirements
 
-**Python Version**: 3.11+ (recommended: 3.11.x)
+**Python Version**: ≥3.11, <3.14 (recommended: 3.11.x or 3.12.x)
+
+> **Note**: Python version requirement aligned with GraphRAG (requires ≥3.11,<3.14)
 
 **Core Dependencies** (`requirements.txt`):
 ```
+# Azure AI Core
+azure-identity>=1.19.0
+azure-core>=1.30.0
+aiohttp>=3.9.0
+
 # Azure AI Services
-azure-ai-documentintelligence>=1.0.0
-azure-search-documents>=11.5.0
+azure-ai-documentintelligence>=1.0.2
+azure-search-documents==11.7.0b2       # Beta required for agentic retrieval
 azure-ai-contentsafety>=1.0.0
-azure-identity>=1.15.0
+azure-ai-projects>=1.0.0               # Azure AI Foundry SDK
+azure-ai-agents>=1.1.0                 # AI Agents SDK
+azure-ai-evaluation>=1.0.0             # Evaluation SDK
+azure-ai-inference>=1.0.0b9            # Model inference SDK
 
 # Azure OpenAI
-openai>=1.12.0
+openai>=2.0.0
 
-# GraphRAG
-graphrag>=0.3.0
+# GraphRAG (Microsoft)
+graphrag>=2.7.0
 
 # Data Processing
-pandas>=2.0.0
+pandas>=2.3.0
 numpy>=1.24.0
 python-dotenv>=1.0.0
+networkx>=3.4
 
 # Image Processing (for figures)
 pillow>=10.0.0
@@ -151,24 +180,29 @@ ipywidgets>=8.1.0
 # Utilities
 tqdm>=4.66.0
 rich>=13.0.0
-pydantic>=2.0.0
+pydantic>=2.10.0
+requests>=2.31.0
 ```
 
 ### Azure SDK Versions (Pinned)
 
 | SDK | Version | Notes |
 |-----|---------|-------|
-| `azure-ai-documentintelligence` | ≥1.0.0 | GA version |
-| `azure-search-documents` | ≥11.5.0 | Vector search support |
-| `openai` | ≥1.12.0 | Azure OpenAI compatible |
-| `graphrag` | ≥0.3.0 | Microsoft GraphRAG |
+| `azure-ai-documentintelligence` | ≥1.0.2 | GA version (API 2024-11-30) |
+| `azure-search-documents` | 11.7.0b2 | Beta - required for agentic retrieval features |
+| `azure-ai-projects` | ≥1.0.0 | GA - Azure AI Foundry SDK |
+| `azure-ai-agents` | ≥1.1.0 | GA - AI Agents SDK |
+| `azure-ai-evaluation` | ≥1.0.0 | GA - Evaluation SDK |
+| `azure-ai-inference` | ≥1.0.0b9 | Preview - Model inference |
+| `openai` | ≥2.0.0 | Azure OpenAI compatible |
+| `graphrag` | ≥2.7.0 | Microsoft GraphRAG (requires Python ≥3.11,<3.14) |
 
 ### Azure Resource Requirements
 
 | Resource | SKU | Region | Purpose |
 |----------|-----|--------|---------|
 | Resource Group | - | swedencentral | Container |
-| Azure OpenAI | S0 | swedencentral | GPT-4o, GPT-4o-vision, embeddings |
+| Azure OpenAI | S0 | swedencentral | GPT-4.1, embeddings |
 | Azure AI Search | Basic or S1 | swedencentral | Vector + hybrid + semantic ranker |
 | Azure AI Document Intelligence | S0 | swedencentral | Document processing |
 | Azure AI Services (multi-service) | S0 | swedencentral | Content Understanding |
@@ -180,24 +214,37 @@ pydantic>=2.0.0
 
 | Deployment Name | Model | TPM | Purpose |
 |-----------------|-------|-----|---------|
-| `gpt-4o` | gpt-4o (2024-08-06) | 30K+ | Text generation |
-| `gpt-4o-vision` | gpt-4o (2024-08-06) | 30K+ | Figure analysis |
-| `text-embedding-3-large` | text-embedding-3-large | 120K+ | Embeddings (1536 dims) |
+| `gpt-4.1` | gpt-4.1 | 30K+ | Text generation + vision (figure analysis) |
+| `gpt-4.1-mini` | gpt-4.1-mini | 60K+ | Content Understanding (documentSearch, audioSearch, videoSearch) |
+| `text-embedding-3-large` | text-embedding-3-large | 120K+ | Embeddings (3072 dims) |
+
+> **Note**: GPT-4.1 supports both text and vision inputs in a single deployment.
+> 
+> **Content Understanding Requirement**: Content Understanding uses `gpt-4.1` for prebuilt analyzers (invoice, receipt) and `gpt-4.1-mini` for custom analyzers (documentSearch, audioSearch, videoSearch).
 
 ### Content Understanding API
 
-**API Version**: `2025-05-01-preview`
+**API Version**: `2025-11-01` (GA)
+
+> **Note**: Content Understanding is now **Generally Available**. The previous preview API version `2025-05-01-preview` has been superseded by the GA version.
 
 **Endpoint Format**:
 ```
-https://<resource>.cognitiveservices.azure.com/contentunderstanding/analyzers/<analyzer-name>:analyze?api-version=2025-05-01-preview
+https://<resource>.cognitiveservices.azure.com/contentunderstanding/analyzers/<analyzer-name>:analyze?api-version=2025-11-01
 ```
 
-**Region Availability** (as of Jan 2026):
+**Required Model Deployments for Content Understanding**:
+| Model | Deployment Name | Used For |
+|-------|-----------------|----------|
+| gpt-4.1 | `gpt-4.1` | Prebuilt analyzers (invoice, receipt) |
+| gpt-4.1-mini | `gpt-4.1-mini` | documentSearch, audioSearch, videoSearch |
+| text-embedding-3-large | `text-embedding-3-large` | Embedding generation |
+
+**Region Availability** (GA - as of Jan 2026):
 - ✅ Sweden Central
-- ✅ East US
-- ✅ West US 2
-- ❌ Most other regions
+- ✅ West US
+- ✅ Australia East
+- ✅ Expanding to more regions
 
 ### Local Development Requirements
 
@@ -457,7 +504,7 @@ DI Output →
   └── Extract figure bounding box
       └── Crop image
           └── Pair with caption text
-              └── Optional: Generate description via GPT-4o-vision
+              └── Optional: Generate description via GPT-4.1
 ```
 
 **Chunk Structure**:
@@ -657,13 +704,13 @@ DI Layout Analysis →
   └── Detect figure bounding boxes
       └── Crop images from PDF
           └── Extract nearby caption
-              └── Generate description (GPT-4o-vision)
+              └── Generate description (GPT-4.1)
                   └── Create searchable chunk
 ```
 
 ##### Figure Description Generation
 
-**Prompt for GPT-4o-vision**:
+**Prompt for GPT-4.1 (vision)**:
 ```
 You are analyzing a technical document figure.
 Describe this figure in detail, including:
@@ -698,11 +745,11 @@ Be specific and technical. This description will be used for search retrieval.
 
 | Chart Type | Extraction Method | Embedding Strategy |
 |------------|-------------------|-------------------|
-| Bar/Line | GPT-4o-vision | Description + data points |
-| Pie | GPT-4o-vision | Percentages in text |
-| Flowchart | GPT-4o-vision | Process steps |
-| Architecture | GPT-4o-vision | Components + relationships |
-| Data table in image | GPT-4o-vision + OCR | Extract to structured format |
+| Bar/Line | GPT-4.1 | Description + data points |
+| Pie | GPT-4.1 | Percentages in text |
+| Flowchart | GPT-4.1 | Process steps |
+| Architecture | GPT-4.1 | Components + relationships |
+| Data table in image | GPT-4.1 + OCR | Extract to structured format |
 
 ##### Data Extraction from Charts
 
@@ -775,7 +822,7 @@ Query →
 - Crop and store images
 
 **Lab 5.4 – Figure Description Generation**
-- Use GPT-4o-vision to describe figures
+- Use GPT-4.1 to describe figures
 - Create searchable text chunks
 
 **Lab 5.5 – Multimodal Retriever**
@@ -816,7 +863,7 @@ Participants can handle any multimodal technical document with tables, figures, 
 | Agentic | Ambiguous questions | Azure AI Foundry agents |
 | Multi-Hop | Reasoning chains | Custom orchestration |
 | GraphRAG | Relationship-heavy domains | Module 7 deep-dive |
-| Multimodal | Figures, diagrams, charts | GPT-4o-vision + embeddings |
+| Multimodal | Figures, diagrams, charts | GPT-4.1 + embeddings |
 | Context Expansion | Narrative flow | Custom chunking |
 | Confidence/Abstention | Enterprise safety | Score thresholds |
 
@@ -1029,7 +1076,7 @@ Query →
 **Techniques**:
 - Text embeddings
 - Image embeddings (CLIP-style)
-- Grounded figure descriptions (GPT-4o-vision)
+- Grounded figure descriptions (GPT-4.1)
 
 **Pros**: Essential for technical docs, handles diagrams  
 **Cons**: Larger indexes, more compute
@@ -1243,7 +1290,7 @@ pip install graphrag
 ```yaml
 llm:
   type: azure_openai
-  model: gpt-4o
+  model: gpt-4.1
   api_base: ${AZURE_OPENAI_ENDPOINT}
   api_key: ${AZURE_OPENAI_API_KEY}
 
@@ -1565,7 +1612,8 @@ AZURE_LOCATION=swedencentral
 AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/
 AZURE_OPENAI_API_KEY=<key>
 AZURE_OPENAI_API_VERSION=2024-08-01-preview
-AZURE_OPENAI_DEPLOYMENT_GPT4O=gpt-4o
+AZURE_OPENAI_DEPLOYMENT_GPT41=gpt-4.1
+AZURE_OPENAI_DEPLOYMENT_GPT41_MINI=gpt-4.1-mini
 AZURE_OPENAI_DEPLOYMENT_EMBEDDING=text-embedding-3-large
 
 # Azure AI Search
@@ -1580,11 +1628,12 @@ AZURE_DOCUMENT_INTELLIGENCE_KEY=<key>
 # Azure AI Content Understanding (same endpoint as DI, different API)
 AZURE_CONTENT_UNDERSTANDING_ENDPOINT=https://<resource>.cognitiveservices.azure.com/
 AZURE_CONTENT_UNDERSTANDING_KEY=<key>
-AZURE_CONTENT_UNDERSTANDING_API_VERSION=2025-05-01-preview
+AZURE_CONTENT_UNDERSTANDING_API_VERSION=2025-11-01
 
 # Azure AI Foundry
 AZURE_AI_FOUNDRY_HUB_NAME=hub-rag-workshop
 AZURE_AI_FOUNDRY_PROJECT_NAME=proj-rag-workshop
+PROJECT_ENDPOINT=https://<resource>.services.ai.azure.com/api/projects/<project-name>
 
 # Azure Storage (for documents and figures)
 AZURE_STORAGE_CONNECTION_STRING=<connection-string>
@@ -1617,8 +1666,9 @@ GRAPHRAG_API_VERSION=${AZURE_OPENAI_API_VERSION}
 
 | Deployment | Model | Version | TPM | Use |
 |------------|-------|---------|-----|-----|
-| `gpt-4o` | gpt-4o | 2024-08-06 | 30,000 | Generation + extraction |
-| `text-embedding-3-large` | text-embedding-3-large | - | 120,000 | Embeddings (1536 dim) |
+| `gpt-4.1` | gpt-4.1 | latest | 30,000 | Generation + extraction + vision |
+| `gpt-4.1-mini` | gpt-4.1-mini | latest | 60,000 | Content Understanding analyzers |
+| `text-embedding-3-large` | text-embedding-3-large | - | 120,000 | Embeddings (3072 dim) |
 
 ### Estimated Monthly Cost (Development)
 

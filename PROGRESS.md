@@ -19,12 +19,27 @@
 3. **All modules are core curriculum**: No optional modules (GraphRAG and CU are required)
 4. **Primary format**: Jupyter notebooks for all labs
 5. **Setup for non-technical users**: Module 0 must be beginner-friendly with one-click deployment
-6. **Hebrew/RTL support**: Built-in from the start
+6. **Hebrew/RTL support**: Part of ingestion capability (not separate learning objective)
 7. **Office file support**: PDF, Word, Excel, PowerPoint
-8. **Region**: **Sweden Central** for all resources (Content Understanding requirement)
-9. **Python**: 3.11+ required
-10. **Module 6 expanded**: Comprehensive retrieval techniques landscape (13 patterns)
-11. **Agentic retrieval**: Ties to Azure AI Foundry agents
+8. **Region**: `swedencentral` | `westus` | `australiaeast` (Content Understanding GA API 2025-11-01)
+9. **Python**: ≥3.11, <3.14 (aligned with GraphRAG requirements)
+10. **Vision Model**: GPT-4.1 (single deployment for text + vision, replaces GPT-4o-vision)
+11. **Module 6 expanded**: Comprehensive retrieval techniques landscape (13 patterns)
+12. **Agentic retrieval**: Ties to Azure AI Foundry agents
+13. **Content Understanding GA**: API version 2025-11-01 (no longer preview)
+14. **Required models**: gpt-4.1, gpt-4.1-mini (for CU), text-embedding-3-large
+
+### SDK Versions Researched (Jan 2026)
+| SDK | Version | Notes |
+|-----|---------|-------|
+| `azure-ai-documentintelligence` | 1.0.2 | GA, API 2024-11-30 |
+| `azure-search-documents` | 11.7.0b2 | Beta - agentic retrieval |
+| `azure-ai-projects` | 1.0.0 | GA - Azure AI Foundry |
+| `azure-ai-agents` | 1.1.0 | GA - AI Agents |
+| `azure-ai-evaluation` | 1.14.0 | GA - Evaluation |
+| `azure-ai-inference` | 1.0.0b9 | Preview - Inference |
+| `openai` | 2.16.0 | Python ≥3.9 |
+| `graphrag` | 2.7.x / 3.0.0 (dev) | Requires Python ≥3.11,<3.14 |
 
 ### PRD Sections Expanded
 - [x] Module 4 (Chunking) - Full landscape with 9 strategies + labs
@@ -32,7 +47,8 @@
 - [x] Module 6 (Retrieval) - 13 retrieval patterns + 8 labs
 - [x] Module 7 (GraphRAG) - Full architecture + 7 labs
 - [x] Section 5.1 (Prerequisites) - Python versions, SDKs, regions
-- [x] Appendix A - Complete environment variables
+- [x] Section 5.1 (SDK Versions) - Updated with researched versions
+- [x] Appendix A - Complete environment variables (updated with CU GA)
 - [x] Appendix B - Full Azure resource list with costs
 - [x] Appendix C - API documentation links
 
@@ -41,6 +57,8 @@
 ## In Progress 🔄
 
 ### Current Focus: PRD Review
+- [x] SDK version research completed
+- [x] Content Understanding updated to GA (2025-11-01)
 - [ ] User review of expanded PRD sections
 - [ ] User to provide sample documents
 - [ ] Final PRD approval before scaffolding

@@ -8,13 +8,22 @@ Educational workshop teaching production-grade RAG systems for complex technical
 - **Supported Formats**: PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx)
 - **Search/Retrieval**: Azure AI Search (vector + hybrid search)
 - **LLM Orchestration**: Azure AI Foundry
-- **Models**: Azure OpenAI (GPT-4o for text, GPT-4o-vision for multimodal)
+- **Models**: Azure OpenAI GPT-4.1 (text + vision in single deployment)
 - **Advanced**: Azure AI Content Understanding (Module 3), GraphRAG (Module 7)
 
 ## Critical Requirements
-- **Azure Region**: `swedencentral` (required for Content Understanding API)
-- **Python**: 3.11+
-- **Key SDKs**: `azure-ai-documentintelligence>=1.0.0`, `azure-search-documents>=11.5.0`, `openai>=1.12.0`, `graphrag>=0.3.0`
+- **Azure Region**: `swedencentral` (recommended for Content Understanding GA API 2025-11-01)
+- **Python**: ≥3.11, <3.14 (aligned with GraphRAG requirements)
+- **Key SDKs**: 
+  - `azure-ai-documentintelligence>=1.0.2` (GA, API 2024-11-30)
+  - `azure-search-documents==11.7.0b2` (beta for agentic retrieval)
+  - `azure-ai-projects>=1.0.0` (Azure AI Foundry SDK)
+  - `azure-ai-agents>=1.1.0` (AI Agents SDK)
+  - `openai>=2.0.0`
+  - `graphrag>=2.7.0`
+- **Content Understanding**: GA with API `2025-11-01`
+- **Content Understanding Supported Regions**: `westus`, `swedencentral`, `australiaeast`
+- **Required Model Deployments**: `gpt-4.1`, `gpt-4.1-mini`, `text-embedding-3-large`
 
 ## Project Structure
 ```
