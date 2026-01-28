@@ -67,14 +67,21 @@ le# RAG Workshop - Progress Tracker
 
 ## In Progress 🔄
 
-### Current Focus: Module 1 Implementation
-- [ ] Module 1: `lab.ipynb` - Naive RAG demonstration
-- [ ] Module 1: `solution.ipynb` - Reference solution
-- [ ] Sample documents to add to `/data/`
+### Current Focus: Module 2 Implementation
+- [ ] Module 2: `lab.ipynb` - Document Intelligence SDK basics
+- [ ] Module 2: `solution.ipynb` - Reference solution
+- [ ] Implement robust table extraction
+- [ ] Implement figure extraction with cropping
 
 ---
 
 ## Completed Recently ✅
+
+### Module 1: Naive RAG (COMPLETE)
+- [x] `lab.ipynb` - Failure mode demonstration (Context Split, Table Destruction, Figure Loss)
+- [x] `solution.ipynb` - Complete working example
+- [x] Added `page5.png`, `page8.png`, `page12.png` visual evidence
+- [x] Sample document `Basic Electrical Engineering R-20.pdf` added
 
 ### Module 0: Environment Setup (COMPLETE)
 - [x] `setup.ipynb` - Interactive setup wizard with:

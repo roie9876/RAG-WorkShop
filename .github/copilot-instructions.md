@@ -106,6 +106,7 @@ AZURE_DOCUMENT_INTELLIGENCE_KEY=
 ## Code Conventions
 - Python 3.11+ with type hints
 - **Primary format**: Jupyter notebooks (`.ipynb`) for all labs
+- **Authentication**: Always prefer `DefaultAzureCredential` (Entra ID) over Access Keys. Many workshop resources have keys disabled (`AuthenticationTypeDisabled`).
 - Use `azure-ai-documentintelligence`, `azure-search-documents`, `openai` SDKs
 - Shared utilities in `/src/` imported into notebooks
 - Each module is self-contained with its own `README.md`
