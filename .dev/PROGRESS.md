@@ -2,7 +2,7 @@
 
 > **AI Agent Note**: Read this file at the start of each session to understand current project state.
 
-## Project Status: � Scaffolding Complete
+## Project Status: 🏗️ Scaffolding Complete
 
 ---
 
@@ -49,6 +49,7 @@
 13. **Content Understanding GA**: API version 2025-11-01 (no longer preview)
 14. **Required models**: gpt-4.1, gpt-4.1-mini (for CU), text-embedding-3-large
 15. **Dev files location**: PRD.md and PROGRESS.md in `.dev/` folder (internal only)
+16. **Deployment Architecture**: Use "Unified AI Services" (`Microsoft.CognitiveServices` Kind: `AIServices`) instead of "Hub & Project" topology. This simplifies the workshop, avoids "Unauthorized" errors, and removes the need for Key Vault/VNET complexity.
 
 ### SDK Versions Researched (Jan 2026)
 | SDK | Version | Notes |
@@ -79,19 +80,18 @@
 - [x] `setup.ipynb` - Interactive setup wizard with:
   - Prerequisites check (Python, Azure CLI, poppler)
   - Azure login verification
-  - Automated Bicep deployment
+  - **Automated Deployment**: Replaced CLI deployment with stable Python SDK (`azure-mgmt-resource`).
+  - **Clean Architecture**: Deploys Unified AI Services + Search + Storage (no Hub/Project overhead).
   - Manual configuration option
   - Auto-generation of `.env` file
   - Quick validation tests
+- [x] `cleanup.ipynb` - Added robust cleanup script to delete RGs and purge soft-deleted resources (zombie resource handling).
 - [x] `health-check.ipynb` - Comprehensive validation with:
-  - Environment variables check
   - Azure OpenAI tests (GPT-4.1, GPT-4.1-mini, embeddings)
   - Azure AI Search connectivity
   - Document Intelligence connectivity
   - Content Understanding GA API test
   - Azure Storage connectivity
-  - Python dependencies verification
-  - Summary dashboard
 
 ---
 
@@ -139,7 +139,7 @@ RAG-WorkShop/
 ├── .github/
 │   └── copilot-instructions.md
 ├── modules/
-│   ├── module-0-setup/          ✅ README.md, setup.ipynb, health-check.ipynb
+│   ├── module-0-setup/          ✅ README.md, setup.ipynb, health-check.ipynb, cleanup.ipynb
 │   ├── module-1-naive-rag/      ✅ README.md
 │   ├── module-2-doc-intelligence/ ✅ README.md
 │   ├── module-3-content-understanding/ ✅ README.md
@@ -161,6 +161,13 @@ RAG-WorkShop/
 
 ## Session Notes
 
+### Session 2 (Jan 28, 2026) - Setup Fixes
+- **Architecture Change**: Switched from "Full Foundry Hub" to "Unified AI Services" to avoid network restrictions.
+- **Deployment Fix**: Replaced Azure CLI Bicep deployment (which was crashing) with Python SDK (`azure-mgmt-resource`) inside `setup.ipynb`.
+- **Infrastructure**: Added `cleanup.ipynb` to handle resource group deletion and soft-delete purging (essential for re-deployment).
+- **Naming Config**: Ensured `bicep` outputs valid storage account names (no hyphens).
+- **Module 0 is fully validated**: Environment setup is stable.
+
 ### Session 1 (Jan 28, 2026)
 - Created initial PRD based on user's requirements
 - Restructured modules: moved Content Understanding to Module 3 (before Chunking)
@@ -171,22 +178,6 @@ RAG-WorkShop/
 - **Prerequisites added**: Python 3.11+, SDK versions, Sweden Central region requirement
 - **Azure resources expanded**: Added AI Foundry Hub/Project, cost estimates
 - **Appendices expanded**: Full env vars, resource list, API links
-
-### Session 2 (Jan 28, 2026)
-- **Module 0 COMPLETE**: Created setup.ipynb and health-check.ipynb
-- setup.ipynb features:
-  - Prerequisites check (Python version, Azure CLI, jq, poppler)
-  - Azure login and subscription verification
-  - Option A: Automated Bicep deployment with .env generation
-  - Option B: Manual configuration wizard
-  - Quick connectivity validation
-- health-check.ipynb features:
-  - 7 comprehensive tests for all Azure services
-  - Azure OpenAI (3 model deployments)
-  - Azure AI Search, Document Intelligence, Content Understanding (GA API)
-  - Azure Storage connectivity
-  - Python dependencies check
-  - Summary dashboard with pass/fail status
 
 ---
 
