@@ -1,4 +1,4 @@
-# RAG Workshop - Progress Tracker
+le# RAG Workshop - Progress Tracker
 
 > **AI Agent Note**: Read this file at the start of each session to understand current project state.
 
