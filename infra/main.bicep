@@ -29,7 +29,6 @@ param tags object = {
 var uniqueSuffix = uniqueString(resourceGroup().id)
 var storageAccountName = '${baseName}${uniqueSuffix}'
 var searchServiceName = 'search-${baseName}-${uniqueSuffix}'
-var openAIName = 'oai-${baseName}-${uniqueSuffix}'
 var aiServicesName = 'ai-${baseName}-${uniqueSuffix}'
 
 // ============================================================================
@@ -40,7 +39,7 @@ var aiServicesName = 'ai-${baseName}-${uniqueSuffix}'
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: take(storageAccountName, 24)
   location: location
-  tags: tags
+  tags: union(tags, { SecurityControl: 'Ignore' })
   sku: {
     name: 'Standard_LRS'
   }
@@ -83,44 +82,31 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
   }
 }
 
-// Azure OpenAI
-resource openAI 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
-  name: openAIName
-  location: location
-  tags: tags
-  kind: 'OpenAI'
-  sku: {
-    name: 'S0'
-  }
-  properties: {
-    customSubDomainName: openAIName
-    publicNetworkAccess: 'Enabled'
-  }
-}
-
-// Azure AI Services (Document Intelligence + Content Understanding)
+// Azure AI Services (Unified Resource - NEW FOUNDRY OBJECT)
+// This single resource handles OpenAI, Document Intelligence, Content Understanding, etc.
 resource aiServices 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
   name: aiServicesName
   location: location
   tags: tags
-  kind: 'CognitiveServices'
+  kind: 'AIServices' // Unified kind for "new Foundry object"
   sku: {
     name: 'S0'
   }
   properties: {
     customSubDomainName: aiServicesName
     publicNetworkAccess: 'Enabled'
+    disableLocalAuth: false
   }
 }
 
 // ============================================================================
-// MODEL DEPLOYMENTS
+// MODEL DEPLOYMENTS (Inside the Unified AI Services Resource)
 // ============================================================================
 
-// GPT-4.1 deployment
-resource gpt41Deployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
-  parent: openAI
-  name: 'gpt-4.1'
+// GPT-4o deployment
+resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
+  parent: aiServices
+  name: 'gpt-4o'
   sku: {
     name: 'Standard'
     capacity: 30
@@ -128,16 +114,17 @@ resource gpt41Deployment 'Microsoft.CognitiveServices/accounts/deployments@2023-
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4.1'
-      version: '2024-04-01-preview'
+      name: 'gpt-4o'
+      version: '2024-05-13'
     }
+    raiPolicyName: 'Microsoft.DefaultV2'
   }
 }
 
-// GPT-4.1-mini deployment
-resource gpt41MiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
-  parent: openAI
-  name: 'gpt-4.1-mini'
+// GPT-4o-mini deployment
+resource gpt4oMiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
+  parent: aiServices
+  name: 'gpt-4o-mini'
   sku: {
     name: 'Standard'
     capacity: 60
@@ -145,16 +132,17 @@ resource gpt41MiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4.1-mini'
-      version: '2024-07-01-preview'
+      name: 'gpt-4o-mini'
+      version: '2024-07-18'
     }
+    raiPolicyName: 'Microsoft.DefaultV2'
   }
-  dependsOn: [gpt41Deployment]
+  dependsOn: [gpt4oDeployment]
 }
 
 // Embedding deployment
 resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
-  parent: openAI
+  parent: aiServices
   name: 'text-embedding-3-large'
   sku: {
     name: 'Standard'
@@ -166,8 +154,9 @@ resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
       name: 'text-embedding-3-large'
       version: '1'
     }
+    raiPolicyName: 'Microsoft.DefaultV2'
   }
-  dependsOn: [gpt41MiniDeployment]
+  dependsOn: [gpt4oMiniDeployment]
 }
 
 // ============================================================================
@@ -178,7 +167,7 @@ output storageAccountName string = storageAccount.name
 output storageAccountConnectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=core.windows.net'
 output searchServiceEndpoint string = 'https://${searchService.name}.search.windows.net'
 output searchServiceAdminKey string = searchService.listAdminKeys().primaryKey
-output openAIEndpoint string = openAI.properties.endpoint
-output openAIKey string = openAI.listKeys().key1
+
+// Unified Endpoint & Key for all AI services (OpenAI, DocIntel, etc.)
 output aiServicesEndpoint string = aiServices.properties.endpoint
 output aiServicesKey string = aiServices.listKeys().key1

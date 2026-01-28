@@ -90,5 +90,14 @@ output/
 .graphrag/
 ragtest/
 
+# Testing & Development scratch space
+scratch/
+test_output/
+*.tmp
+temp_*/
+
 # Keep .dev folder tracked (internal development docs)
 !.dev/
+
+# Bicep build artifacts
+infra/*.json
