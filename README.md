@@ -10,20 +10,46 @@ Move from:
 To:
 > "RAG = document understanding + chunking strategy + retrieval orchestration"
 
-## � The RAG Pipeline
+## 🔄 The RAG Pipeline
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                            THE RAG PIPELINE                                            │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                        │
-│   📄          🔍           ✂️          🧮          📦          🔎          🤖          │
-│ DOCUMENT → EXTRACT → CHUNK → EMBED → INDEX → RETRIEVE → GENERATE                      │
-│                                                                                        │
-│ Module 1   Module 2    Module 4   Module 5   Module 5   Module 5    (LLM)             │
-│ (Naive)    Module 3                                                                    │
-│                                                                                        │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph INDEXING["📥 INDEXING TIME (Offline)"]
+        direction LR
+        DOC["📄 Document<br/>PDF, Word, Excel, PPT"]
+        EXTRACT["🔍 Extract<br/>Module 2-3"]
+        CHUNK["✂️ Chunk<br/>Module 4"]
+        EMBED["🧮 Embed<br/>Module 5"]
+        INDEX["📦 Index<br/>Module 5"]
+    end
+    
+    subgraph QUERY["🔎 QUERY TIME (Online)"]
+        direction LR
+        QUESTION["❓ User Question"]
+        RETRIEVE["🔎 Retrieve<br/>Module 5-6"]
+        GENERATE["🤖 Generate<br/>LLM"]
+        ANSWER["💬 Answer"]
+    end
+    
+    DOC --> EXTRACT
+    EXTRACT --> CHUNK
+    CHUNK --> EMBED
+    EMBED --> INDEX
+    
+    QUESTION --> RETRIEVE
+    INDEX -.-> RETRIEVE
+    RETRIEVE --> GENERATE
+    GENERATE --> ANSWER
+    
+    style DOC fill:#e1f5fe
+    style EXTRACT fill:#fff3e0
+    style CHUNK fill:#fce4ec
+    style EMBED fill:#f3e5f5
+    style INDEX fill:#e8f5e9
+    style RETRIEVE fill:#fff8e1
+    style GENERATE fill:#e3f2fd
+    style QUESTION fill:#f5f5f5
+    style ANSWER fill:#c8e6c9
 ```
 
 ## 📚 Workshop Modules
