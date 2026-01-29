@@ -184,7 +184,7 @@ resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
   name: 'text-embedding-3-large'
   sku: {
     name: 'Standard'
-    capacity: 120
+    capacity: 80  // Reduced from 120 due to quota limits
   }
   properties: {
     model: {
