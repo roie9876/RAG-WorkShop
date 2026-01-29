@@ -70,7 +70,7 @@ resource figuresContainer 'Microsoft.Storage/storageAccounts/blobServices/contai
 resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
   name: searchServiceName
   location: location
-  tags: tags
+  tags: union(tags, { SecurityControl: 'Ignore' })
   sku: {
     name: 'basic'
   }
@@ -87,7 +87,7 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
 resource aiServices 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
   name: aiServicesName
   location: location
-  tags: tags
+  tags: union(tags, { SecurityControl: 'Ignore' })
   kind: 'AIServices' // Unified kind for "new Foundry object"
   sku: {
     name: 'S0'

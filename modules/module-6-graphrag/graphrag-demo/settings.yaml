@@ -1,83 +1,58 @@
+# GraphRAG Configuration for Azure OpenAI
+# For GraphRAG version 2.7.x
 
-# GraphRAG Configuration for Contoso Platform Demo
-# This file tells GraphRAG how to process documents and extract knowledge
+models:
+  default_chat_model:
+    type: azure_openai_chat
+    model: gpt-4.1
+    api_base: https://ai-ragworkv2-ixhnffsfsegns.cognitiveservices.azure.com/
+    api_version: "2024-08-01-preview"
+    deployment_name: gpt-4.1
+    api_key: ${GRAPHRAG_API_KEY}
+    auth_type: api_key
+    requests_per_minute: 60
+    tokens_per_minute: 80000
+    max_tokens: 4000
+    temperature: 0
 
-# =============================================================================
-# LLM CONFIGURATION (for entity/relationship extraction)
-# =============================================================================
-llm:
-  type: azure_openai_chat
-  model: gpt-4.1
-  api_base: https://ai-ragworkv2-ixhnffsfsegns.cognitiveservices.azure.com/
-  api_version: "2024-12-01-preview"
-  deployment_name: gpt-4.1
-  
-  # Request settings
-  max_tokens: 4000
-  temperature: 0.0  # Deterministic for consistent extraction
-  
-  # Rate limiting (adjust based on your Azure OpenAI quota)
-  requests_per_minute: 60
-  tokens_per_minute: 80000
-  concurrent_requests: 10
-
-# =============================================================================
-# EMBEDDING CONFIGURATION
-# =============================================================================  
-embeddings:
-  llm:
+  default_embedding_model:
     type: azure_openai_embedding
     model: text-embedding-3-large
     api_base: https://ai-ragworkv2-ixhnffsfsegns.cognitiveservices.azure.com/
-    api_version: "2024-12-01-preview"
+    api_version: "2024-08-01-preview"
     deployment_name: text-embedding-3-large
-    
-    # Rate limiting
+    api_key: ${GRAPHRAG_API_KEY}
+    auth_type: api_key
     requests_per_minute: 120
     tokens_per_minute: 120000
-    concurrent_requests: 20
 
-# =============================================================================
-# CHUNKING CONFIGURATION
-# =============================================================================
-chunks:
-  size: 1200        # Characters per chunk (GraphRAG does its own chunking)
-  overlap: 100      # Overlap between chunks
-  group_by_columns: # Group chunks by document
-    - id
+input:
+  type: file
+  file_type: text
+  base_dir: input
 
-# =============================================================================
-# ENTITY EXTRACTION CONFIGURATION
-# =============================================================================
-entity_extraction:
-  max_gleanings: 1  # Number of extraction passes (more = more entities, more cost)
-  
-  # Entity types to extract (customize for your domain!)
+chunking:
+  type: tokens
+  size: 1200
+  overlap: 100
+
+extract_graph:
   entity_types:
-    - SERVICE         # Software services (AuthService, API Gateway)
-    - TEAM            # Teams (Platform Team, Frontend Team)  
-    - PERSON          # People (John Smith, Sarah Johnson)
-    - TECHNOLOGY      # Technologies (PostgreSQL, Redis, Kubernetes)
-    - INCIDENT        # Incidents and outages
-    - ENDPOINT        # API endpoints
+    - SERVICE
+    - TEAM
+    - PERSON
+    - TECHNOLOGY
+    - INCIDENT
+  max_gleanings: 1
 
-# =============================================================================
-# COMMUNITY DETECTION CONFIGURATION
-# =============================================================================
 cluster_graph:
-  max_cluster_size: 10  # Maximum entities per community
+  max_cluster_size: 10
 
-# =============================================================================
-# COMMUNITY REPORT CONFIGURATION
-# =============================================================================  
 community_reports:
-  max_length: 2000      # Max length of community summaries
+  max_length: 2000
   max_input_length: 8000
 
-# =============================================================================
-# OUTPUT CONFIGURATION
-# =============================================================================
-storage:
+output:
   type: file
   base_dir: output
 
@@ -85,11 +60,5 @@ reporting:
   type: file
   base_dir: output/reports
 
-# =============================================================================
-# INPUT CONFIGURATION
-# =============================================================================
-input:
-  type: file
-  file_type: text
-  base_dir: input
-  file_pattern: ".*\.txt$"
+snapshots:
+  graphml: true
