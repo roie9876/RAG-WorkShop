@@ -51,9 +51,9 @@ By the end of the workshop, participants will be able to:
 | Design a RAG pipeline for large technical documents (including Hebrew/multilingual) | Modules 1-6 |
 | Use Content Understanding for semantic extraction and chunking | Module 3 |
 | Choose the right chunking strategy and explain tradeoffs | Module 4 |
-| Handle tables, figures, and infographics correctly | Module 5 |
-| Build a multi-content retriever with Azure AI Search | Module 6 |
-| Implement GraphRAG for cross-document reasoning | Module 7 |
+| Build embeddings, index design, and search modes (BM25, vector, hybrid, semantic) | Module 5 |
+| **Use Agentic Retrieval for complex multi-part questions (Preview)** | Module 5 |
+| Implement GraphRAG for cross-document reasoning | Module 6 |
 
 ---
 
@@ -70,6 +70,7 @@ By the end of the workshop, participants will be able to:
 - Embeddings and vector search
 - Metadata-aware retrieval
 - Multi-retriever and reranking patterns
+- **Agentic Retrieval (query decomposition, chat history, parallel subqueries)**
 - Entity and relationship extraction (GraphRAG intro)
 
 ---
@@ -81,7 +82,8 @@ By the end of the workshop, participants will be able to:
 |-----------|------------|
 | Document Processing | Azure AI Document Intelligence (prebuilt-layout) |
 | Semantic Extraction | Azure AI Content Understanding |
-| Search & Retrieval | Azure AI Search (vector + hybrid + semantic ranker) |
+| Search & Retrieval | Azure AI Search (vector + hybrid + semantic ranker + agentic) |
+| Agentic Retrieval | Azure AI Search Knowledge Bases (Preview) |
 | LLM Orchestration | Azure AI Foundry |
 | Text Models | Azure OpenAI GPT-4.1 |
 | Vision Models | Azure OpenAI GPT-4.1 (vision-capable) |

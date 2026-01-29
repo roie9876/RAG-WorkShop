@@ -2,12 +2,12 @@
 
 > **AI Agent Note**: Read this file at the start of each session to understand current project state.
 
-## Project Status: 🚀 Modules 0-4 Complete, Ready for Module 5 (Search)
+## Project Status: 🚀 Modules 0-5 Complete, Ready for Module 6 (GraphRAG)
 
 ### RAG Pipeline Progress
 ```
 Document → CU Extraction → Chunking → Embeddings → Indexing → Retrieval
-           ✅ Module 3     ✅ Module 4  ⏳ Module 5  ⏳ Module 5  ⏳ Module 5
+           ✅ Module 3     ✅ Module 4  ✅ Module 5  ✅ Module 5  ✅ Module 5
 ```
 
 ---
@@ -27,8 +27,8 @@ Document → CU Extraction → Chunking → Embeddings → Indexing → Retrieva
   - [x] `__init__.py`
   - [x] `document_processing.py` (stubs)
   - [x] `chunking.py` (stubs)
-  - [x] `embeddings.py` (stubs)
-  - [x] `search.py` (stubs)
+  - [x] `embeddings.py` ✅ IMPLEMENTED
+  - [x] `search.py` ✅ IMPLEMENTED
   - [x] `utils.py` (implemented)
 - [x] `/data/` folders with .gitkeep placeholders
 - [x] `/infra/main.bicep` - Azure resource deployment (updated with gpt-4.1 + gpt-4.1-mini)
@@ -92,97 +92,97 @@ Document → CU Extraction → Chunking → Embeddings → Indexing → Retrieva
 - [x] `README.md` - Updated with 7 labs and multimodal content
 - [x] `output/hybrid_chunks.json` - 257 chunks ready for Module 5
 
-### Key Decisions Made
-1. **Module order**: 0-Setup → 1-Naive RAG → 2-DI → 3-Content Understanding → 4-Chunking → 5-Search → 6-GraphRAG
-2. **Module 5 (Tables/Figures) MERGED into Module 4**: Reduced from 7 modules to 6
-3. **Content Understanding before Chunking**: CU enables semantic chunking, so it must come first
-4. **All modules are core curriculum**: No optional modules (GraphRAG and CU are required)
-5. **Primary format**: Jupyter notebooks for all labs
-6. **Setup for non-technical users**: Module 0 must be beginner-friendly with one-click deployment
-7. **Hebrew/RTL support**: Part of ingestion capability (not separate learning objective)
-8. **Office file support**: PDF, Word, Excel, PowerPoint
-9. **Region**: `swedencentral` | `westus` | `australiaeast` (Content Understanding GA API 2025-11-01)
-10. **Python**: ≥3.11, <3.14 (aligned with GraphRAG requirements)
-11. **Vision Model**: GPT-4.1 (single deployment for text + vision, replaces GPT-4o-vision)
-12. **Module 5 expanded**: Azure AI Search fundamentals + retrieval patterns
-13. **Agentic retrieval**: Ties to Azure AI Foundry agents
-14. **Content Understanding GA**: API version 2025-11-01 (no longer preview)
-15. **Required models**: gpt-4.1, gpt-4.1-mini (for CU prebuilt-documentSearch), text-embedding-3-large
-16. **Dev files location**: PRD.md and PROGRESS.md in `.dev/` folder (internal only)
-17. **Deployment Architecture**: Use "Unified AI Services" (`Microsoft.CognitiveServices` Kind: `AIServices`) instead of "Hub & Project" topology
-18. **Content Understanding model mapping**: `prebuilt-documentSearch` requires `gpt-4.1-mini`; other prebuilt analyzers require `gpt-4.1`
-19. **Header-based chunking**: Both DI and CU support it via `paragraph.role`; CU adds topic-shift detection
-20. **Figure cropping NOT needed**: CU's `prebuilt-documentSearch` generates AI descriptions automatically
-
-### SDK Versions Researched (Jan 2026)
-| SDK | Version | Notes |
-|-----|---------|-------|
-| `azure-ai-documentintelligence` | 1.0.2 | GA, API 2024-11-30 |
-| `azure-ai-contentunderstanding` | 1.0.0b2+ | Preview SDK, GA API 2025-11-01 |
-| `azure-search-documents` | 11.7.0b2 | Beta - agentic retrieval |
-| `azure-ai-projects` | 1.0.0 | GA - Azure AI Foundry |
-| `azure-ai-agents` | 1.1.0 | GA - AI Agents |
-| `azure-ai-evaluation` | 1.14.0 | GA - Evaluation |
-| `azure-ai-inference` | 1.0.0b9 | Preview - Inference |
-| `openai` | 2.16.0 | Python ≥3.9 |
-| `graphrag` | 2.7.x / 3.0.0 (dev) | Requires Python ≥3.11,<3.14 |
+### Module 5: Embeddings, Indexing & Retrieval (COMPLETE) ✅
+- [x] `lab.ipynb` - Complete search & retrieval implementation:
+  - Part 0: Setup & load chunks from Module 4
+  - Part 1: Embeddings (1.1-1.6)
+    - Azure OpenAI client initialization
+    - Single embedding generation
+    - Semantic similarity demo with cosine distance
+    - Batch embedding function
+    - Generate embeddings for all chunks
+  - Part 2: Azure AI Search Index (2.1-2.6)
+    - Search client initialization
+    - Index schema design with vector fields
+    - Index creation with HNSW configuration
+    - Document upload (push model)
+    - Index population verification
+  - Part 3: Search Modes (3.1-3.5)
+    - Text search (BM25)
+    - Vector search (kNN)
+    - Hybrid search (RRF fusion)
+    - Semantic ranking (L2 reranker)
+    - Side-by-side comparison
+  - Part 4: Retrieval Patterns (4.1-4.5)
+    - Multi-retriever pattern (by content type)
+    - Intent-aware filtered retrieval
+    - Complete RAG pipeline integration
+    - Full RAG with GPT-4.1 answer generation
+  - **Part 5: Agentic Retrieval (5.0-5.9) - NEW!**
+    - Prerequisites setup (RBAC, managed identity, Premium features)
+    - Preview SDK installation (`azure-search-documents==11.7.0b2`)
+    - Knowledge Source creation
+    - Knowledge Base creation with gpt-4.1 (Structured Outputs)
+    - Complex multi-part question decomposition
+    - Agentic retrieval response inspection (subqueries, activity, references)
+    - Conversational retrieval with chat history
+    - Traditional RAG vs Agentic Retrieval comparison
+- [x] `README.md` - Comprehensive module overview
+- [x] `failure-examples/` - Common retrieval failures:
+  - `vector_only_miss.md` - Why hybrid > vector-only
+  - `wrong_content_type.md` - Table/figure filtering
+  - `missing_context.md` - Top-K tuning
+- [x] `/src/embeddings.py` - Full implementation:
+  - `get_embedding()` - Single text embedding
+  - `get_embeddings_batch()` - Batch processing with progress
+  - `cosine_similarity()` - Vector similarity
+  - `find_most_similar()` - Top-K similarity search
+- [x] `/src/search.py` - Full implementation:
+  - `SearchClient` class with all operations
+  - `create_index()` - Index schema with vector fields
+  - `upload_documents()` - Batch document upload
+  - `search_text()` - BM25 search
+  - `search_vector()` - kNN vector search
+  - `search_hybrid()` - RRF fusion search
+  - `search_semantic()` - L2 reranking with answers
 
 ---
 
 ## In Progress 🔄
 
-### Current Focus: Module 5 - Search & Retrieval
+### Current Focus: Module 6 - GraphRAG
 
-**Module 5 covers the full indexing pipeline:**
+**Module 6 covers cross-document reasoning:**
 ```
-Chunks (from Module 4) → Embeddings → Azure AI Search Index → Retrieval
+Chunks (with embeddings) → Entity Extraction → Knowledge Graph → Graph-based Retrieval
 ```
 
-**Key Topics for Module 5:**
-1. Embedding generation with `text-embedding-3-large`
-2. Index schema design (vector fields, metadata)
-3. Push vs Pull ingestion patterns
-4. Search modes: Text, Vector, Hybrid, Semantic
-5. Retrieval patterns (single, hybrid, multi-retriever, etc.)
+**Key Topics for Module 6:**
+1. Introduction to GraphRAG concepts
+2. Entity and relationship extraction
+3. Knowledge graph construction
+4. Graph-enhanced retrieval patterns
+5. Multi-hop reasoning
 
 **Pending Tasks:**
-- [ ] Module 4: `solution.ipynb` - Reference solution (copy from lab.ipynb)
-- [ ] Module 5: `lab.ipynb` - Embeddings + Search fundamentals
-- [ ] Module 5: Retrieval pattern labs
+- [ ] Module 6: `lab.ipynb` - GraphRAG implementation
 
 ---
 
 ## Not Started 📋
 
-### Phase 5: Search & Retrieval (Module 5)
-- [ ] Lab 5.0: Embedding generation from chunks
-- [ ] Lab 5.1: Index creation with vector fields
-- [ ] Lab 5.2: Push ingestion (SDK)
-- [ ] Lab 5.3: Search modes comparison (Text, Vector, Hybrid)
-- [ ] Lab 5.4: Semantic ranking
-- [ ] Lab 5.5: Multi-retriever patterns
-- [ ] Implement `/src/embeddings.py` utility
-- [ ] Implement `/src/search.py` utility
-
-### Phase 6: Advanced Module
-- [ ] Module 6: GraphRAG lab
+### Phase 6: Advanced Module (Module 6)
+- [ ] Lab 6.1: GraphRAG introduction and setup
+- [ ] Lab 6.2: Entity extraction
+- [ ] Lab 6.3: Knowledge graph construction
+- [ ] Lab 6.4: Graph-based retrieval
+- [ ] Lab 6.5: Multi-hop reasoning demo
 
 ### Phase 7: Polish
 - [ ] Hebrew sample documents
 - [ ] Instructor materials (slide decks)
 - [ ] End-to-end testing
-
-### Phase 5: Integration Modules
-- [ ] Module 6: Search fundamentals + retrieval labs (14 labs total)
-- [ ] Implement `/src/` utilities (currently stubs)
-
-### Phase 6: Advanced Module
-- [ ] Module 7: GraphRAG lab (7 labs)
-
-### Phase 7: Polish
-- [ ] Hebrew sample documents
-- [ ] Instructor materials (slide decks)
-- [ ] End-to-end testing
+- [ ] Solution notebooks for all modules
 
 ---
 
@@ -207,11 +207,13 @@ RAG-WorkShop/
 │   ├── module-1-naive-rag/      ✅ COMPLETE (lab.ipynb, solution.ipynb)
 │   ├── module-2-doc-intelligence/ ✅ COMPLETE (lab.ipynb, README.md)
 │   ├── module-3-content-understanding/ ✅ COMPLETE (lab.ipynb, README.md, content_understanding_result.json)
-│   ├── module-4-chunking/       📋 NOT STARTED
-│   ├── module-5-tables-figures/ 📋 NOT STARTED
-│   ├── module-6-search/         📋 NOT STARTED
-│   └── module-7-graphrag/       📋 NOT STARTED
-├── src/                         ✅ Package with stubs
+│   ├── module-4-chunking/       ✅ COMPLETE (lab.ipynb, README.md, output/hybrid_chunks.json)
+│   ├── module-5-search/         ✅ COMPLETE (lab.ipynb with Parts 0-5 including Agentic Retrieval)
+│   └── module-6-graphrag/       📋 NOT STARTED
+├── src/                         ✅ Package with implementations
+│   ├── embeddings.py            ✅ IMPLEMENTED
+│   ├── search.py                ✅ IMPLEMENTED
+│   └── ...
 ├── data/
 │   └── sample-pdfs/             ✅ Basic Electrical Engineering R-20.pdf
 ├── infra/                       ✅ Bicep (gpt-4.1, gpt-4.1-mini deployments added)
@@ -225,6 +227,30 @@ RAG-WorkShop/
 ---
 
 ## Session Notes
+
+### Session 5 (Jan 29, 2026) - Agentic Retrieval Complete
+- **Part 5 Complete**: Agentic Retrieval (preview feature) fully implemented:
+  - Setup cell: Auto-configures RBAC, managed identity, Premium features check
+  - Knowledge Source & Knowledge Base creation
+  - Tested with gpt-4.1 (supports Structured Outputs required by Agentic Retrieval)
+  - Query decomposition: Complex questions split into focused subqueries
+  - Parallel execution: 3 subqueries in ~160-321ms each
+  - Chat history support for conversational retrieval
+  - Comparison cell: Traditional RAG vs Agentic side-by-side with real metrics
+- **Environment Update**: Added `AZURE_OPENAI_DEPLOYMENT_AGENTIC=gpt-4.1` to Module 0 .env generation
+- **Key Discovery**: gpt-4.1 (2025-04-14) supports Structured Outputs; gpt-4o (2024-05-13) does NOT
+- **Supported Agentic Models**: gpt-4o (2024-08-06+), gpt-4o-mini, gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, gpt-5 series
+
+### Session 4 (Jan 29, 2026) - Module 5 Parts 0-4 Complete
+- **Module 5 Parts 0-4**: Full search & retrieval implementation:
+  - Embeddings: `text-embedding-3-large`, batch processing, cosine similarity
+  - Index: Azure AI Search with HNSW vector configuration, semantic ranker
+  - Search modes: Text (BM25), Vector (kNN), Hybrid (RRF), Semantic (L2)
+  - Retrieval patterns: Multi-retriever, intent-aware filtering, complete RAG pipeline
+  - Full RAG demo with GPT-4.1 answer generation
+- **Utilities Implemented**: `/src/embeddings.py` and `/src/search.py` fully functional
+- **Failure Examples**: Created 3 common retrieval failure scenarios
+- **Ready for Module 6**: GraphRAG (cross-document reasoning)
 
 ### Session 3 (Jan 29, 2026) - Modules 2-3 Complete
 - **Module 2 Complete**: Document Intelligence lab with paragraph roles, table extraction, figure bounding boxes
@@ -282,9 +308,9 @@ Stack: Azure AI (DI, CU, Search, Foundry, OpenAI, GraphRAG)
 Region: Sweden Central (required for Content Understanding)
 Python: 3.11+
 Format: Jupyter notebooks
-Modules: 0-7 (all core, no optional)
+Modules: 0-6 (all core, no optional)
 Key files: PRD.md, .github/copilot-instructions.md, PROGRESS.md
-Current phase: Modules 0-3 COMPLETE, starting Module 4 (Chunking)
+Current phase: Modules 0-5 COMPLETE, starting Module 6 (GraphRAG)
 
 Key Technical Notes:
 - Content Understanding API: 2025-11-01 (GA)
@@ -292,4 +318,9 @@ Key Technical Notes:
 - Other prebuilt analyzers require: gpt-4.1
 - Both DI and CU support header-based chunking (paragraph.role)
 - CU adds: figure descriptions, Chart.js, Mermaid.js, topic detection
+- Embeddings: text-embedding-3-large (3072 dimensions)
+- Search: Hybrid + Semantic ranking recommended for production
+- Index: Include content_type field for filtering
+- Agentic Retrieval: Requires gpt-4.1 (Structured Outputs), Premium features, RBAC
+- Agentic env var: AZURE_OPENAI_DEPLOYMENT_AGENTIC=gpt-4.1
 ```
