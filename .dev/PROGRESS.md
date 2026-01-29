@@ -1,8 +1,14 @@
-le# RAG Workshop - Progress Tracker
+# RAG Workshop - Progress Tracker
 
 > **AI Agent Note**: Read this file at the start of each session to understand current project state.
 
-## Project Status: 🚀 Modules 0-3 Complete
+## Project Status: 🚀 Modules 0-4 Complete, Ready for Module 5 (Search)
+
+### RAG Pipeline Progress
+```
+Document → CU Extraction → Chunking → Embeddings → Indexing → Retrieval
+           ✅ Module 3     ✅ Module 4  ⏳ Module 5  ⏳ Module 5  ⏳ Module 5
+```
 
 ---
 
@@ -14,7 +20,7 @@ le# RAG Workshop - Progress Tracker
 - [x] `PROGRESS.md` - This tracking file (moved to `.dev/`)
 
 ### Phase 1: Scaffolding (COMPLETE)
-- [x] Folder structure for all modules (0-7)
+- [x] Folder structure for all modules (0-6)
 - [x] `README.md` for each module with learning objectives
 - [x] `failure-examples/` folders for each module
 - [x] `/src/` package structure with stub files:
@@ -74,25 +80,39 @@ le# RAG Workshop - Progress Tracker
   - Model requirements (gpt-4.1-mini, text-embedding-3-large)
 - [x] `content_understanding_result.json` - Sample output with semantic descriptions
 
+### Module 4: Chunking Strategies & Multimodal Content (COMPLETE) ✅
+- [x] `lab.ipynb` - Comprehensive chunking implementation:
+  - Lab 4.1: Fixed-size chunking (failure demo)
+  - Lab 4.2: Header-based chunking
+  - Lab 4.3: Table-atomic chunking (HTML + Markdown formats)
+  - Lab 4.4: Figure chunking with AI descriptions
+  - Lab 4.5: Hybrid pipeline (production pattern)
+  - Lab 4.6: Header repetition for large tables
+  - Lab 4.7: Chart data extraction
+- [x] `README.md` - Updated with 7 labs and multimodal content
+- [x] `output/hybrid_chunks.json` - 257 chunks ready for Module 5
+
 ### Key Decisions Made
-1. **Module order**: 0-Setup → 1-Naive RAG → 2-DI → 3-Content Understanding → 4-Chunking → 5-Tables/Figures → 6-Search/Retrieval → 7-GraphRAG
-2. **Content Understanding before Chunking**: CU enables semantic chunking, so it must come first
-3. **All modules are core curriculum**: No optional modules (GraphRAG and CU are required)
-4. **Primary format**: Jupyter notebooks for all labs
-5. **Setup for non-technical users**: Module 0 must be beginner-friendly with one-click deployment
-6. **Hebrew/RTL support**: Part of ingestion capability (not separate learning objective)
-7. **Office file support**: PDF, Word, Excel, PowerPoint
-8. **Region**: `swedencentral` | `westus` | `australiaeast` (Content Understanding GA API 2025-11-01)
-9. **Python**: ≥3.11, <3.14 (aligned with GraphRAG requirements)
-10. **Vision Model**: GPT-4.1 (single deployment for text + vision, replaces GPT-4o-vision)
-11. **Module 6 expanded**: Azure AI Search fundamentals + 13 retrieval patterns
-12. **Agentic retrieval**: Ties to Azure AI Foundry agents
-13. **Content Understanding GA**: API version 2025-11-01 (no longer preview)
-14. **Required models**: gpt-4.1, gpt-4.1-mini (for CU prebuilt-documentSearch), text-embedding-3-large
-15. **Dev files location**: PRD.md and PROGRESS.md in `.dev/` folder (internal only)
-16. **Deployment Architecture**: Use "Unified AI Services" (`Microsoft.CognitiveServices` Kind: `AIServices`) instead of "Hub & Project" topology
-17. **Content Understanding model mapping**: `prebuilt-documentSearch` requires `gpt-4.1-mini`; other prebuilt analyzers require `gpt-4.1`
-18. **Header-based chunking**: Both DI and CU support it via `paragraph.role`; CU adds topic-shift detection
+1. **Module order**: 0-Setup → 1-Naive RAG → 2-DI → 3-Content Understanding → 4-Chunking → 5-Search → 6-GraphRAG
+2. **Module 5 (Tables/Figures) MERGED into Module 4**: Reduced from 7 modules to 6
+3. **Content Understanding before Chunking**: CU enables semantic chunking, so it must come first
+4. **All modules are core curriculum**: No optional modules (GraphRAG and CU are required)
+5. **Primary format**: Jupyter notebooks for all labs
+6. **Setup for non-technical users**: Module 0 must be beginner-friendly with one-click deployment
+7. **Hebrew/RTL support**: Part of ingestion capability (not separate learning objective)
+8. **Office file support**: PDF, Word, Excel, PowerPoint
+9. **Region**: `swedencentral` | `westus` | `australiaeast` (Content Understanding GA API 2025-11-01)
+10. **Python**: ≥3.11, <3.14 (aligned with GraphRAG requirements)
+11. **Vision Model**: GPT-4.1 (single deployment for text + vision, replaces GPT-4o-vision)
+12. **Module 5 expanded**: Azure AI Search fundamentals + retrieval patterns
+13. **Agentic retrieval**: Ties to Azure AI Foundry agents
+14. **Content Understanding GA**: API version 2025-11-01 (no longer preview)
+15. **Required models**: gpt-4.1, gpt-4.1-mini (for CU prebuilt-documentSearch), text-embedding-3-large
+16. **Dev files location**: PRD.md and PROGRESS.md in `.dev/` folder (internal only)
+17. **Deployment Architecture**: Use "Unified AI Services" (`Microsoft.CognitiveServices` Kind: `AIServices`) instead of "Hub & Project" topology
+18. **Content Understanding model mapping**: `prebuilt-documentSearch` requires `gpt-4.1-mini`; other prebuilt analyzers require `gpt-4.1`
+19. **Header-based chunking**: Both DI and CU support it via `paragraph.role`; CU adds topic-shift detection
+20. **Figure cropping NOT needed**: CU's `prebuilt-documentSearch` generates AI descriptions automatically
 
 ### SDK Versions Researched (Jan 2026)
 | SDK | Version | Notes |
@@ -111,17 +131,46 @@ le# RAG Workshop - Progress Tracker
 
 ## In Progress 🔄
 
-### Current Focus: Module 4 - Chunking Strategies
-- [ ] Module 4: `lab.ipynb` - Chunking strategies implementation
-- [ ] Module 4: `solution.ipynb` - Reference solution
+### Current Focus: Module 5 - Search & Retrieval
+
+**Module 5 covers the full indexing pipeline:**
+```
+Chunks (from Module 4) → Embeddings → Azure AI Search Index → Retrieval
+```
+
+**Key Topics for Module 5:**
+1. Embedding generation with `text-embedding-3-large`
+2. Index schema design (vector fields, metadata)
+3. Push vs Pull ingestion patterns
+4. Search modes: Text, Vector, Hybrid, Semantic
+5. Retrieval patterns (single, hybrid, multi-retriever, etc.)
+
+**Pending Tasks:**
+- [ ] Module 4: `solution.ipynb` - Reference solution (copy from lab.ipynb)
+- [ ] Module 5: `lab.ipynb` - Embeddings + Search fundamentals
+- [ ] Module 5: Retrieval pattern labs
 
 ---
 
 ## Not Started 📋
 
-### Phase 4: Core Processing Modules
-- [ ] Module 4: Chunking strategies lab (5 labs)
-- [ ] Module 5: Tables and figures lab (6 labs)
+### Phase 5: Search & Retrieval (Module 5)
+- [ ] Lab 5.0: Embedding generation from chunks
+- [ ] Lab 5.1: Index creation with vector fields
+- [ ] Lab 5.2: Push ingestion (SDK)
+- [ ] Lab 5.3: Search modes comparison (Text, Vector, Hybrid)
+- [ ] Lab 5.4: Semantic ranking
+- [ ] Lab 5.5: Multi-retriever patterns
+- [ ] Implement `/src/embeddings.py` utility
+- [ ] Implement `/src/search.py` utility
+
+### Phase 6: Advanced Module
+- [ ] Module 6: GraphRAG lab
+
+### Phase 7: Polish
+- [ ] Hebrew sample documents
+- [ ] Instructor materials (slide decks)
+- [ ] End-to-end testing
 
 ### Phase 5: Integration Modules
 - [ ] Module 6: Search fundamentals + retrieval labs (14 labs total)

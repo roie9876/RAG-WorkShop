@@ -10,20 +10,35 @@ Move from:
 To:
 > "RAG = document understanding + chunking strategy + retrieval orchestration"
 
+## � The RAG Pipeline
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                            THE RAG PIPELINE                                            │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                        │
+│   📄          🔍           ✂️          🧮          📦          🔎          🤖          │
+│ DOCUMENT → EXTRACT → CHUNK → EMBED → INDEX → RETRIEVE → GENERATE                      │
+│                                                                                        │
+│ Module 1   Module 2    Module 4   Module 5   Module 5   Module 5    (LLM)             │
+│ (Naive)    Module 3                                                                    │
+│                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ## 📚 Workshop Modules
 
-| Module | Topic | Duration |
-|--------|-------|----------|
-| **Module 0** | [Environment Setup](modules/module-0-setup/README.md) | 20 min |
-| **Module 1** | [The Problem with Naive RAG](modules/module-1-naive-rag/README.md) | 1 hour |
-| **Module 2** | [Document Intelligence Fundamentals](modules/module-2-doc-intelligence/README.md) | 1 hour |
-| **Module 3** | [Content Understanding](modules/module-3-content-understanding/README.md) | 1.25 hours |
-| **Module 4** | [Chunking Strategies](modules/module-4-chunking/README.md) | 1.5 hours |
-| **Module 5** | [Handling Tables and Figures](modules/module-5-tables-figures/README.md) | 1.5 hours |
-| **Module 6** | [Azure AI Search & Retrieval](modules/module-6-search/README.md) | 3.5 hours |
-| **Module 7** | [GraphRAG](modules/module-7-graphrag/README.md) | 2 hours |
+| Module | Topic | Pipeline Stage | Duration |
+|--------|-------|----------------|----------|
+| **Module 0** | [Environment Setup](modules/module-0-setup/README.md) | Setup | 20 min |
+| **Module 1** | [The Problem with Naive RAG](modules/module-1-naive-rag/README.md) | 📄 → ✂️ (Failure!) | 1 hour |
+| **Module 2** | [Document Intelligence](modules/module-2-doc-intelligence/README.md) | 🔍 Extract | 1 hour |
+| **Module 3** | [Content Understanding](modules/module-3-content-understanding/README.md) | 🔍 Extract (Semantic) | 1.25 hours |
+| **Module 4** | [Chunking Strategies](modules/module-4-chunking/README.md) | ✂️ Chunk | 1.5 hours |
+| **Module 5** | [Embeddings, Indexing & Retrieval](modules/module-5-search/README.md) | 🧮 📦 🔎 | 4 hours |
+| **Module 6** | [GraphRAG](modules/module-6-graphrag/README.md) | 🔎 Advanced | 2 hours |
 
-**Total Duration**: ~12 hours (full workshop) or select modules for shorter sessions.
+**Total Duration**: ~11 hours (full workshop) or select modules for shorter sessions.
 
 ## 🛠️ Technology Stack
 
@@ -70,23 +85,22 @@ Open `modules/module-0-setup/health-check.ipynb` and run all cells.
 
 ```
 RAG-WorkShop/
-├── modules/           # Workshop modules (0-7)
+├── modules/           # Workshop modules (0-6)
 │   ├── module-0-setup/
 │   ├── module-1-naive-rag/
 │   ├── module-2-doc-intelligence/
 │   ├── module-3-content-understanding/
 │   ├── module-4-chunking/
-│   ├── module-5-tables-figures/
-│   ├── module-6-search/
-│   └── module-7-graphrag/
+│   ├── module-5-search/
+│   └── module-6-graphrag/
 ├── src/               # Shared Python utilities
 ├── data/              # Sample documents
 │   ├── sample-pdfs/
 │   └── sample-office/
 ├── infra/             # Azure Bicep templates
+├── .dev/              # PRD and progress tracking
 ├── .env.template      # Environment variable template
-├── requirements.txt   # Python dependencies
-└── PRD.md             # Full workshop specification
+└── requirements.txt   # Python dependencies
 ```
 
 ## 🌍 Supported Regions

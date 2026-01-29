@@ -1,5 +1,23 @@
 # Module 2 – Document Intelligence Fundamentals
 
+## 📍 Where We Are in the Pipeline
+
+```mermaid
+flowchart LR
+    DOC["📄 Document"] --> EXTRACT["🔍 Extract"]
+    EXTRACT --> CHUNK["✂️ Chunk"]
+    CHUNK --> EMBED["🧮 Embed"]
+    EMBED --> INDEX["📦 Index"]
+    INDEX -.-> RETRIEVE["🔎 Retrieve"]
+    RETRIEVE --> GENERATE["🤖 Generate"]
+    
+    style EXTRACT fill:#4caf50,stroke:#2e7d32,stroke-width:3px,color:#fff
+```
+
+**This module focuses on EXTRACTION** – converting raw documents (PDF, Word, Excel, PowerPoint) into structured text with tables, figures, and metadata. This is the foundation for everything that follows.
+
+---
+
 ## Objective
 Understand what Azure AI Document Intelligence does and how to use its outputs.
 

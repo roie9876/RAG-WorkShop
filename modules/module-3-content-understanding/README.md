@@ -1,74 +1,158 @@
 # Module 3 – Content Understanding
 
+## 📍 Where We Are in the Pipeline
+
+```mermaid
+flowchart LR
+    DOC["📄 Document"] --> EXTRACT["🔍 Extract"]
+    EXTRACT --> CHUNK["✂️ Chunk"]
+    CHUNK --> EMBED["🧮 Embed"]
+    EMBED --> INDEX["📦 Index"]
+    INDEX -.-> RETRIEVE["🔎 Retrieve"]
+    RETRIEVE --> GENERATE["🤖 Generate"]
+    
+    style EXTRACT fill:#9c27b0,stroke:#6a1b9a,stroke-width:3px,color:#fff
+```
+
+**This module advances EXTRACTION** – while Module 2 gave us structure, Content Understanding adds **semantic intelligence**. It uses AI to describe figures, interpret charts, and understand document meaning.
+
+---
+
 ## Objective
 Master advanced document understanding and semantic extraction using Azure AI Content Understanding.
 
 ## Learning Outcomes
 By the end of this module, participants will be able to:
-- Explain what Content Understanding adds beyond Document Intelligence
+- Explain what Content Understanding is and when to use it
 - Configure a Content Understanding analyzer
-- Extract domain-specific entities from technical documents
-- Use Content Understanding for semantic chunking
-- Choose between DI and CU for different scenarios
+- Extract content from documents with AI-generated descriptions
+- Choose the right analyzer for different scenarios
 
 ## Key Message
-> Content Understanding enables **semantic chunking** – understanding meaning, not just layout.
+> Content Understanding enables **semantic extraction** – understanding meaning, not just layout.
 
 ---
 
-## 🔑 Document Intelligence vs Content Understanding: What's the Real Difference?
+## 🧠 What is Azure AI Content Understanding?
 
-This is a common source of confusion! Both services analyze documents, but they serve **fundamentally different purposes**:
+**Azure AI Content Understanding** is a unified service for extracting and analyzing content from documents, images, audio, and video. It's part of Azure AI Foundry and provides a single API for multimodal content processing.
 
-### Document Intelligence (DI) – *"What's on the page?"*
-Document Intelligence answers structural questions:
-- **Where** is the text? (bounding boxes, coordinates)
-- **What type** of element is it? (paragraph, table, figure, header)
-- **How** is the document organized? (pages, sections, reading order)
+### What CU Does
 
-Think of DI as an advanced OCR with layout understanding. It tells you *"there's a table at coordinates [x,y] on page 5"* but doesn't interpret the table's meaning.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Content Understanding                        │
+│                                                                 │
+│   INPUT: PDF, Word, Excel, PowerPoint, Images, Audio, Video    │
+│                                                                 │
+│   OUTPUT:                                                       │
+│   ├── Extracted text (OCR)                                      │
+│   ├── Document structure (headers, paragraphs, tables)          │
+│   ├── Figures with bounding boxes                               │
+│   ├── AI-generated descriptions (for figures/charts/diagrams)   │
+│   ├── Chart.js code (for charts)                                │
+│   ├── Mermaid.js syntax (for diagrams)                          │
+│   └── Document/audio/video summaries                            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-### Content Understanding (CU) – *"What does it mean?"*
-Content Understanding goes beyond structure to provide **semantic interpretation**:
-- **What** does this figure show? → AI-generated descriptions
-- **What** does this chart represent? → Chart.js code generation
-- **What** does this diagram explain? → Mermaid.js syntax
-- **What** entities/concepts are mentioned? → Custom schema extraction
+### Why Use CU for RAG?
 
-Think of CU as DI + Multimodal AI interpretation. It tells you *"this chart shows sales growth of 15% YoY with peak in Q3"*.
+In a RAG pipeline, you need to:
+1. **Extract** content from documents (text, tables, figures)
+2. **Understand** what figures and charts mean (not just detect them)
+3. **Chunk** the content into searchable units
+4. **Index** the chunks for retrieval
+
+CU handles steps 1 and 2. It gives you the **raw material** (extracted content with AI descriptions) that you then chunk and index.
+
+### CU Prebuilt Analyzers for RAG
+
+| Analyzer | Use Case |
+|----------|----------|
+| `prebuilt-documentSearch` | Documents (PDF, Word, Excel, PowerPoint) |
+| `prebuilt-imageSearch` | Standalone images |
+| `prebuilt-audioSearch` | Audio files (calls, podcasts, meetings) |
+| `prebuilt-videoSearch` | Video content with scene segmentation |
+
+---
+
+## 🔑 CU vs Document Intelligence: What's the Real Difference?
+
+This is a common source of confusion! Let's clarify once and for all.
+
+### The Truth: CU Contains DI
+
+Content Understanding (CU) is **not a replacement** for Document Intelligence (DI) — it **includes** DI as its foundation and adds AI-powered semantic analysis on top.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│               Content Understanding (CU) Service                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  prebuilt-layout        │  No LLM required  │  = Same as DI    │
+│  prebuilt-read          │  No LLM required  │  = Same as DI    │
+│  prebuilt-documentSearch│  GPT-4.1-mini     │  = DI + AI magic │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### The Analyzer Hierarchy
+
+| CU Analyzer | LLM Required? | What It Does |
+|-------------|---------------|--------------|
+| `prebuilt-read` | ❌ No | Basic OCR only |
+| `prebuilt-layout` | ❌ No | OCR + layout (figures, tables, paragraphs) — **identical to DI** |
+| `prebuilt-documentSearch` | ✅ Yes (GPT-4.1-mini) | Layout + **AI descriptions** + **Chart.js** + **Mermaid.js** + **summary** |
+
+### So What's the Real Decision?
+
+You're **NOT** choosing between "DI vs CU" — you're choosing between:
+
+| Option | What You Get | Cost |
+|--------|--------------|------|
+| `prebuilt-layout` (via DI or CU) | Structure only (bounding boxes, tables, paragraphs) | 💰 Lower |
+| `prebuilt-documentSearch` (CU only) | Structure + AI-generated figure descriptions + summaries | 💰💰 Higher (includes GPT-4.1-mini) |
+
+### What `prebuilt-documentSearch` Adds Over `prebuilt-layout`
+
+- **AI-generated figure descriptions**: Every image/chart/diagram gets a semantic description
+- **Chart → Chart.js**: Charts are converted to executable code
+- **Diagram → Mermaid.js**: Diagrams are converted to renderable syntax
+- **Document summary**: One-paragraph summary of the entire document
+- **Handwritten annotations**: Captures markup on documents
 
 ### The Key Insight
-| Capability | Document Intelligence | Content Understanding |
-|------------|----------------------|----------------------|
-| Text extraction | ✅ OCR + reading order | ✅ Same foundation |
-| Table detection | ✅ Structure + cells | ✅ Structure + **interpretation** |
-| Figure detection | ✅ Bounding box only | ✅ Bounding box + **AI description** |
-| Chart analysis | ❌ Just an image | ✅ Converts to Chart.js code |
-| Diagram analysis | ❌ Just an image | ✅ Converts to Mermaid.js syntax |
-| Audio/Video | ❌ Not supported | ✅ Transcription + analysis |
-| Custom entities | ❌ Limited prebuilt | ✅ Schema-driven extraction |
-| Header-based chunking | ✅ `paragraph.role` | ✅ Same capability |
-| Topic-based chunking | ❌ No topic detection | ✅ AI detects topic shifts |
+| Capability | `prebuilt-layout` (DI/CU) | `prebuilt-documentSearch` (CU) |
+|------------|---------------------------|-------------------------------|
+| Text extraction | ✅ OCR + reading order | ✅ Same |
+| Table detection | ✅ Structure + markdown | ✅ Same |
+| Figure detection | ✅ Bounding box + URL | ✅ Bounding box + URL + **AI description** |
+| Chart analysis | ❌ Just an image | ✅ Converts to **Chart.js code** |
+| Diagram analysis | ❌ Just an image | ✅ Converts to **Mermaid.js syntax** |
+| Document summary | ❌ Not available | ✅ One-paragraph summary |
+| Audio/Video | ❌ Not supported | ✅ Use `prebuilt-audioSearch` / `prebuilt-videoSearch` |
+| LLM Required | ❌ No | ✅ Yes (GPT-4.1-mini) |
+| Cost | 💰 Lower | 💰💰 Higher |
 
-> **Note on Semantic Chunking**: Both DI and CU support **header-based chunking** using `paragraph.role` (e.g., `sectionHeading`). The difference is that CU can also detect **topic shifts** within sections where no explicit header exists.
+> **Important**: Both options give you the **extracted figure image** (via URL). The difference is whether you get an AI-generated description automatically or need to call GPT-4o yourself.
 
 ### When to Use Each
 
-**Use Document Intelligence when:**
-- You need precise bounding boxes for custom figure cropping
+**Use `prebuilt-layout` (DI or CU) when:**
+- You want lower cost per document
 - You're building your own multimodal pipeline with GPT-4o
-- You need maximum control over the extraction process
-- Budget is a primary concern (DI is generally less expensive)
+- You need maximum control over figure description prompts
+- You only need structure, not AI interpretation
 
-**Use Content Understanding when:**
+**Use `prebuilt-documentSearch` (CU) when:**
 - You want turnkey semantic descriptions of figures/charts
 - You need Chart.js or Mermaid.js output directly
-- You're processing audio/video content
-- You want domain-specific entity extraction with custom schemas
+- You want a one-paragraph document summary
+- Simplicity matters more than cost optimization
 
-**Use Both when:**
-- You need DI's precise bounding boxes AND CU's semantic analysis
-- You're comparing extraction quality for your specific documents
+> **Key Insight**: With `prebuilt-documentSearch`, CU extracts the cropped figure image AND generates the description. You get both the `figures/12.1` URL (the actual image) and the semantic description in the markdown output.
 
 ---
 
@@ -121,17 +205,18 @@ The `prebuilt-documentSearch` analyzer is optimized for RAG (Retrieval-Augmented
 6. Decision framework: DI vs CU
 
 ## Decision Framework: When to Use What
-| Scenario | Recommended Tool |
-|----------|------------------|
-| Basic text + table extraction | Document Intelligence |
-| Need figure bounding boxes | Document Intelligence |
-| Figure/chart semantic descriptions | Content Understanding |
-| Chart → Chart.js conversion | Content Understanding |
-| Diagram → Mermaid.js conversion | Content Understanding |
-| Audio/video transcription | Content Understanding |
-| Domain-specific entity extraction | Content Understanding |
-| Semantic/topic-based chunking | Content Understanding |
-| Mixed: structure + semantics | Both (pipeline) |
+| Scenario | Recommended Analyzer |
+|----------|---------------------|
+| Basic text + table extraction (low cost) | `prebuilt-layout` |
+| Need figure bounding boxes only | `prebuilt-layout` |
+| Want AI-generated figure descriptions | `prebuilt-documentSearch` |
+| Chart → Chart.js conversion | `prebuilt-documentSearch` |
+| Diagram → Mermaid.js conversion | `prebuilt-documentSearch` |
+| Audio transcription + analysis | `prebuilt-audioSearch` |
+| Video segmentation + descriptions | `prebuilt-videoSearch` |
+| Domain-specific extraction (invoices, IDs) | `prebuilt-invoice`, `prebuilt-idDocument`, etc. |
+
+> **Remember**: All these analyzers give you **extracted content**. Chunking is a separate step you implement in Module 4.
 
 ## Hands-on Labs
 | Lab | Description |

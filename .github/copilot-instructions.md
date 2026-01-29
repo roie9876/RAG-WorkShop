@@ -14,7 +14,7 @@ Educational workshop teaching production-grade RAG systems for complex technical
 - **Search/Retrieval**: Azure AI Search (vector + hybrid search)
 - **LLM Orchestration**: Azure AI Foundry
 - **Models**: Azure OpenAI GPT-4.1 (text + vision in single deployment)
-- **Advanced**: Azure AI Content Understanding (Module 3), GraphRAG (Module 7)
+- **Advanced**: Azure AI Content Understanding (Module 3), GraphRAG (Module 6)
 
 ## Critical Requirements
 - **Azure Region**: `swedencentral` (recommended for Content Understanding GA API 2025-11-01)
@@ -35,12 +35,11 @@ Educational workshop teaching production-grade RAG systems for complex technical
 /modules/
   module-0-setup/      # Azure resource provisioning + .env generation
   module-1-naive-rag/  # Problem demonstration
-  module-2-doc-intel/  # Document Intelligence fundamentals
-  module-3-content-understanding/  # Semantic extraction + chunking foundation
-  module-4-chunking/   # Chunking strategies (core)
-  module-5-tables-figures/
-  module-6-search/     # Azure AI Search & retrieval
-  module-7-graphrag/   # Cross-document reasoning
+  module-2-doc-intelligence/  # Document Intelligence fundamentals
+  module-3-content-understanding/  # Semantic extraction
+  module-4-chunking/   # Chunking strategies + multimodal content (tables, figures, charts)
+  module-5-search/     # Azure AI Search & retrieval
+  module-6-graphrag/   # Cross-document reasoning
 /src/                  # Shared Python utilities
 /data/
   sample-pdfs/         # Technical PDFs
@@ -52,9 +51,10 @@ Educational workshop teaching production-grade RAG systems for complex technical
 
 ### Chunking Strategy (Critical)
 Chunking is an **architectural decision**, not a parameter. Never use naive fixed-size chunking for technical docs.
-- **Tables**: Treat as atomic units with header repetition
-- **Figures**: Crop via bounding boxes, pair with captions
+- **Tables**: Treat as atomic units with header repetition for large tables
+- **Figures**: CU generates AI descriptions automatically via `prebuilt-documentSearch`
 - **Text**: Use header-based or semantic chunking, not page-based
+- **Charts**: Extract data points from AI descriptions for analytical queries
 
 ### Document Intelligence Patterns
 - Always use `prebuilt-layout` model for technical documents

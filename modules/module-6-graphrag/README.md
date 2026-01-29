@@ -1,4 +1,22 @@
-# Module 7 – GraphRAG
+# Module 6 – GraphRAG
+
+## 📍 Where We Are in the Pipeline
+
+```mermaid
+flowchart LR
+    DOC["📄 Document"] --> EXTRACT["🔍 Extract"]
+    EXTRACT --> CHUNK["✂️ Chunk"]
+    CHUNK --> EMBED["🧮 Embed"]
+    EMBED --> INDEX["📦 Index"]
+    INDEX -.-> RETRIEVE["🔎 Retrieve"]
+    RETRIEVE --> GENERATE["🤖 Generate"]
+    
+    style RETRIEVE fill:#673ab7,stroke:#4527a0,stroke-width:3px,color:#fff
+```
+
+**This module enhances RETRIEVAL** – when classic vector search fails on "connect the dots" questions, GraphRAG adds relationship-aware retrieval using knowledge graphs.
+
+---
 
 ## Objective
 Master graph-based retrieval for cross-document reasoning using Microsoft GraphRAG.
@@ -65,13 +83,13 @@ By the end of this module, participants will be able to:
 ## Hands-on Labs
 | Lab | Description |
 |-----|-------------|
-| Lab 7.1 | Install and configure Microsoft GraphRAG |
-| Lab 7.2 | Index a multi-document corpus |
-| Lab 7.3 | Visualize the entity-relationship graph |
-| Lab 7.4 | Execute local queries (entity-centric) |
-| Lab 7.5 | Execute global queries (community-based) |
-| Lab 7.6 | Build a hybrid RAG + GraphRAG pipeline |
-| Lab 7.7 | Compare classic vs GraphRAG on same questions |
+| Lab 6.1 | Install and configure Microsoft GraphRAG |
+| Lab 6.2 | Index a multi-document corpus |
+| Lab 6.3 | Visualize the entity-relationship graph |
+| Lab 6.4 | Execute local queries (entity-centric) |
+| Lab 6.5 | Execute global queries (community-based) |
+| Lab 6.6 | Build a hybrid RAG + GraphRAG pipeline |
+| Lab 6.7 | Compare classic vs GraphRAG on same questions |
 
 ## Requirements
 - Python ≥3.11, <3.14
@@ -92,5 +110,5 @@ By the end of this module, participants will be able to:
 
 ---
 
-**Previous Module**: [Module 6 – Azure AI Search & Retrieval Design](../module-6-search/README.md)  
+**Previous Module**: [Module 5 – Azure AI Search & Retrieval](../module-5-search/README.md)  
 **Workshop Complete!** 🎉
