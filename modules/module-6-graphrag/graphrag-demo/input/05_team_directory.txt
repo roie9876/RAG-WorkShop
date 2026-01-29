@@ -1,0 +1,58 @@
+
+# Contoso Platform Team Directory
+
+## Platform Team
+
+The Platform Team is responsible for core infrastructure services.
+
+**Services Owned:**
+- AuthService (Authentication Service)
+- API Gateway
+- Service Registry
+- Configuration Service
+
+**Team Members:**
+- John Smith (Engineering Director) - john.smith@contoso.com
+- Sarah Johnson (Principal Architect) - sarah.johnson@contoso.com
+- Michael Chen (Senior Engineer) - michael.chen@contoso.com
+- Emily Davis (Engineer) - emily.davis@contoso.com
+
+## Frontend Team
+
+The Frontend Team builds and maintains user-facing applications.
+
+**Services Owned:**
+- User Portal
+- Mobile App
+- Admin Dashboard
+
+**Team Members:**
+- Lisa Wang (Engineering Manager) - lisa.wang@contoso.com
+- David Kim (Lead Developer) - david.kim@contoso.com
+- Anna Martinez (UX Designer) - anna.martinez@contoso.com
+
+## Data Team
+
+The Data Team handles analytics and data processing.
+
+**Services Owned:**
+- Data Analytics Service
+- ETL Pipeline
+- Reporting Dashboard
+
+**Team Members:**
+- Robert Taylor (Data Engineering Lead) - robert.taylor@contoso.com
+- Jennifer Lee (Data Engineer) - jennifer.lee@contoso.com
+
+## Communications Team
+
+The Communications Team manages all notification systems.
+
+**Services Owned:**
+- Notification Service
+- Email Gateway
+- SMS Gateway
+
+**Team Members:**
+- Chris Brown (Team Lead) - chris.brown@contoso.com
+- Amanda Wilson (Engineer) - amanda.wilson@contoso.com

@@ -1,0 +1,41 @@
+
+# Contoso Platform Architecture Overview
+
+The Contoso Platform is a modern microservices-based system designed for high availability 
+and scalability. The platform consists of several core services that work together to 
+provide a seamless user experience.
+
+## Core Services
+
+The platform includes the following core services:
+
+1. **Authentication Service (AuthService)**: Handles all user authentication, token 
+   generation, and session management. This is the most critical service as all other 
+   services depend on it for user verification.
+
+2. **API Gateway**: Acts as the single entry point for all client requests. It routes 
+   requests to appropriate backend services and handles rate limiting. The API Gateway 
+   depends on AuthService for token validation.
+
+3. **User Portal**: The main web application that end-users interact with. It connects 
+   to the API Gateway for all backend operations.
+
+4. **Notification Service**: Sends emails, SMS, and push notifications to users. It 
+   operates independently but uses AuthService to verify user preferences.
+
+5. **Data Analytics Service**: Collects and processes usage metrics. It connects to 
+   the Message Queue for event streaming.
+
+## System Dependencies
+
+The dependency chain is critical for understanding failure scenarios:
+- If AuthService goes down, the API Gateway cannot validate tokens
+- If API Gateway fails, the User Portal cannot reach backend services
+- The Notification Service can operate in degraded mode without AuthService
+
+## Team Ownership
+
+The Platform Team owns AuthService and API Gateway.
+The Frontend Team owns the User Portal.
+The Communications Team owns the Notification Service.
+The Data Team owns the Data Analytics Service.
