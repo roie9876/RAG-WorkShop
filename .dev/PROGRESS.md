@@ -2,7 +2,7 @@ le# RAG Workshop - Progress Tracker
 
 > **AI Agent Note**: Read this file at the start of each session to understand current project state.
 
-## Project Status: 🏗️ Scaffolding Complete
+## Project Status: 🚀 Modules 0-3 Complete
 
 ---
 
@@ -25,13 +25,54 @@ le# RAG Workshop - Progress Tracker
   - [x] `search.py` (stubs)
   - [x] `utils.py` (implemented)
 - [x] `/data/` folders with .gitkeep placeholders
-- [x] `/infra/main.bicep` - Azure resource deployment
+- [x] `/infra/main.bicep` - Azure resource deployment (updated with gpt-4.1 + gpt-4.1-mini)
 - [x] `/infra/deploy.sh` - One-click deployment script
 - [x] `.env.template` - Environment variable template
 - [x] `requirements.txt` - Python dependencies
 - [x] `pyproject.toml` - Project configuration
 - [x] `.gitignore` - Git ignore rules
 - [x] Root `README.md` - Workshop overview & quick start
+
+### Module 0: Environment Setup (COMPLETE) ✅
+- [x] `setup.ipynb` - Interactive setup wizard with:
+  - Prerequisites check (Python, Azure CLI, poppler)
+  - Azure login verification
+  - **Automated Deployment**: Python SDK (`azure-mgmt-resource`)
+  - **Model Deployments**: gpt-4o, gpt-4o-mini, gpt-4.1, gpt-4.1-mini, text-embedding-3-large
+  - Manual configuration option
+  - Auto-generation of `.env` file with all required variables
+  - Quick validation tests
+- [x] `cleanup.ipynb` - Robust cleanup script for RG deletion + soft-delete purging
+- [x] `health-check.ipynb` - Comprehensive validation
+
+### Module 1: Naive RAG (COMPLETE) ✅
+- [x] `lab.ipynb` - Failure mode demonstration (Context Split, Table Destruction, Figure Loss)
+- [x] `solution.ipynb` - Complete working example
+- [x] Visual evidence: `page5.png`, `page8.png`, `page12.png`
+- [x] Sample document: `Basic Electrical Engineering R-20.pdf`
+
+### Module 2: Document Intelligence (COMPLETE) ✅
+- [x] `lab.ipynb` - Document Intelligence SDK fundamentals:
+  - Setup and client initialization
+  - Full document analysis with `prebuilt-layout`
+  - Paragraph extraction with roles (`sectionHeading`, `title`, etc.)
+  - Table extraction with cell grids
+  - Figure detection with bounding boxes
+- [x] `README.md` - Learning objectives and concepts
+
+### Module 3: Content Understanding (COMPLETE) ✅
+- [x] `lab.ipynb` - Content Understanding implementation:
+  - Auto-configuration of Content Understanding defaults
+  - `prebuilt-documentSearch` analyzer with API 2025-11-01
+  - Figure semantic descriptions (AI-generated)
+  - Chart.js code detection
+  - Semantic chunking by section headers
+  - Comprehensive comparison: DI vs CU
+- [x] `README.md` - Detailed explanation of DI vs CU differences:
+  - When to use each service
+  - `prebuilt-documentSearch` analyzer capabilities
+  - Model requirements (gpt-4.1-mini, text-embedding-3-large)
+- [x] `content_understanding_result.json` - Sample output with semantic descriptions
 
 ### Key Decisions Made
 1. **Module order**: 0-Setup → 1-Naive RAG → 2-DI → 3-Content Understanding → 4-Chunking → 5-Tables/Figures → 6-Search/Retrieval → 7-GraphRAG
@@ -47,14 +88,17 @@ le# RAG Workshop - Progress Tracker
 11. **Module 6 expanded**: Azure AI Search fundamentals + 13 retrieval patterns
 12. **Agentic retrieval**: Ties to Azure AI Foundry agents
 13. **Content Understanding GA**: API version 2025-11-01 (no longer preview)
-14. **Required models**: gpt-4.1, gpt-4.1-mini (for CU), text-embedding-3-large
+14. **Required models**: gpt-4.1, gpt-4.1-mini (for CU prebuilt-documentSearch), text-embedding-3-large
 15. **Dev files location**: PRD.md and PROGRESS.md in `.dev/` folder (internal only)
-16. **Deployment Architecture**: Use "Unified AI Services" (`Microsoft.CognitiveServices` Kind: `AIServices`) instead of "Hub & Project" topology. This simplifies the workshop, avoids "Unauthorized" errors, and removes the need for Key Vault/VNET complexity.
+16. **Deployment Architecture**: Use "Unified AI Services" (`Microsoft.CognitiveServices` Kind: `AIServices`) instead of "Hub & Project" topology
+17. **Content Understanding model mapping**: `prebuilt-documentSearch` requires `gpt-4.1-mini`; other prebuilt analyzers require `gpt-4.1`
+18. **Header-based chunking**: Both DI and CU support it via `paragraph.role`; CU adds topic-shift detection
 
 ### SDK Versions Researched (Jan 2026)
 | SDK | Version | Notes |
 |-----|---------|-------|
 | `azure-ai-documentintelligence` | 1.0.2 | GA, API 2024-11-30 |
+| `azure-ai-contentunderstanding` | 1.0.0b2+ | Preview SDK, GA API 2025-11-01 |
 | `azure-search-documents` | 11.7.0b2 | Beta - agentic retrieval |
 | `azure-ai-projects` | 1.0.0 | GA - Azure AI Foundry |
 | `azure-ai-agents` | 1.1.0 | GA - AI Agents |
@@ -67,49 +111,13 @@ le# RAG Workshop - Progress Tracker
 
 ## In Progress 🔄
 
-### Current Focus: Module 2 Implementation
-- [ ] Module 2: `lab.ipynb` - Document Intelligence SDK basics
-- [ ] Module 2: `solution.ipynb` - Reference solution
-- [ ] Implement robust table extraction
-- [ ] Implement figure extraction with cropping
-
----
-
-## Completed Recently ✅
-
-### Module 1: Naive RAG (COMPLETE)
-- [x] `lab.ipynb` - Failure mode demonstration (Context Split, Table Destruction, Figure Loss)
-- [x] `solution.ipynb` - Complete working example
-- [x] Added `page5.png`, `page8.png`, `page12.png` visual evidence
-- [x] Sample document `Basic Electrical Engineering R-20.pdf` added
-
-### Module 0: Environment Setup (COMPLETE)
-- [x] `setup.ipynb` - Interactive setup wizard with:
-  - Prerequisites check (Python, Azure CLI, poppler)
-  - Azure login verification
-  - **Automated Deployment**: Replaced CLI deployment with stable Python SDK (`azure-mgmt-resource`).
-  - **Clean Architecture**: Deploys Unified AI Services + Search + Storage (no Hub/Project overhead).
-  - Manual configuration option
-  - Auto-generation of `.env` file
-  - Quick validation tests
-- [x] `cleanup.ipynb` - Added robust cleanup script to delete RGs and purge soft-deleted resources (zombie resource handling).
-- [x] `health-check.ipynb` - Comprehensive validation with:
-  - Azure OpenAI tests (GPT-4.1, GPT-4.1-mini, embeddings)
-  - Azure AI Search connectivity
-  - Document Intelligence connectivity
-  - Content Understanding GA API test
-  - Azure Storage connectivity
+### Current Focus: Module 4 - Chunking Strategies
+- [ ] Module 4: `lab.ipynb` - Chunking strategies implementation
+- [ ] Module 4: `solution.ipynb` - Reference solution
 
 ---
 
 ## Not Started 📋
-
-### Phase 2: Module 1 Implementation
-- [ ] Module 1: naive-rag lab.ipynb, solution.ipynb
-
-### Phase 3: Extraction Modules
-- [ ] Module 2: Document Intelligence lab.ipynb, solution.ipynb
-- [ ] Module 3: Content Understanding lab.ipynb, solution.ipynb
 
 ### Phase 4: Core Processing Modules
 - [ ] Module 4: Chunking strategies lab (5 labs)
@@ -146,17 +154,18 @@ RAG-WorkShop/
 ├── .github/
 │   └── copilot-instructions.md
 ├── modules/
-│   ├── module-0-setup/          ✅ README.md, setup.ipynb, health-check.ipynb, cleanup.ipynb
-│   ├── module-1-naive-rag/      ✅ README.md
-│   ├── module-2-doc-intelligence/ ✅ README.md
-│   ├── module-3-content-understanding/ ✅ README.md
-│   ├── module-4-chunking/       ✅ README.md
-│   ├── module-5-tables-figures/ ✅ README.md
-│   ├── module-6-search/         ✅ README.md
-│   └── module-7-graphrag/       ✅ README.md
+│   ├── module-0-setup/          ✅ COMPLETE (setup.ipynb, health-check.ipynb, cleanup.ipynb)
+│   ├── module-1-naive-rag/      ✅ COMPLETE (lab.ipynb, solution.ipynb)
+│   ├── module-2-doc-intelligence/ ✅ COMPLETE (lab.ipynb, README.md)
+│   ├── module-3-content-understanding/ ✅ COMPLETE (lab.ipynb, README.md, content_understanding_result.json)
+│   ├── module-4-chunking/       📋 NOT STARTED
+│   ├── module-5-tables-figures/ 📋 NOT STARTED
+│   ├── module-6-search/         📋 NOT STARTED
+│   └── module-7-graphrag/       📋 NOT STARTED
 ├── src/                         ✅ Package with stubs
-├── data/                        ✅ Placeholder folders
-├── infra/                       ✅ Bicep + deploy.sh
+├── data/
+│   └── sample-pdfs/             ✅ Basic Electrical Engineering R-20.pdf
+├── infra/                       ✅ Bicep (gpt-4.1, gpt-4.1-mini deployments added)
 ├── README.md                    ✅ Workshop overview
 ├── requirements.txt             ✅ Dependencies
 ├── pyproject.toml              ✅ Project config
@@ -167,6 +176,20 @@ RAG-WorkShop/
 ---
 
 ## Session Notes
+
+### Session 3 (Jan 29, 2026) - Modules 2-3 Complete
+- **Module 2 Complete**: Document Intelligence lab with paragraph roles, table extraction, figure bounding boxes
+- **Module 3 Complete**: Content Understanding lab with:
+  - `prebuilt-documentSearch` analyzer working with API 2025-11-01
+  - Auto-configuration of CU defaults (GET/PATCH workflow)
+  - Semantic figure descriptions (AI-generated via GPT-4.1-mini)
+  - Chart.js code detection in output
+  - Semantic chunking by section headers
+- **Key Discovery**: `prebuilt-documentSearch` requires `gpt-4.1-mini` (NOT gpt-4.1)
+- **Infrastructure Updated**: Added gpt-4.1 and gpt-4.1-mini deployments to Bicep
+- **Setup Updated**: Module 0 now auto-deploys all required models and injects into .env
+- **Documentation**: Comprehensive README explaining DI vs CU differences
+- **Clarification**: Both DI and CU support header-based chunking via `paragraph.role`; CU adds topic-shift detection and figure semantic descriptions
 
 ### Session 2 (Jan 28, 2026) - Setup Fixes
 - **Architecture Change**: Switched from "Full Foundry Hub" to "Unified AI Services" to avoid network restrictions.
@@ -212,5 +235,12 @@ Python: 3.11+
 Format: Jupyter notebooks
 Modules: 0-7 (all core, no optional)
 Key files: PRD.md, .github/copilot-instructions.md, PROGRESS.md
-Current phase: Module 0 COMPLETE, starting Module 1
+Current phase: Modules 0-3 COMPLETE, starting Module 4 (Chunking)
+
+Key Technical Notes:
+- Content Understanding API: 2025-11-01 (GA)
+- prebuilt-documentSearch requires: gpt-4.1-mini + text-embedding-3-large
+- Other prebuilt analyzers require: gpt-4.1
+- Both DI and CU support header-based chunking (paragraph.role)
+- CU adds: figure descriptions, Chart.js, Mermaid.js, topic detection
 ```

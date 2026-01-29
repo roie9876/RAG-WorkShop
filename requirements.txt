@@ -12,6 +12,7 @@ aiohttp>=3.9.0
 # Azure AI Services
 # ===========================================
 azure-ai-documentintelligence>=1.0.2
+azure-ai-contentunderstanding>=1.0.0b1
 azure-search-documents==11.7.0b2
 azure-ai-projects>=1.0.0
 azure-ai-agents>=1.1.0

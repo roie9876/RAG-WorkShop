@@ -140,6 +140,44 @@ resource gpt4oMiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
   dependsOn: [gpt4oDeployment]
 }
 
+// GPT-4.1 deployment (Required for Content Understanding prebuilt analyzers)
+resource gpt41Deployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
+  parent: aiServices
+  name: 'gpt-4.1'
+  sku: {
+    name: 'Standard'
+    capacity: 30
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'gpt-4.1'
+      version: '2025-04-14'
+    }
+    raiPolicyName: 'Microsoft.DefaultV2'
+  }
+  dependsOn: [gpt4oMiniDeployment]
+}
+
+// GPT-4.1-mini deployment (Required for Content Understanding prebuilt-documentSearch)
+resource gpt41MiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
+  parent: aiServices
+  name: 'gpt-4.1-mini'
+  sku: {
+    name: 'Standard'
+    capacity: 60
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'gpt-4.1-mini'
+      version: '2025-04-14'
+    }
+    raiPolicyName: 'Microsoft.DefaultV2'
+  }
+  dependsOn: [gpt41Deployment]
+}
+
 // Embedding deployment
 resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
   parent: aiServices
@@ -156,7 +194,7 @@ resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
     }
     raiPolicyName: 'Microsoft.DefaultV2'
   }
-  dependsOn: [gpt4oMiniDeployment]
+  dependsOn: [gpt41MiniDeployment]
 }
 
 // ============================================================================
