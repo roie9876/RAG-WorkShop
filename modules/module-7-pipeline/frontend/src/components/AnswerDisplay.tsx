@@ -1,0 +1,121 @@
+import ReactMarkdown from 'react-markdown'
+import { FileText, Image, Table, ExternalLink } from 'lucide-react'
+import type { QueryResponse, SourceChunk } from '../types'
+
+interface AnswerDisplayProps {
+  response: QueryResponse
+  isLoading: boolean
+}
+
+export function AnswerDisplay({ response, isLoading }: AnswerDisplayProps) {
+  // Detect RTL in answer
+  const isRTL = /[\u0590-\u05FF\u0600-\u06FF]/.test(response.answer)
+
+  const getContentIcon = (type: string) => {
+    switch (type) {
+      case 'figure':
+        return <Image className="h-4 w-4" />
+      case 'table':
+        return <Table className="h-4 w-4" />
+      default:
+        return <FileText className="h-4 w-4" />
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <h2 className="text-lg font-semibold mb-4">Answer</h2>
+
+      {/* Main Answer */}
+      <div
+        className={`prose prose-sm max-w-none ${isRTL ? 'text-right' : 'text-left'}`}
+        dir={isRTL ? 'rtl' : 'ltr'}
+      >
+        <ReactMarkdown>{response.answer}</ReactMarkdown>
+      </div>
+
+      {/* Figures in Answer */}
+      {response.sources
+        .filter((s) => s.content_type === 'figure' && s.image_sas_url)
+        .map((source) => (
+          <FigureDisplay key={source.id} source={source} />
+        ))}
+
+      {/* Sources */}
+      <div className="mt-6 pt-4 border-t">
+        <h3 className="text-sm font-semibold mb-3">Sources</h3>
+        <div className="space-y-2">
+          {response.sources.map((source, idx) => (
+            <div
+              key={source.id}
+              className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+            >
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">
+                {idx + 1}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  {getContentIcon(source.content_type)}
+                  <span className="text-sm font-medium truncate">
+                    {source.source_document}
+                  </span>
+                  {source.page_numbers.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      p. {source.page_numbers.join(', ')}
+                    </span>
+                  )}
+                  {source.source_document_sas_url && (
+                    <a
+                      href={source.source_document_sas_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-primary/80"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-2">
+                  {source.content}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                    {source.content_type}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Score: {source.relevance_score.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FigureDisplay({ source }: { source: SourceChunk }) {
+  return (
+    <div className="my-4 p-4 rounded-lg border bg-muted/30">
+      <div className="flex items-center gap-2 mb-2">
+        <Image className="h-4 w-4" />
+        <span className="text-sm font-medium">
+          Figure from {source.source_document}, p.{source.page_numbers.join(', ')}
+        </span>
+      </div>
+      {source.image_sas_url && (
+        <img
+          src={source.image_sas_url}
+          alt={source.content}
+          className="max-w-full h-auto rounded-lg border"
+        />
+      )}
+      {source.section_header && (
+        <p className="text-xs text-muted-foreground mt-2">
+          Section: {source.section_header}
+        </p>
+      )}
+    </div>
+  )
+}

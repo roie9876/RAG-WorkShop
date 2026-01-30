@@ -1,0 +1,62 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Azure OpenAI
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-gpt-4.1}
+      - AZURE_OPENAI_EMBEDDING_DEPLOYMENT=${AZURE_OPENAI_EMBEDDING_DEPLOYMENT:-text-embedding-3-large}
+      
+      # Azure AI Search
+      - AZURE_SEARCH_ENDPOINT=${AZURE_SEARCH_ENDPOINT}
+      - AZURE_SEARCH_API_KEY=${AZURE_SEARCH_API_KEY}
+      - AZURE_SEARCH_INDEX_NAME=${AZURE_SEARCH_INDEX_NAME:-rag-workshop-module7}
+      
+      # Azure Document Intelligence
+      - AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}
+      - AZURE_DOCUMENT_INTELLIGENCE_KEY=${AZURE_DOCUMENT_INTELLIGENCE_KEY}
+      
+      # Azure Blob Storage
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+      - AZURE_STORAGE_CONTAINER_NAME=${AZURE_STORAGE_CONTAINER_NAME:-rag-documents}
+      
+      # Azure AI Foundry (for Agents)
+      - AZURE_AI_PROJECT_ENDPOINT=${AZURE_AI_PROJECT_ENDPOINT}
+      - AZURE_AI_PROJECT_API_KEY=${AZURE_AI_PROJECT_API_KEY}
+      
+      # Optional: Content Understanding
+      - AZURE_CU_ENDPOINT=${AZURE_CU_ENDPOINT:-}
+      - AZURE_CU_KEY=${AZURE_CU_KEY:-}
+      
+      # API Security
+      - API_KEY=${API_KEY}
+      
+      # CORS for frontend
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+    volumes:
+      - ./backend:/app
+    depends_on: []
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=http://localhost:8000
+
+volumes:
+  backend_data:

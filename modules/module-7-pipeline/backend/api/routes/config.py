@@ -1,0 +1,81 @@
+"""
+Configuration routes.
+Get and update query-time configuration.
+"""
+
+from fastapi import APIRouter
+from pydantic import BaseModel, Field
+from typing import Literal
+
+router = APIRouter()
+
+
+class QueryConfig(BaseModel):
+    """Query-time configuration (user adjustable)."""
+    top_k: int = Field(default=5, ge=1, le=20, description="Number of chunks to retrieve")
+    search_mode: Literal["vector", "text", "hybrid", "semantic"] = Field(
+        default="hybrid", description="Search mode"
+    )
+    semantic_ranker: bool = Field(default=True, description="Enable semantic ranking")
+    min_score: float = Field(default=0.0, ge=0, le=1, description="Minimum relevance score")
+    content_type_filter: Literal["all", "text", "table", "figure"] = Field(
+        default="all", description="Filter by content type"
+    )
+    retrieval_strategy: Literal["auto", "hybrid", "agentic", "graphrag"] = Field(
+        default="auto", description="Retrieval strategy"
+    )
+
+
+class IndexConfig(BaseModel):
+    """Index-time configuration (read-only, set at index creation)."""
+    vector_dimensions: int = 3072
+    hnsw_m: int = 4
+    hnsw_ef_construction: int = 400
+    hnsw_ef_search: int = 500
+    semantic_enabled: bool = True
+    
+    class Config:
+        frozen = True  # Read-only
+
+
+class FullConfig(BaseModel):
+    """Complete configuration."""
+    query: QueryConfig
+    index: IndexConfig
+
+
+# Global config state (would be per-user in production)
+current_query_config = QueryConfig()
+
+
+@router.get("", response_model=FullConfig)
+async def get_config():
+    """
+    Get current configuration.
+    
+    Returns both query-time (adjustable) and index-time (read-only) config.
+    """
+    return FullConfig(
+        query=current_query_config,
+        index=IndexConfig()
+    )
+
+
+@router.post("", response_model=QueryConfig)
+async def update_config(config: QueryConfig):
+    """
+    Update query-time configuration.
+    
+    These settings will be applied to subsequent queries.
+    """
+    global current_query_config
+    current_query_config = config
+    return current_query_config
+
+
+@router.post("/reset", response_model=QueryConfig)
+async def reset_config():
+    """Reset configuration to defaults."""
+    global current_query_config
+    current_query_config = QueryConfig()
+    return current_query_config
