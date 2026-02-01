@@ -176,10 +176,12 @@ class DocumentProcessor:
         blob_path: str,
         content: bytes,
         filename: str,
-        use_di: bool = True
+        use_di: bool = True,
+        export_to_graphrag: bool = True,
+        auto_index_graphrag: Optional[bool] = None
     ) -> Dict[str, Any]:
         """
-        Process a document end-to-end.
+        Process a document end-to-end with DUAL-INDEX support.
         
         Pipeline:
         1. Analyze with Document Intelligence (extracts figures with bounding boxes)
@@ -188,16 +190,21 @@ class DocumentProcessor:
         4. Upload cropped figures to Blob Storage
         5. Create context-aware chunks (text + tables + figures)
         6. Generate embeddings and index in Azure AI Search
+        7. [NEW] Export chunks for GraphRAG indexing (if enabled)
         
         Args:
             blob_path: Path where document is stored in blob
             content: Document content as bytes
             filename: Original filename
             use_di: If True, use DI + GPT-4V. If False, fallback to CU.
+            export_to_graphrag: If True, also export chunks for GraphRAG indexing
+            auto_index_graphrag: If provided, overrides settings.graphrag_auto_index
             
         Returns:
             Processing result with counts
         """
+        # Store the auto_index override for later use
+        self._auto_index_graphrag_override = auto_index_graphrag
         if not use_di:
             # Fallback to Content Understanding
             logger.info(f"Processing document with Content Understanding: {filename}")
@@ -237,8 +244,8 @@ class DocumentProcessor:
         figure_chunks = sum(1 for c in chunks if c['content_type'] == 'figure')
         logger.info(f"   ✅ Created {len(chunks)} chunks (text: {text_chunks}, tables: {table_chunks}, figures: {figure_chunks})")
         
-        # 4. Generate embeddings and index
-        logger.info("Step 4: Generating embeddings and indexing...")
+        # 4. Generate embeddings and index to Azure AI Search
+        logger.info("Step 4: Generating embeddings and indexing to Azure AI Search...")
         await self.search_service.index_chunks(chunks)
         logger.info(f"   ✅ Indexed {len(chunks)} chunks to Azure AI Search")
         
@@ -251,10 +258,93 @@ class DocumentProcessor:
             "table_chunks": table_chunks,
             "figure_chunks": figure_chunks,
             "figures_processed": len(figures),
+            "figures_extracted": len(figures),  # Alias for API compatibility
             "processing_mode": "di_gpt4v"
         }
         
+        # 5. [NEW] Export for GraphRAG (DUAL-INDEX)
+        if export_to_graphrag and self.settings.graphrag_enabled:
+            logger.info("Step 5: Exporting chunks for GraphRAG...")
+            try:
+                graphrag_result = await self._export_to_graphrag(chunks, filename)
+                result["graphrag_exported"] = True
+                result["graphrag_path"] = graphrag_result.get("path", "")
+                logger.info(f"   ✅ Exported to GraphRAG: {result['graphrag_path']}")
+            except Exception as e:
+                logger.warning(f"   ⚠️ GraphRAG export failed: {e}")
+                result["graphrag_exported"] = False
+                result["graphrag_error"] = str(e)
+        
         logger.info(f"✅ Document processing complete: {result}")
+        return result
+    
+    async def _export_to_graphrag(self, chunks: List[Dict[str, Any]], filename: str) -> Dict[str, Any]:
+        """
+        Export enriched chunks for GraphRAG indexing.
+        
+        This enables the dual-index architecture where the same document
+        content feeds both Azure AI Search and GraphRAG knowledge graph.
+        
+        NOTE: GraphRAG indexing is NOT run automatically because:
+        1. It takes 30-60+ minutes for large documents (uses many LLM calls)
+        2. It's expensive (entity extraction, community detection, summarization)
+        3. Running it synchronously would timeout the upload request
+        
+        Users should trigger indexing manually via:
+        - POST /api/graphrag/index endpoint
+        - Or enable graphrag_auto_index in settings (runs in background)
+        """
+        from services.graphrag_exporter import GraphRAGExporter
+        import asyncio
+        
+        graphrag_root = self.settings.graphrag_index_path or "./graphrag-index"
+        exporter = GraphRAGExporter(graphrag_root)
+        
+        # Export chunks to text file
+        output_path = exporter.export_chunks_for_graphrag(chunks, filename)
+        
+        # Optionally create/update GraphRAG config
+        if not (exporter.graphrag_root / "settings.yaml").exists():
+            exporter.create_graphrag_config(
+                azure_openai_endpoint=self.settings.azure_openai_endpoint,
+                azure_openai_api_key=self.settings.azure_openai_api_key,
+                chat_model=self.settings.azure_openai_deployment,
+                embedding_model=self.settings.azure_openai_embedding_deployment
+            )
+        
+        result = {
+            "path": str(output_path),
+            "graphrag_root": graphrag_root,
+            "index_status": "pending",
+            "message": "Document exported for GraphRAG. Index needs to be built before GraphRAG queries will work."
+        }
+        
+        # Check if auto-indexing should run:
+        # 1. Use override if provided (from upload request)
+        # 2. Otherwise use settings default
+        should_auto_index = getattr(self, '_auto_index_graphrag_override', None)
+        if should_auto_index is None:
+            should_auto_index = getattr(self.settings, 'graphrag_auto_index', True)
+        
+        if should_auto_index:
+            logger.info("GraphRAG auto-indexing enabled - starting background indexing...")
+            result["index_status"] = "started"
+            result["message"] = "GraphRAG indexing started in background. This may take 30-60 minutes."
+            
+            # Start indexing in background task (non-blocking)
+            async def run_indexing():
+                try:
+                    logger.info("Background GraphRAG indexing started...")
+                    exporter.run_graphrag_indexing()
+                    logger.info("✅ Background GraphRAG indexing complete!")
+                except Exception as e:
+                    logger.error(f"❌ Background GraphRAG indexing failed: {e}")
+            
+            # Create background task
+            asyncio.create_task(run_indexing())
+        else:
+            logger.info("GraphRAG auto-indexing disabled. Run POST /api/graphrag/index to build the index.")
+        
         return result
     
     async def _save_di_result(self, di_result: Dict[str, Any], filename: str):

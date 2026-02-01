@@ -90,6 +90,13 @@ output/
 .graphrag/
 ragtest/
 
+# GraphRAG index files (generated during indexing)
+**/graphrag-index/output/
+**/graphrag-index/cache/
+**/graphrag-index/logs/
+**/graphrag-index/input/
+graphrag-indexing.log
+
 # Testing & Development scratch space
 scratch/
 test_output/

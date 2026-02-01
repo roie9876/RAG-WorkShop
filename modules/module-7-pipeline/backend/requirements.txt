@@ -1,5 +1,9 @@
 # Module 7 - Production RAG Pipeline Backend
-# FastAPI + Azure AI Services
+# FastAPI + Azure AI Services + GraphRAG
+#
+# ⚠️  IMPORTANT: Python 3.11+ required for GraphRAG support
+#     GraphRAG 3.x requires Python >=3.11, <3.14
+#     Run: pyenv install 3.11.9 && pyenv local 3.11.9
 
 # Core Framework
 fastapi>=0.109.0
@@ -28,6 +32,10 @@ openai>=2.0.0
 # Microsoft AI Agents Framework
 azure-ai-projects>=1.0.0
 azure-ai-agents>=1.1.0
+
+# GraphRAG - Knowledge Graph based RAG
+graphrag>=2.7.0
+pyarrow>=14.0.0  # Required for reading Parquet files
 
 # Image Processing
 pillow>=10.0.0

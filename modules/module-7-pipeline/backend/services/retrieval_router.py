@@ -3,12 +3,15 @@ Retrieval Router Service.
 Routes queries to the optimal retrieval strategy.
 """
 
+import logging
 from typing import Dict, Any, Optional, List
 from openai import AzureOpenAI
 
 from config.settings import get_settings
 from services.search_service import SearchService
 from services.blob_service import BlobService
+
+logger = logging.getLogger(__name__)
 
 
 class RetrievalRouter:
@@ -19,6 +22,7 @@ class RetrievalRouter:
     - hybrid: Standard vector + text search (default)
     - agentic: Microsoft AI Agents for complex queries
     - graphrag: Graph-based retrieval for relationship queries
+    - iterative: Entity-aware iterative retrieval
     """
     
     def __init__(self):
@@ -26,6 +30,7 @@ class RetrievalRouter:
         self.search_service = SearchService()
         self.blob_service = BlobService()
         self._openai_client = None
+        self._graphrag_service = None  # Lazy load
     
     @property
     def openai_client(self) -> AzureOpenAI:
@@ -37,6 +42,19 @@ class RetrievalRouter:
                 api_version="2024-06-01"
             )
         return self._openai_client
+    
+    def _get_graphrag_service(self):
+        """Lazy load GraphRAG service only when needed."""
+        if self._graphrag_service is None:
+            try:
+                from services.graphrag_service import GraphRAGService
+                graphrag_root = self.settings.graphrag_index_path or "./graphrag-index"
+                self._graphrag_service = GraphRAGService(graphrag_root)
+                logger.info(f"GraphRAG service initialized: {graphrag_root}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize GraphRAG service: {e}")
+                self._graphrag_service = None
+        return self._graphrag_service
     
     async def classify_query(self, query: str) -> str:
         """
@@ -141,14 +159,47 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             min_score=min_score
         )
 
+        # Filter out low-relevance figures from results
+        # Figures often match broadly due to their AI-generated descriptions
+        # Figures must score at least as high as the BEST text chunk to be relevant
+        # This ensures figures only appear when they're truly relevant to the query
+        if content_type_filter == "all" or content_type_filter is None:
+            # Find max score among text chunks (our relevance baseline)
+            text_scores = [c.get("score", 0) for c in chunks if c.get("content_type") == "text"]
+            max_text_score = max(text_scores) if text_scores else 0
+            
+            # Figure threshold: must be at least 80% of best text score
+            # This is relative to actual search results, not hardcoded
+            FIGURE_SCORE_RATIO = 0.8
+            min_figure_score = max_text_score * FIGURE_SCORE_RATIO
+            
+            # Filter figures with low relative scores
+            filtered_chunks = []
+            filtered_figure_count = 0
+            for chunk in chunks:
+                if chunk.get("content_type") == "figure":
+                    score = chunk.get("score", 0)
+                    if score >= min_figure_score:
+                        filtered_chunks.append(chunk)
+                    else:
+                        filtered_figure_count += 1
+                        logger.debug(f"Filtered low-score figure: {chunk.get('source_document')} score={score:.3f} < {min_figure_score:.3f}")
+                else:
+                    filtered_chunks.append(chunk)
+            
+            if filtered_figure_count > 0:
+                logger.info(f"Filtered {filtered_figure_count} figures below {FIGURE_SCORE_RATIO*100:.0f}% of best text score ({min_figure_score:.4f})")
+            
+            chunks = filtered_chunks
+
         # If user asks for figures and no explicit filter, fetch figures from relevant pages
         if content_type_filter == "all" and self._should_boost_figures(query):
             # Extract relevant pages and documents from text chunks
             relevant_pages = self._extract_relevant_pages(chunks)
             
             if relevant_pages:
-                # Get figures from the same pages as the text content
-                figure_chunks = await self._get_figures_for_pages(relevant_pages)
+                # Get figures that are BOTH from relevant pages AND semantically relevant
+                figure_chunks = await self._get_figures_for_pages(relevant_pages, query)
                 chunks = self._merge_chunks(chunks, figure_chunks)
         
         # Add SAS URLs for figures and documents
@@ -182,13 +233,29 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             min_score=min_score
         )
 
+        # Filter out low-relevance figures (same logic as _retrieve_hybrid)
+        if content_type_filter == "all" or content_type_filter is None:
+            text_scores = [c.get("score", 0) for c in chunks if c.get("content_type") == "text"]
+            max_text_score = max(text_scores) if text_scores else 0
+            FIGURE_SCORE_RATIO = 0.8
+            min_figure_score = max_text_score * FIGURE_SCORE_RATIO
+            
+            filtered_chunks = []
+            for chunk in chunks:
+                if chunk.get("content_type") == "figure":
+                    if chunk.get("score", 0) >= min_figure_score:
+                        filtered_chunks.append(chunk)
+                else:
+                    filtered_chunks.append(chunk)
+            chunks = filtered_chunks
+
         if content_type_filter == "all" and self._should_boost_figures(query):
             # Extract relevant pages and documents from text chunks
             relevant_pages = self._extract_relevant_pages(chunks)
             
             if relevant_pages:
-                # Get figures from the same pages as the text content
-                figure_chunks = await self._get_figures_for_pages(relevant_pages)
+                # Get figures that are BOTH from relevant pages AND semantically relevant
+                figure_chunks = await self._get_figures_for_pages(relevant_pages, query)
                 chunks = self._merge_chunks(chunks, figure_chunks)
         
         # Add SAS URLs
@@ -198,14 +265,82 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
     
     async def _retrieve_graphrag(self, query: str, top_k: int) -> Dict[str, Any]:
         """
-        GraphRAG retrieval.
-        Falls back to hybrid if GraphRAG not configured.
+        GraphRAG retrieval using pre-built knowledge graph.
+        
+        Uses DRIFT search which combines local (entity-centric) and 
+        global (community-based) search for best results.
+        
+        Returns error info if GraphRAG not available (no silent fallback).
         """
-        # TODO: Integrate with GraphRAG from Module 6
-        # For now, fall back to hybrid
-        return await self._retrieve_hybrid(
-            query, top_k, "hybrid", True, 0.0, "all"
-        )
+        graphrag_service = self._get_graphrag_service()
+        
+        if graphrag_service is None:
+            logger.error("GraphRAG service not available")
+            return {
+                "chunks": [],
+                "error": True,
+                "error_type": "graphrag_not_installed",
+                "error_message": "GraphRAG is not installed. Please install with: pip install graphrag>=2.7.0",
+                "suggestion": "Select a different retrieval strategy (e.g., 'Hybrid' or 'Semantic')"
+            }
+        
+        # Check if GraphRAG index is ready
+        if not graphrag_service.is_ready():
+            logger.error("GraphRAG index not ready")
+            # Get more details about what's missing
+            status = graphrag_service.get_status()
+            input_docs = status.get("input_documents", 0)
+            
+            if input_docs == 0:
+                error_msg = "No documents have been exported for GraphRAG indexing. Please upload documents first."
+                suggestion = "Upload documents with 'Export to GraphRAG' enabled, then build the index."
+            else:
+                error_msg = f"GraphRAG index has not been built yet. {input_docs} document(s) are ready for indexing."
+                suggestion = "Click 'Build GraphRAG Index' in the UI or call POST /api/graphrag/index to build the knowledge graph."
+            
+            return {
+                "chunks": [],
+                "error": True,
+                "error_type": "graphrag_index_missing",
+                "error_message": error_msg,
+                "suggestion": suggestion,
+                "status": status
+            }
+        
+        try:
+            logger.info(f"Executing GraphRAG DRIFT search: {query[:100]}...")
+            
+            # Execute DRIFT search (combines local + global)
+            result = await graphrag_service.search(
+                query=query,
+                mode="drift",  # Best of both local and global
+                community_level=2
+            )
+            
+            # Convert to chunk format for UI consistency
+            chunks = graphrag_service.convert_to_chunks(result)
+            
+            # Add SAS URLs for any referenced documents
+            chunks = await self._enrich_with_sas_urls(chunks)
+            
+            logger.info(f"GraphRAG returned {len(chunks)} chunks")
+            
+            return {
+                "chunks": chunks,
+                "graphrag_metadata": {
+                    "mode": result.get("mode", "drift"),
+                    "entities_found": len(result.get("entities", [])),
+                    "relationships_found": len(result.get("relationships", [])),
+                    "communities_used": len(result.get("community_reports", [])),
+                    "graphrag_response": result.get("response", "")  # Include raw response
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"GraphRAG search failed: {e}, falling back to hybrid")
+            return await self._retrieve_hybrid(
+                query, top_k, "hybrid", True, 0.0, "all"
+            )
 
     def _extract_relevant_pages(self, chunks: List[Dict[str, Any]]) -> Dict[str, set]:
         """Extract page numbers and documents from text chunks.
@@ -227,29 +362,70 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
                         doc_pages[doc].add(p + 1)
         return doc_pages
 
-    async def _get_figures_for_pages(self, doc_pages: Dict[str, set]) -> List[Dict[str, Any]]:
-        """Get figure chunks from specific pages of specific documents."""
-        # Get all figures from index
-        all_figures = await self.search_service.search(
-            query="*",
-            top_k=100,
-            search_mode="text",
-            semantic_ranker=False,
+    async def _get_figures_for_pages(
+        self, 
+        doc_pages: Dict[str, set], 
+        query: str,
+        min_figure_score: float = 0.0  # Now uses relative scoring, this is just a floor
+    ) -> List[Dict[str, Any]]:
+        """
+        Get figure chunks from specific pages of specific documents.
+        
+        Uses HYBRID approach:
+        1. Semantically score figures against the query  
+        2. Filter by page proximity (same document + nearby pages)
+        3. Only return figures that score well relative to text chunks
+        
+        This prevents irrelevant figures (like metro station photo) 
+        from appearing when querying about unrelated topics (like remote controls).
+        """
+        # First: Get figures using semantic search WITH the actual query
+        # This ensures figures are scored by relevance to what user asked
+        semantically_relevant = await self.search_service.search(
+            query=query,  # Use actual query for semantic matching
+            top_k=50,
+            search_mode="hybrid",  # Use hybrid for best results
+            semantic_ranker=True,
             content_type_filter="figure",
-            min_score=0
+            min_score=min_figure_score
         )
         
-        # Filter to only figures from relevant pages
+        # Second: Filter to only figures from documents we have text context from
+        # This is a soft constraint - prioritize figures from same documents
         relevant_figures = []
-        for fig in all_figures:
+        other_relevant_figures = []
+        
+        for fig in semantically_relevant:
             doc = fig.get("source_document", "")
             pages = fig.get("page_numbers", [])
+            score = fig.get("score", 0)
+            
             if doc in doc_pages:
-                # Check if any page of this figure is in the relevant pages
+                # Figure is from a document we have text from
                 if any(p in doc_pages[doc] for p in pages):
+                    # Bonus: Figure is from same/adjacent page as text
+                    fig["_relevance_reason"] = "same_page"
                     relevant_figures.append(fig)
+                else:
+                    # Same document but different page
+                    fig["_relevance_reason"] = "same_document"
+                    relevant_figures.append(fig)
+            else:
+                # Different document - only include if score is very high
+                if score >= min_figure_score * 1.5:  # Higher threshold for cross-document
+                    fig["_relevance_reason"] = "semantically_relevant"
+                    other_relevant_figures.append(fig)
         
-        return relevant_figures[:10]  # Limit to 10 figures
+        # Combine: prioritize same-document figures, then add semantically relevant
+        combined = relevant_figures + other_relevant_figures
+        
+        logger.info(
+            f"Figure retrieval: {len(semantically_relevant)} semantic matches, "
+            f"{len(relevant_figures)} from same docs, "
+            f"{len(other_relevant_figures)} cross-doc"
+        )
+        
+        return combined[:10]  # Limit to 10 figures
 
     def _should_boost_figures(self, query: str) -> bool:
         """Heuristic: detect if user is asking for figures/images/plots."""

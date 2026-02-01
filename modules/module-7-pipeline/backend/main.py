@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from api.routes import documents, query, index, blob, config
+from api.routes import graphrag  # GraphRAG routes
 
 # Configure logging
 logging.basicConfig(
@@ -35,8 +36,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RAG Workshop - Educational Pipeline API",
-    description="Production RAG pipeline with full observability for educational purposes",
-    version="1.0.0",
+    description="Production RAG pipeline with full observability for educational purposes. Supports dual-index: Azure AI Search + GraphRAG.",
+    version="1.1.0",
     lifespan=lifespan
 )
 
@@ -55,6 +56,7 @@ app.include_router(query.router, prefix="/api/query", tags=["Query"])
 app.include_router(index.router, prefix="/api/index", tags=["Index"])
 app.include_router(blob.router, prefix="/api/blob", tags=["Blob Storage"])
 app.include_router(config.router, prefix="/api/config", tags=["Configuration"])
+app.include_router(graphrag.router, prefix="/api/graphrag", tags=["GraphRAG"])  # NEW!
 
 
 @app.get("/")
@@ -63,19 +65,35 @@ async def root():
     return {
         "status": "healthy",
         "service": "RAG Workshop Pipeline API",
-        "version": "1.0.0"
+        "version": "1.1.0",
+        "features": ["dual-index", "graphrag", "vector-search", "hybrid-search"]
     }
 
 
 @app.get("/health")
 async def health_check():
     """Detailed health check."""
+    # Check GraphRAG status
+    graphrag_status = "not_configured"
+    try:
+        from config.settings import get_settings
+        from services.graphrag_service import GraphRAGService
+        settings = get_settings()
+        service = GraphRAGService(settings.graphrag_index_path)
+        if service.is_ready():
+            graphrag_status = "ready"
+        else:
+            graphrag_status = "index_missing"
+    except Exception:
+        graphrag_status = "error"
+    
     return {
         "status": "healthy",
         "components": {
             "api": "ok",
             "azure_search": "pending",  # Will be checked on first use
             "azure_blob": "pending",
-            "azure_openai": "pending"
+            "azure_openai": "pending",
+            "graphrag": graphrag_status  # NEW!
         }
     }

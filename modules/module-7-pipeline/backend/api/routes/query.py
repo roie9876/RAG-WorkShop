@@ -233,6 +233,25 @@ async def execute_query(request: QueryRequest):
         
         retrieval_time_ms = int((time.time() - start_time) * 1000)
         
+        # Check if retrieval returned an error (e.g., GraphRAG not ready)
+        if retrieval_result.get("error"):
+            from fastapi import HTTPException
+            error_type = retrieval_result.get("error_type", "retrieval_error")
+            error_message = retrieval_result.get("error_message", "Retrieval failed")
+            suggestion = retrieval_result.get("suggestion", "")
+            status = retrieval_result.get("status", {})
+            
+            raise HTTPException(
+                status_code=503,  # Service Unavailable
+                detail={
+                    "error_type": error_type,
+                    "message": error_message,
+                    "suggestion": suggestion,
+                    "status": status,
+                    "strategy_requested": strategy
+                }
+            )
+        
         # Get initial chunks
         chunks_for_generation = retrieval_result["chunks"]
         

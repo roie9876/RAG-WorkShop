@@ -4,7 +4,7 @@ Handles file upload to Azure Blob Storage and triggers processing.
 """
 
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Form
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -44,7 +44,8 @@ document_store: dict[str, DocumentStatus] = {}
 @router.post("/upload", response_model=DocumentStatus)
 async def upload_document(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    enable_graphrag_index: bool = Form(default=True)
 ):
     """
     Upload a document for processing.
@@ -56,6 +57,11 @@ async def upload_document(
     2. Processed with Document Intelligence (bounding boxes)
     3. Processed with Content Understanding (semantic descriptions)
     4. Chunked and indexed in Azure AI Search
+    5. Optionally: GraphRAG indexing (if enable_graphrag_index=True)
+    
+    Args:
+        file: The document file to upload
+        enable_graphrag_index: Whether to automatically build GraphRAG index (default: True)
     """
     # Validate file type
     allowed_extensions = {".pdf", ".docx", ".xlsx", ".pptx"}
@@ -94,10 +100,11 @@ async def upload_document(
         filename=file.filename,
         content=content,
         blob_path=blob_path,
-        reindex=False
+        reindex=False,
+        enable_graphrag_index=enable_graphrag_index
     )
     
-    logger.info(f"✅ Upload accepted, processing in background: {doc_id}")
+    logger.info(f"✅ Upload accepted, processing in background: {doc_id} (GraphRAG indexing: {enable_graphrag_index})")
     return doc_status
 
 
@@ -106,10 +113,11 @@ async def process_document_background(
     filename: str,
     content: Optional[bytes] = None,
     blob_path: Optional[str] = None,
-    reindex: bool = False
+    reindex: bool = False,
+    enable_graphrag_index: bool = True
 ):
     """Background task to process uploaded document."""
-    logger.info(f"🔄 Starting background processing for {doc_id}: {filename} (reindex={reindex})")
+    logger.info(f"🔄 Starting background processing for {doc_id}: {filename} (reindex={reindex}, graphrag={enable_graphrag_index})")
     try:
         # Update status to processing
         document_store[doc_id].status = "processing"
@@ -143,7 +151,8 @@ async def process_document_background(
         result = await doc_processor.process_document(
             blob_path=blob_path,
             content=content,
-            filename=filename
+            filename=filename,
+            auto_index_graphrag=enable_graphrag_index
         )
         logger.info(f"✅ Processing complete: {result}")
         

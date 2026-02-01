@@ -54,9 +54,10 @@ export const queryApi = {
 
 // Documents API
 export const documentsApi = {
-  upload: async (file: File): Promise<DocumentStatus> => {
+  upload: async (file: File, enableGraphragIndex: boolean = true): Promise<DocumentStatus> => {
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('enable_graphrag_index', String(enableGraphragIndex))
 
     const response = await api.post('/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -80,6 +81,39 @@ export const documentsApi = {
 
   reindex: async (docId: string): Promise<DocumentStatus> => {
     const response = await api.post(`/documents/${docId}/reindex`)
+    return response.data
+  },
+}
+
+// GraphRAG API
+export interface GraphRAGStatus {
+  success: boolean
+  status: {
+    ready: boolean
+    input_documents: number
+    output_exists: boolean
+    entities_count: number
+    relationships_count: number
+    communities_count: number
+    has_parquet: boolean
+    is_indexing?: boolean
+    indexing_progress?: string
+  }
+}
+
+export const graphragApi = {
+  getStatus: async (): Promise<GraphRAGStatus> => {
+    const response = await api.get('/graphrag/status')
+    return response.data
+  },
+
+  startIndexing: async (timeout: number = 600): Promise<{ success: boolean; result: unknown }> => {
+    const response = await api.post('/graphrag/index', { timeout })
+    return response.data
+  },
+
+  clearIndex: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/graphrag/clear')
     return response.data
   },
 }

@@ -21,4 +21,5 @@ COPY . .
 EXPOSE 8000
 
 # Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Use --loop asyncio to avoid conflict between uvloop and graphrag's nest_asyncio2
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--loop", "asyncio"]

@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # Processing mode: "cu" for Content Understanding, "di" for Document Intelligence
     document_processing_mode: str = "cu"
     
+    # GraphRAG settings
+    graphrag_index_path: str = "./graphrag-index"  # Path to GraphRAG project root
+    graphrag_enabled: bool = True  # Enable GraphRAG export during document processing
+    graphrag_auto_index: bool = True  # Auto-run GraphRAG indexing after export (default: on)
+
+    
     def get_storage_account_name(self) -> str:
         """Extract storage account name from connection string or use direct setting."""
         if self.azure_storage_account_name:

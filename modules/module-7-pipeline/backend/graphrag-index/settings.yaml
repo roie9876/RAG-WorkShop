@@ -1,0 +1,100 @@
+# GraphRAG Configuration for v3.0.x with Azure OpenAI
+
+### LLM settings ###
+completion_models:
+  default_completion_model:
+    type: litellm
+    model_provider: azure
+    model: gpt-4.1
+    deployment_name: gpt-4.1
+    api_base: https://ai-ragworkv2-vtgal6fjx3fcc.cognitiveservices.azure.com
+    api_version: "2024-02-15-preview"
+    api_key: 87dfca521e8c4009afbb64466c735076
+    rate_limit:
+      requests_per_period: 10
+      period: 60
+    retry:
+      type: exponential_backoff
+      max_retries: 10
+
+embedding_models:
+  default_embedding_model:
+    type: litellm
+    model_provider: azure
+    model: text-embedding-3-large
+    deployment_name: text-embedding-3-large
+    api_base: https://ai-ragworkv2-vtgal6fjx3fcc.cognitiveservices.azure.com
+    api_version: "2024-02-15-preview"
+    api_key: 87dfca521e8c4009afbb64466c735076
+    rate_limit:
+      requests_per_period: 50
+      period: 60
+    retry:
+      type: exponential_backoff
+      max_retries: 10
+
+### Document processing settings ###
+input:
+  type: text
+
+chunking:
+  type: tokens
+  size: 1200
+  overlap: 100
+  encoding_model: cl100k_base
+
+### Storage settings ###
+input_storage:
+  type: file
+  base_dir: "input"
+
+output_storage:
+  type: file
+  base_dir: "output"
+
+reporting:
+  type: file
+  base_dir: "logs"
+
+cache:
+  type: json
+  storage:
+    type: file
+    base_dir: "cache"
+    
+vector_store:
+  type: lancedb
+  db_uri: output/lancedb
+
+### Workflow settings ###
+embed_text:
+  embedding_model_id: default_embedding_model
+
+extract_graph:
+  completion_model_id: default_completion_model
+  entity_types:
+    - STATION
+    - LOCATION
+    - LINE
+    - SERVICE
+    - INFRASTRUCTURE
+    - ORGANIZATION
+    - PERSON
+    - DATE
+    - METRIC
+  max_gleanings: 1
+
+summarize_descriptions:
+  completion_model_id: default_completion_model
+  max_length: 500
+
+cluster_graph:
+  max_cluster_size: 10
+
+community_reports:
+  completion_model_id: default_completion_model
+  max_length: 2000
+  max_input_length: 8000
+
+snapshots:
+  graphml: true
