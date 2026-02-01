@@ -78,27 +78,27 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
   const isSemanticScoring = config.search_mode === 'semantic' || (config.search_mode === 'hybrid' && config.semantic_ranker)
 
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Settings className="h-5 w-5" />
+    <div className="rounded-xl border bg-card p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold flex items-center gap-3">
+          <Settings className="h-6 w-6" />
           Retrieval Config
         </h2>
         <button
           onClick={handleReset}
-          className="p-1 hover:bg-muted rounded transition-colors"
+          className="p-2 hover:bg-muted rounded transition-colors"
           title="Reset to defaults"
         >
-          <RotateCcw className="h-4 w-4" />
+          <RotateCcw className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {/* Top K */}
         <div>
-          <div className="flex justify-between items-center mb-2">
-            <label className="text-sm font-medium">Top K</label>
-            <span className="text-sm text-muted-foreground">{config.top_k}</span>
+          <div className="flex justify-between items-center mb-3">
+            <label className="text-base font-medium">Top K</label>
+            <span className="text-base text-muted-foreground">{config.top_k}</span>
           </div>
           <input
             type="range"
@@ -106,9 +106,9 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
             max="20"
             value={config.top_k}
             onChange={(e) => onChange({ top_k: parseInt(e.target.value) })}
-            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer"
+            className="w-full h-3 bg-muted rounded-lg appearance-none cursor-pointer"
           />
-          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+          <div className="flex justify-between text-sm text-muted-foreground mt-2">
             <span>1</span>
             <span>20</span>
           </div>
@@ -116,11 +116,11 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
 
         {/* Search Mode */}
         <div>
-          <label className="text-sm font-medium block mb-2">Search Mode</label>
+          <label className="text-base font-medium block mb-3">Search Mode</label>
           <select
             value={config.search_mode}
             onChange={(e) => handleSearchModeChange(e.target.value as QueryConfig['search_mode'])}
-            className="w-full p-2 rounded-lg border bg-background"
+            className="w-full p-3 rounded-lg border bg-background text-base"
           >
             <option value="hybrid">Hybrid (Vector + Text)</option>
             <option value="vector">Vector Only</option>
@@ -131,19 +131,19 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
 
         {/* Semantic Ranker */}
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium">Semantic Ranker</label>
+          <label className="text-base font-medium">Semantic Ranker</label>
           <button
             onClick={handleSemanticRankerChange}
             className={`
-              relative w-11 h-6 rounded-full transition-colors
+              relative w-14 h-7 rounded-full transition-colors
               ${config.semantic_ranker ? 'bg-primary' : 'bg-muted'}
             `}
           >
             <span
               className={`
-                absolute top-1 left-1 w-4 h-4 rounded-full bg-white
+                absolute top-1 left-1 w-5 h-5 rounded-full bg-white
                 transition-transform
-                ${config.semantic_ranker ? 'translate-x-5' : 'translate-x-0'}
+                ${config.semantic_ranker ? 'translate-x-7' : 'translate-x-0'}
               `}
             />
           </button>
@@ -151,11 +151,11 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
 
         {/* Min Score */}
         <div>
-          <div className="flex justify-between items-center mb-2">
-            <label className="text-sm font-medium">Min Score</label>
-            <span className="text-sm text-muted-foreground">
+          <div className="flex justify-between items-center mb-3">
+            <label className="text-base font-medium">Min Score</label>
+            <span className="text-base text-muted-foreground">
               {config.min_score.toFixed(1)}
-              {isSemanticScoring && <span className="text-xs ml-1">(semantic 0-4)</span>}
+              {isSemanticScoring && <span className="text-sm ml-1">(semantic 0-4)</span>}
             </span>
           </div>
           <input
@@ -165,14 +165,14 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
             step={scoreStep}
             value={config.min_score}
             onChange={(e) => onChange({ min_score: parseFloat(e.target.value) })}
-            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer"
+            className="w-full h-3 bg-muted rounded-lg appearance-none cursor-pointer"
           />
-          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+          <div className="flex justify-between text-sm text-muted-foreground mt-2">
             <span>0</span>
             <span>{maxScore}</span>
           </div>
           {isSemanticScoring && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-2">
               Semantic: 0-1 poor, 1-2 fair, 2-3 good, 3-4 excellent
             </p>
           )}
@@ -180,11 +180,11 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
 
         {/* Content Type Filter */}
         <div>
-          <label className="text-sm font-medium block mb-2">Content Filter</label>
+          <label className="text-base font-medium block mb-3">Content Filter</label>
           <select
             value={config.content_type_filter}
             onChange={(e) => onChange({ content_type_filter: e.target.value as QueryConfig['content_type_filter'] })}
-            className="w-full p-2 rounded-lg border bg-background"
+            className="w-full p-3 rounded-lg border bg-background text-base"
           >
             <option value="all">All Content</option>
             <option value="text">Text Only</option>
@@ -195,11 +195,11 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
 
         {/* Retrieval Strategy */}
         <div>
-          <label className="text-sm font-medium block mb-2">Strategy</label>
+          <label className="text-base font-medium block mb-3">Strategy</label>
           <select
             value={config.retrieval_strategy}
             onChange={(e) => onChange({ retrieval_strategy: e.target.value as QueryConfig['retrieval_strategy'] })}
-            className="w-full p-2 rounded-lg border bg-background"
+            className="w-full p-3 rounded-lg border bg-background text-base"
           >
             <option value="auto">Auto (Recommended)</option>
             <option value="hybrid">Hybrid</option>
@@ -207,7 +207,7 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
             <option value="agentic">Agentic</option>
             <option value="graphrag">GraphRAG</option>
           </select>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-2">
             {config.retrieval_strategy === 'auto' && 'System will choose the best strategy'}
             {config.retrieval_strategy === 'hybrid' && 'Standard vector + text search'}
             {config.retrieval_strategy === 'iterative' && 'Entity extraction + query rewriting loop'}
@@ -217,28 +217,28 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
         </div>
 
         {/* Answer Validation */}
-        <div className="flex items-center justify-between pt-2 border-t">
-          <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-green-500" />
-            <label className="text-sm font-medium">Answer Validation</label>
+        <div className="flex items-center justify-between pt-4 border-t">
+          <div className="flex items-center gap-3">
+            <Shield className="h-5 w-5 text-green-500" />
+            <label className="text-base font-medium">Answer Validation</label>
           </div>
           <button
             onClick={() => onChange({ enable_validation: !config.enable_validation })}
             className={`
-              relative w-11 h-6 rounded-full transition-colors
+              relative w-14 h-7 rounded-full transition-colors
               ${config.enable_validation ? 'bg-green-500' : 'bg-muted'}
             `}
           >
             <span
               className={`
-                absolute top-1 left-1 w-4 h-4 rounded-full bg-white
+                absolute top-1 left-1 w-5 h-5 rounded-full bg-white
                 transition-transform
-                ${config.enable_validation ? 'translate-x-5' : 'translate-x-0'}
+                ${config.enable_validation ? 'translate-x-7' : 'translate-x-0'}
               `}
             />
           </button>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Filter irrelevant chunks & validate answer quality
         </p>
       </div>

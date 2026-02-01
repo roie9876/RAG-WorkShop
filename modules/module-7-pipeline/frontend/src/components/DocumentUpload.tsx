@@ -45,13 +45,13 @@ export function DocumentUpload() {
   useEffect(() => {
     fetchGraphragStatus()
     fetchIndexStats()
-    // Poll every 30 seconds
+    // Poll every 30 seconds normally, every 5 seconds when indexing
     const interval = setInterval(() => {
       fetchGraphragStatus()
       fetchIndexStats()
-    }, 30000)
+    }, isIndexing || graphragStatus?.is_indexing ? 5000 : 30000)
     return () => clearInterval(interval)
-  }, [fetchGraphragStatus, fetchIndexStats])
+  }, [fetchGraphragStatus, fetchIndexStats, isIndexing, graphragStatus?.is_indexing])
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setUploading(true)
@@ -185,33 +185,33 @@ export function DocumentUpload() {
   }
 
   return (
-    <div className="rounded-lg border bg-card p-6">
-      <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-        <Upload className="h-6 w-6" />
+    <div className="rounded-xl border bg-card p-8">
+      <h2 className="text-2xl font-semibold mb-8 flex items-center gap-3">
+        <Upload className="h-7 w-7" />
         Document Upload & Index Status
       </h2>
 
       {/* Index Status Panels - LARGER */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-2 gap-6 mb-8">
         {/* Azure AI Search Status */}
-        <div className="p-5 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-200 rounded-lg">
-                <Database className="h-6 w-6 text-blue-700" />
+        <div className="p-6 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-200 rounded-lg">
+                <Database className="h-7 w-7 text-blue-700" />
               </div>
-              <span className="text-lg font-semibold text-blue-900">Vector Search Index</span>
+              <span className="text-xl font-semibold text-blue-900">Vector Search Index</span>
             </div>
             <div className="flex items-center gap-2">
               {loadingIndexStats ? (
-                <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
               ) : (indexStats?.document_count ?? 0) > 0 ? (
-                <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-full flex items-center gap-1">
-                  <CheckCircle className="h-4 w-4" /> Ready
+                <span className="px-4 py-1.5 bg-green-100 text-green-700 text-base font-medium rounded-full flex items-center gap-1">
+                  <CheckCircle className="h-5 w-5" /> Ready
                 </span>
               ) : (
-                <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm font-medium rounded-full flex items-center gap-1">
-                  <XCircle className="h-4 w-4" /> Empty
+                <span className="px-4 py-1.5 bg-yellow-100 text-yellow-700 text-base font-medium rounded-full flex items-center gap-1">
+                  <XCircle className="h-5 w-5" /> Empty
                 </span>
               )}
               <button
@@ -229,62 +229,62 @@ export function DocumentUpload() {
                 disabled={deletingVectorIndex || (indexStats?.document_count ?? 0) === 0}
               >
                 {deletingVectorIndex ? (
-                  <Loader2 className="h-4 w-4 text-red-500 animate-spin" />
+                  <Loader2 className="h-5 w-5 text-red-500 animate-spin" />
                 ) : (
-                  <Trash2 className="h-4 w-4 text-red-500" />
+                  <Trash2 className="h-5 w-5 text-red-500" />
                 )}
               </button>
             </div>
           </div>
           
-          <div className="mt-4 space-y-3">
+          <div className="mt-5 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-blue-600">Total Chunks</span>
-              <span className="text-2xl font-bold text-blue-900">{indexStats?.document_count ?? 0}</span>
+              <span className="text-base text-blue-600">Total Chunks</span>
+              <span className="text-3xl font-bold text-blue-900">{indexStats?.document_count ?? 0}</span>
             </div>
             {indexStats?.content_type_counts && Object.keys(indexStats.content_type_counts).length > 0 && (
-              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-blue-200">
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-lg font-semibold text-blue-800">{indexStats.content_type_counts.text ?? 0}</div>
-                  <div className="text-xs text-blue-600">📝 Text</div>
+              <div className="grid grid-cols-3 gap-3 pt-4 border-t border-blue-200">
+                <div className="text-center p-3 bg-white/50 rounded-lg">
+                  <div className="text-xl font-semibold text-blue-800">{indexStats.content_type_counts.text ?? 0}</div>
+                  <div className="text-sm text-blue-600">📝 Text</div>
                 </div>
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-lg font-semibold text-blue-800">{indexStats.content_type_counts.table ?? 0}</div>
-                  <div className="text-xs text-blue-600">📊 Tables</div>
+                <div className="text-center p-3 bg-white/50 rounded-lg">
+                  <div className="text-xl font-semibold text-blue-800">{indexStats.content_type_counts.table ?? 0}</div>
+                  <div className="text-sm text-blue-600">📊 Tables</div>
                 </div>
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-lg font-semibold text-blue-800">{indexStats.content_type_counts.figure ?? 0}</div>
-                  <div className="text-xs text-blue-600">🖼️ Figures</div>
+                <div className="text-center p-3 bg-white/50 rounded-lg">
+                  <div className="text-xl font-semibold text-blue-800">{indexStats.content_type_counts.figure ?? 0}</div>
+                  <div className="text-sm text-blue-600">🖼️ Figures</div>
                 </div>
               </div>
             )}
-            <p className="text-xs text-blue-500 pt-2">Powered by Azure AI Search</p>
+            <p className="text-sm text-blue-500 pt-2">Powered by Azure AI Search</p>
           </div>
         </div>
 
         {/* GraphRAG Status */}
-        <div className="p-5 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-200 rounded-lg">
-                <Network className="h-6 w-6 text-purple-700" />
+        <div className="p-6 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-purple-200 rounded-lg">
+                <Network className="h-7 w-7 text-purple-700" />
               </div>
-              <span className="text-lg font-semibold text-purple-900">Knowledge Graph</span>
+              <span className="text-xl font-semibold text-purple-900">Knowledge Graph</span>
             </div>
             <div className="flex items-center gap-2">
               {loadingGraphragStatus ? (
-                <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
+                <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
               ) : graphragStatus?.ready ? (
-                <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-full flex items-center gap-1">
-                  <CheckCircle className="h-4 w-4" /> Ready
+                <span className="px-4 py-1.5 bg-green-100 text-green-700 text-base font-medium rounded-full flex items-center gap-1">
+                  <CheckCircle className="h-5 w-5" /> Ready
                 </span>
-              ) : isIndexing ? (
-                <span className="px-3 py-1 bg-orange-100 text-orange-700 text-sm font-medium rounded-full flex items-center gap-1">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Building...
+              ) : (isIndexing || graphragStatus?.is_indexing) ? (
+                <span className="px-4 py-1.5 bg-orange-100 text-orange-700 text-base font-medium rounded-full flex items-center gap-1">
+                  <Loader2 className="h-5 w-5 animate-spin" /> Building...
                 </span>
               ) : (
-                <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm font-medium rounded-full flex items-center gap-1">
-                  <XCircle className="h-4 w-4" /> Not Built
+                <span className="px-4 py-1.5 bg-yellow-100 text-yellow-700 text-base font-medium rounded-full flex items-center gap-1">
+                  <XCircle className="h-5 w-5" /> Not Built
                 </span>
               )}
               <button
@@ -293,7 +293,7 @@ export function DocumentUpload() {
                 title="Refresh status"
                 disabled={loadingGraphragStatus}
               >
-                <RefreshCw className={`h-4 w-4 text-purple-600 ${loadingGraphragStatus ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-5 w-5 text-purple-600 ${loadingGraphragStatus ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={handleDeleteGraphragIndex}
@@ -302,66 +302,107 @@ export function DocumentUpload() {
                 disabled={deletingGraphragIndex || ((graphragStatus?.input_documents ?? 0) === 0 && !graphragStatus?.ready)}
               >
                 {deletingGraphragIndex ? (
-                  <Loader2 className="h-4 w-4 text-red-500 animate-spin" />
+                  <Loader2 className="h-5 w-5 text-red-500 animate-spin" />
                 ) : (
-                  <Trash2 className="h-4 w-4 text-red-500" />
+                  <Trash2 className="h-5 w-5 text-red-500" />
                 )}
               </button>
             </div>
           </div>
           
-          <div className="mt-4 space-y-3">
+          <div className="mt-5 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-purple-600">Documents Ready</span>
-              <span className="text-2xl font-bold text-purple-900">{graphragStatus?.input_documents ?? 0}</span>
+              <span className="text-base text-purple-600">Documents Ready</span>
+              <span className="text-3xl font-bold text-purple-900">{graphragStatus?.input_documents ?? 0}</span>
             </div>
             {graphragStatus?.ready ? (
-              <div className="grid grid-cols-2 gap-2 pt-3 border-t border-purple-200">
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-lg font-semibold text-purple-800">{graphragStatus.entities_count ?? 0}</div>
-                  <div className="text-xs text-purple-600">🔗 Entities</div>
+              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-purple-200">
+                <div className="text-center p-3 bg-white/50 rounded-lg">
+                  <div className="text-xl font-semibold text-purple-800">{graphragStatus.entities_count ?? 0}</div>
+                  <div className="text-sm text-purple-600">🔗 Entities</div>
                 </div>
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-lg font-semibold text-purple-800">{graphragStatus.relationships_count ?? 0}</div>
-                  <div className="text-xs text-purple-600">↔️ Relations</div>
+                <div className="text-center p-3 bg-white/50 rounded-lg">
+                  <div className="text-xl font-semibold text-purple-800">{graphragStatus.relationships_count ?? 0}</div>
+                  <div className="text-sm text-purple-600">↔️ Relations</div>
                 </div>
               </div>
             ) : (
-              <div className="pt-3 border-t border-purple-200">
-                {!graphragStatus?.ready && (graphragStatus?.input_documents ?? 0) > 0 && !isIndexing && (
+              <div className="pt-4 border-t border-purple-200">
+                {!graphragStatus?.ready && (graphragStatus?.input_documents ?? 0) > 0 && !isIndexing && !graphragStatus?.is_indexing && (
                   <button
                     onClick={handleStartGraphragIndex}
-                    className="w-full py-2 px-4 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
+                    className="w-full py-3 px-5 rounded-lg bg-purple-600 text-white text-lg font-medium hover:bg-purple-700 transition-colors"
                   >
                     🚀 Build Knowledge Graph
                   </button>
                 )}
-                {isIndexing && (
-                  <div className="text-center py-2">
-                    <Loader2 className="h-5 w-5 animate-spin text-purple-600 mx-auto mb-1" />
-                    <p className="text-sm text-purple-600">Building graph... (may take 30-60 min)</p>
+                {(isIndexing || graphragStatus?.is_indexing) && (
+                  <div className="space-y-4">
+                    {/* Progress Bar */}
+                    <div className="w-full bg-purple-200 rounded-full h-4 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-purple-500 to-purple-600 h-4 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${graphragStatus?.progress_detail?.percentage ?? 0}%` }}
+                      />
+                    </div>
+                    
+                    {/* Progress Details */}
+                    <div className="flex items-center justify-between text-base">
+                      <span className="text-purple-700 font-semibold text-lg">
+                        {graphragStatus?.progress_detail?.percentage ?? 0}%
+                      </span>
+                      {graphragStatus?.progress_detail?.eta_minutes !== null && graphragStatus?.progress_detail?.eta_minutes !== undefined && (
+                        <span className="text-purple-600 font-medium">
+                          ~{graphragStatus.progress_detail.eta_minutes} min remaining
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Current Step */}
+                    {graphragStatus?.progress_detail?.current_step && (
+                      <div className="text-sm text-purple-600 bg-white/50 rounded-lg p-3">
+                        <div className="flex items-center gap-3">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="font-medium">
+                            {graphragStatus.progress_detail.current_step.replace(/_/g, ' ')}
+                          </span>
+                          {graphragStatus.progress_detail.total_items > 0 && (
+                            <span className="text-purple-500">
+                              ({graphragStatus.progress_detail.current_progress}/{graphragStatus.progress_detail.total_items})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Steps Progress */}
+                    {graphragStatus?.progress_detail?.steps_completed && graphragStatus.progress_detail.steps_completed.length > 0 && (
+                      <div className="text-sm text-purple-500">
+                        ✅ {graphragStatus.progress_detail.steps_completed.length}/10 steps completed
+                      </div>
+                    )}
                   </div>
                 )}
                 {(graphragStatus?.input_documents ?? 0) === 0 && (
-                  <p className="text-sm text-purple-500 text-center py-2">Upload documents to enable</p>
+                  <p className="text-base text-purple-500 text-center py-3">Upload documents to enable</p>
                 )}
               </div>
             )}
-            <p className="text-xs text-purple-500 pt-2">Powered by Microsoft GraphRAG</p>
+            <p className="text-sm text-purple-500 pt-3">Powered by Microsoft GraphRAG</p>
           </div>
         </div>
       </div>
 
       {/* GraphRAG Index Checkbox */}
-      <div className="mb-5 flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+      <div className="mb-6 flex items-center gap-4 p-4 bg-muted/30 rounded-lg">
         <input
           type="checkbox"
           id="enable-graphrag"
           checked={enableGraphragIndex}
           onChange={(e) => setEnableGraphragIndex(e.target.checked)}
-          className="h-5 w-5 rounded border-muted-foreground/25"
+          className="h-6 w-6 rounded border-muted-foreground/25"
         />
-        <label htmlFor="enable-graphrag" className="text-sm text-muted-foreground cursor-pointer">
+        <label htmlFor="enable-graphrag" className="text-base text-muted-foreground cursor-pointer">
           <span className="font-medium">Enable GraphRAG indexing</span> — automatically builds knowledge graph for cross-document reasoning
         </label>
       </div>
@@ -370,22 +411,22 @@ export function DocumentUpload() {
       <div
         {...getRootProps()}
         className={`
-          border-2 border-dashed rounded-xl p-10 text-center cursor-pointer
+          border-2 border-dashed rounded-xl p-12 text-center cursor-pointer
           transition-colors duration-200
           ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
           ${uploading ? 'opacity-50 pointer-events-none' : ''}
         `}
       >
         <input {...getInputProps()} />
-        <Upload className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
+        <Upload className="h-12 w-12 mx-auto mb-5 text-muted-foreground" />
         {isDragActive ? (
-          <p className="text-primary">Drop files here...</p>
+          <p className="text-primary text-lg">Drop files here...</p>
         ) : (
           <>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground text-lg">
               Drag & drop files here, or click to browse
             </p>
-            <p className="text-sm text-muted-foreground/75 mt-1">
+            <p className="text-base text-muted-foreground/75 mt-2">
               Supports PDF, DOCX, XLSX, PPTX
             </p>
           </>
@@ -394,18 +435,18 @@ export function DocumentUpload() {
 
       {/* Uploaded Documents */}
       {documents.length > 0 && (
-        <div className="mt-4 space-y-2">
+        <div className="mt-6 space-y-3">
           {documents.map((doc) => (
             <div
               key={doc.id}
-              className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+              className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
             >
-              <div className="flex items-center gap-3">
-                <File className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center gap-4">
+                <File className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-sm font-medium">{doc.filename}</p>
+                  <p className="text-base font-medium">{doc.filename}</p>
                   {doc.status === 'completed' && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       {doc.chunks_created} chunks, {doc.figures_extracted} figures
                     </p>
                   )}

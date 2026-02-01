@@ -86,6 +86,16 @@ export const documentsApi = {
 }
 
 // GraphRAG API
+export interface GraphRAGProgressDetail {
+  current_step: string | null
+  current_progress: number
+  total_items: number
+  percentage: number
+  eta_minutes: number | null
+  steps_completed: string[]
+  steps_remaining: string[]
+}
+
 export interface GraphRAGStatus {
   success: boolean
   status: {
@@ -98,6 +108,7 @@ export interface GraphRAGStatus {
     has_parquet: boolean
     is_indexing?: boolean
     indexing_progress?: string
+    progress_detail?: GraphRAGProgressDetail | null
   }
 }
 

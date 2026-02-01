@@ -36,9 +36,9 @@ export function QueryInput({ onSubmit, isLoading }: QueryInputProps) {
   }
 
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <Search className="h-5 w-5" />
+    <div className="rounded-xl border bg-card p-6">
+      <h2 className="text-xl font-semibold mb-6 flex items-center gap-3">
+        <Search className="h-6 w-6" />
         Ask a Question
       </h2>
 
@@ -51,7 +51,7 @@ export function QueryInput({ onSubmit, isLoading }: QueryInputProps) {
             onKeyDown={handleKeyDown}
             placeholder="What would you like to know about your documents?"
             className={`
-              w-full min-h-[80px] max-h-[200px] p-4 pr-12
+              w-full min-h-[100px] max-h-[250px] p-5 pr-14 text-lg
               rounded-lg border bg-background
               resize-none focus:outline-none focus:ring-2 focus:ring-primary
               ${isRTL ? 'text-right' : 'text-left'}
@@ -63,21 +63,21 @@ export function QueryInput({ onSubmit, isLoading }: QueryInputProps) {
             type="submit"
             disabled={!question.trim() || isLoading}
             className={`
-              absolute bottom-3 right-3 p-2 rounded-lg
+              absolute bottom-4 right-4 p-3 rounded-lg
               bg-primary text-primary-foreground
               disabled:opacity-50 disabled:cursor-not-allowed
               hover:bg-primary/90 transition-colors
             `}
           >
             {isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-6 w-6 animate-spin" />
             ) : (
-              <Search className="h-5 w-5" />
+              <Search className="h-6 w-6" />
             )}
           </button>
         </div>
 
-        <div className="mt-2 flex justify-between items-center text-xs text-muted-foreground">
+        <div className="mt-3 flex justify-between items-center text-sm text-muted-foreground">
           <span>Press Enter to submit, Shift+Enter for new line</span>
           {isRTL && <span>RTL mode detected</span>}
         </div>

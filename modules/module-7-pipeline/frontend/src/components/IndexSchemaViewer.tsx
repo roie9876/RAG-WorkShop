@@ -50,34 +50,34 @@ export function IndexSchemaViewer() {
   }, [])
 
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Database className="h-5 w-5" />
+    <div className="rounded-xl border bg-card p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold flex items-center gap-3">
+          <Database className="h-6 w-6" />
           Index Schema
         </h2>
         <div className="flex items-center gap-2">
           <button
             onClick={handleDeleteIndex}
             disabled={loading}
-            className="p-1 hover:bg-muted rounded transition-colors disabled:opacity-50"
+            className="p-2 hover:bg-muted rounded transition-colors disabled:opacity-50"
             title="Delete index"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-5 w-5" />
           </button>
           <button
             onClick={fetchData}
             disabled={loading}
-            className="p-1 hover:bg-muted rounded transition-colors disabled:opacity-50"
+            className="p-2 hover:bg-muted rounded transition-colors disabled:opacity-50"
             title="Refresh"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
       {error && (
-        <div className="text-sm text-red-500 mb-4">{error}</div>
+        <div className="text-base text-red-500 mb-4">{error}</div>
       )}
 
       {/* Stats Summary */}

@@ -355,6 +355,134 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
             if lock_file.exists():
                 lock_file.unlink()
     
+    def _parse_indexing_progress(self) -> Dict[str, Any]:
+        """
+        Parse the indexing log to extract real-time progress.
+        
+        Returns:
+            Dict with current_step, current_progress, total_items, percentage, eta_minutes
+        """
+        progress = {
+            "current_step": None,
+            "current_progress": 0,
+            "total_items": 0,
+            "percentage": 0,
+            "eta_minutes": None,
+            "steps_completed": [],
+            "steps_remaining": []
+        }
+        
+        # Define the workflow steps and their approximate weights (time %)
+        all_steps = [
+            ("load_input_documents", 1),
+            ("create_base_text_units", 2),
+            ("create_final_documents", 1),
+            ("extract_graph", 40),  # This is the slowest step
+            ("finalize_graph", 2),
+            ("extract_covariates", 2),
+            ("create_communities", 5),
+            ("create_final_text_units", 2),
+            ("create_community_reports", 35),  # Second slowest
+            ("generate_text_embeddings", 10)
+        ]
+        step_names = [s[0] for s in all_steps]
+        step_weights = {s[0]: s[1] for s in all_steps}
+        total_weight = sum(s[1] for s in all_steps)
+        
+        log_file = self.graphrag_root / "logs" / "indexing-engine.log"
+        if not log_file.exists():
+            return progress
+        
+        try:
+            import re
+            from datetime import datetime
+            
+            # Read last 500 lines of log
+            with open(log_file, 'r') as f:
+                lines = f.readlines()[-500:]
+            
+            completed_steps = set()
+            current_step = None
+            current_item = 0
+            total_items = 0
+            first_timestamp = None
+            last_timestamp = None
+            
+            for line in lines:
+                # Parse timestamp
+                ts_match = re.match(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+                if ts_match:
+                    try:
+                        ts = datetime.strptime(ts_match.group(1), '%Y-%m-%d %H:%M:%S')
+                        if first_timestamp is None:
+                            first_timestamp = ts
+                        last_timestamp = ts
+                    except:
+                        pass
+                
+                # Check for workflow completion
+                if "Workflow complete:" in line or "completed successfully" in line:
+                    for step in step_names:
+                        if step in line:
+                            completed_steps.add(step)
+                            break
+                
+                # Check for workflow start
+                if "Workflow started:" in line:
+                    for step in step_names:
+                        if step in line:
+                            current_step = step
+                            break
+                
+                # Check for progress updates (e.g., "extract graph progress: 45/141")
+                progress_match = re.search(r'progress[:\s]+(\d+)/(\d+)', line, re.IGNORECASE)
+                if progress_match:
+                    current_item = int(progress_match.group(1))
+                    total_items = int(progress_match.group(2))
+                    
+                    # Detect which step this progress belongs to
+                    for step in step_names:
+                        step_readable = step.replace('_', ' ')
+                        if step_readable in line.lower():
+                            current_step = step
+                            break
+            
+            # Calculate overall progress
+            weight_completed = 0
+            for step in completed_steps:
+                weight_completed += step_weights.get(step, 0)
+            
+            # Add partial progress for current step
+            if current_step and current_step not in completed_steps and total_items > 0:
+                step_weight = step_weights.get(current_step, 0)
+                partial_weight = step_weight * (current_item / total_items)
+                weight_completed += partial_weight
+            
+            overall_percentage = int((weight_completed / total_weight) * 100)
+            
+            # Calculate ETA
+            eta_minutes = None
+            if first_timestamp and last_timestamp and overall_percentage > 0:
+                elapsed_seconds = (last_timestamp - first_timestamp).total_seconds()
+                if elapsed_seconds > 30 and overall_percentage > 5:  # Need some data points
+                    remaining_pct = 100 - overall_percentage
+                    eta_seconds = (elapsed_seconds / overall_percentage) * remaining_pct
+                    eta_minutes = round(eta_seconds / 60, 1)
+            
+            # Build steps lists
+            progress["steps_completed"] = [s for s in step_names if s in completed_steps]
+            progress["steps_remaining"] = [s for s in step_names if s not in completed_steps]
+            progress["current_step"] = current_step
+            progress["current_progress"] = current_item
+            progress["total_items"] = total_items
+            progress["percentage"] = min(overall_percentage, 99)  # Cap at 99 until truly done
+            progress["eta_minutes"] = eta_minutes
+            
+        except Exception as e:
+            logger.warning(f"Failed to parse indexing progress: {e}")
+        
+        return progress
+
     def get_index_status(self) -> Dict[str, Any]:
         """
         Check the status of GraphRAG index.
@@ -373,7 +501,8 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
             "has_parquet": False,
             "ready": False,
             "is_indexing": False,
-            "indexing_progress": None
+            "indexing_progress": None,
+            "progress_detail": None
         }
         
         # Check for indexing lock file
@@ -384,6 +513,9 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
                 status["indexing_progress"] = lock_file.read_text().strip()
             except Exception:
                 status["indexing_progress"] = "Indexing in progress..."
+            
+            # Parse detailed progress from log
+            status["progress_detail"] = self._parse_indexing_progress()
         
         # Count input documents
         if self.input_dir.exists():

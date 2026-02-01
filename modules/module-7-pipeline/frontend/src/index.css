@@ -53,9 +53,17 @@
   * {
     @apply border-border;
   }
+  html {
+    font-size: 18px; /* Base font size increased from 16px */
+  }
   body {
     @apply bg-background text-foreground;
   }
+  /* Increase base text sizes */
+  h1 { @apply text-3xl; }
+  h2 { @apply text-2xl; }
+  h3 { @apply text-xl; }
+  p, span, div { @apply text-base; }
 }
 
 /* RTL Support */

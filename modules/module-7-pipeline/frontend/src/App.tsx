@@ -43,25 +43,25 @@ function App() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
+        <div className="max-w-[1800px] mx-auto px-6 py-5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">📚</span>
+            <div className="flex items-center gap-4">
+              <span className="text-4xl">📚</span>
               <div>
-                <h1 className="text-xl font-bold">RAG Workshop</h1>
-                <p className="text-sm text-muted-foreground">Educational Pipeline Explorer</p>
+                <h1 className="text-2xl font-bold">RAG Workshop</h1>
+                <p className="text-base text-muted-foreground">Educational Pipeline Explorer</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Module 7 - Capstone</span>
+              <span className="text-sm text-muted-foreground">Module 7 - Capstone</span>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <main className="max-w-[1800px] mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Upload & Query */}
           <div className="lg:col-span-2 space-y-6">
             {/* Document Upload */}
