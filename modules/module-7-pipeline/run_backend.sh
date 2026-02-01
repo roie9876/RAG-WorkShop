@@ -64,4 +64,5 @@ echo "🚀 Starting FastAPI backend on http://localhost:8000"
 echo "📚 API docs at http://localhost:8000/docs"
 echo "🔗 GraphRAG endpoints at http://localhost:8000/api/graphrag"
 # Use --loop asyncio to avoid conflict between uvloop and graphrag's nest_asyncio2
-./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload --loop asyncio
+# Remove --reload for stability with sync OpenAI calls
+./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --loop asyncio

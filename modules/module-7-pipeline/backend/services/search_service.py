@@ -189,12 +189,18 @@ class SearchService:
         self.search_client.upload_documents(chunks)
     
     async def _get_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text."""
-        response = self.openai_client.embeddings.create(
-            input=text,
-            model=self.settings.azure_openai_embedding_deployment
-        )
-        return response.data[0].embedding
+        """Generate embedding for text (runs in thread pool to avoid blocking)."""
+        import asyncio
+        loop = asyncio.get_event_loop()
+        
+        def _sync_get_embedding():
+            response = self.openai_client.embeddings.create(
+                input=text,
+                model=self.settings.azure_openai_embedding_deployment
+            )
+            return response.data[0].embedding
+        
+        return await loop.run_in_executor(None, _sync_get_embedding)
     
     async def search(
         self,

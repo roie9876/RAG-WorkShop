@@ -23,6 +23,7 @@ except ImportError:
 try:
     from graphrag.api import local_search, global_search, drift_search
     from graphrag.config.models.graph_rag_config import GraphRagConfig
+    from graphrag.config.load_config import load_config
     GRAPHRAG_AVAILABLE = True
 except ImportError:
     GRAPHRAG_AVAILABLE = False
@@ -56,6 +57,7 @@ class GraphRAGService:
         self._communities: Optional[pd.DataFrame] = None
         self._community_reports: Optional[pd.DataFrame] = None
         self._text_units: Optional[pd.DataFrame] = None
+        self._covariates: Optional[pd.DataFrame] = None
         self._config = None
         
         logger.info(f"GraphRAGService initialized: {self.root}")
@@ -89,8 +91,18 @@ class GraphRAGService:
             self._community_reports = pd.read_parquet(self.output_dir / "community_reports.parquet")
             self._text_units = pd.read_parquet(self.output_dir / "text_units.parquet")
             
-            # Load config
-            self._config = create_graphrag_config(root_dir=self.root)
+            # Load covariates if available (optional)
+            covariates_path = self.output_dir / "covariates.parquet"
+            if covariates_path.exists():
+                self._covariates = pd.read_parquet(covariates_path)
+                logger.info(f"   Covariates: {len(self._covariates)}")
+            else:
+                # Create empty covariates DataFrame with required schema
+                self._covariates = pd.DataFrame(columns=['id', 'human_readable_id', 'covariate_type', 'type', 'description', 'subject_id', 'object_id', 'status', 'start_date', 'end_date', 'source_text', 'text_unit_id', 'document_ids', 'n_tokens', 'embedding_id'])
+                logger.info(f"   Covariates: None (using empty DataFrame)")
+            
+            # Load config using GraphRAG v3 API
+            self._config = load_config(root_dir=self.root)
             
             self._loaded = True
             
@@ -115,7 +127,8 @@ class GraphRAGService:
         try:
             self._ensure_loaded()
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"GraphRAG is_ready check failed: {e}")
             return False
     
     def get_status(self) -> Dict[str, Any]:
@@ -189,8 +202,11 @@ class GraphRAGService:
                 response, context = await local_search(
                     config=self._config,
                     entities=self._entities,
-                    relationships=self._relationships,
+                    communities=self._communities,
+                    community_reports=self._community_reports,
                     text_units=self._text_units,
+                    relationships=self._relationships,
+                    covariates=self._covariates,
                     community_level=community_level,
                     response_type=response_type,
                     query=query
@@ -219,15 +235,36 @@ class GraphRAGService:
                     query=query
                 )
             
+            logger.info(f"GraphRAG search returned response type: {type(response)}")
+            logger.info(f"GraphRAG search returned context type: {type(context)}")
+            if isinstance(context, dict):
+                logger.info(f"Context keys: {context.keys()}")
+            
             # Extract context data
+            logger.info("Extracting entities...")
+            entities = self._extract_context_entities(context)
+            logger.info(f"Extracted {len(entities)} entities")
+            
+            logger.info("Extracting relationships...")
+            relationships = self._extract_context_relationships(context)
+            logger.info(f"Extracted {len(relationships)} relationships")
+            
+            logger.info("Extracting community reports...")
+            reports = self._extract_context_reports(context)
+            logger.info(f"Extracted {len(reports)} reports")
+            
+            logger.info("Extracting text units...")
+            text_units = self._extract_context_text_units(context)
+            logger.info(f"Extracted {len(text_units)} text units")
+            
             result = {
                 "response": response,
                 "mode": mode,
                 "query": query,
-                "entities": self._extract_context_entities(context),
-                "relationships": self._extract_context_relationships(context),
-                "community_reports": self._extract_context_reports(context),
-                "text_units": self._extract_context_text_units(context)
+                "entities": entities,
+                "relationships": relationships,
+                "community_reports": reports,
+                "text_units": text_units
             }
             
             logger.info(f"GraphRAG search complete: {len(result['entities'])} entities, {len(result['relationships'])} relationships")
@@ -236,30 +273,46 @@ class GraphRAGService:
             
         except Exception as e:
             logger.error(f"GraphRAG search failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             raise
     
     def _extract_context_entities(self, context: Any) -> List[Dict[str, Any]]:
         """Extract entity information from search context."""
         entities = []
         
-        if isinstance(context, dict):
-            entity_data = context.get("entities")
-            if entity_data is not None:
-                if isinstance(entity_data, pd.DataFrame):
-                    for _, row in entity_data.head(20).iterrows():
-                        entities.append({
-                            "name": row.get("title") or row.get("name", ""),
-                            "type": row.get("type", "UNKNOWN"),
-                            "description": str(row.get("description", ""))[:500]
-                        })
-                elif isinstance(entity_data, list):
-                    for entity in entity_data[:20]:
-                        if isinstance(entity, dict):
-                            entities.append({
-                                "name": entity.get("title") or entity.get("name", ""),
-                                "type": entity.get("type", "UNKNOWN"),
-                                "description": str(entity.get("description", ""))[:500]
-                            })
+        if not isinstance(context, dict):
+            return entities
+            
+        entity_data = context.get("entities")
+        if entity_data is None:
+            return entities
+            
+        # Handle DataFrame
+        if isinstance(entity_data, pd.DataFrame):
+            if entity_data.empty:
+                return entities
+            for _, row in entity_data.head(20).iterrows():
+                # Try 'title' first, then 'name'
+                name = ""
+                if "title" in row.index:
+                    name = row["title"]
+                elif "name" in row.index:
+                    name = row["name"]
+                entities.append({
+                    "name": name or "",
+                    "type": row.get("type", "UNKNOWN") if "type" in row.index else "UNKNOWN",
+                    "description": str(row.get("description", "") if "description" in row.index else "")[:500]
+                })
+        # Handle list
+        elif isinstance(entity_data, list):
+            for entity in entity_data[:20]:
+                if isinstance(entity, dict):
+                    entities.append({
+                        "name": entity.get("title") or entity.get("name", ""),
+                        "type": entity.get("type", "UNKNOWN"),
+                        "description": str(entity.get("description", ""))[:500]
+                    })
         
         return entities
     
@@ -267,24 +320,32 @@ class GraphRAGService:
         """Extract relationship information from search context."""
         relationships = []
         
-        if isinstance(context, dict):
-            rel_data = context.get("relationships")
-            if rel_data is not None:
-                if isinstance(rel_data, pd.DataFrame):
-                    for _, row in rel_data.head(20).iterrows():
-                        relationships.append({
-                            "source": row.get("source", ""),
-                            "target": row.get("target", ""),
-                            "description": str(row.get("description", ""))[:300]
-                        })
-                elif isinstance(rel_data, list):
-                    for rel in rel_data[:20]:
-                        if isinstance(rel, dict):
-                            relationships.append({
-                                "source": rel.get("source", ""),
-                                "target": rel.get("target", ""),
-                                "description": str(rel.get("description", ""))[:300]
-                            })
+        if not isinstance(context, dict):
+            return relationships
+            
+        rel_data = context.get("relationships")
+        if rel_data is None:
+            return relationships
+            
+        # Handle DataFrame
+        if isinstance(rel_data, pd.DataFrame):
+            if rel_data.empty:
+                return relationships
+            for _, row in rel_data.head(20).iterrows():
+                relationships.append({
+                    "source": row.get("source", ""),
+                    "target": row.get("target", ""),
+                    "description": str(row.get("description", ""))[:300]
+                })
+        # Handle list
+        elif isinstance(rel_data, list):
+            for rel in rel_data[:20]:
+                if isinstance(rel, dict):
+                    relationships.append({
+                        "source": rel.get("source", ""),
+                        "target": rel.get("target", ""),
+                        "description": str(rel.get("description", ""))[:300]
+                    })
         
         return relationships
     
@@ -292,24 +353,35 @@ class GraphRAGService:
         """Extract community report information from search context."""
         reports = []
         
-        if isinstance(context, dict):
-            report_data = context.get("reports") or context.get("community_reports")
-            if report_data is not None:
-                if isinstance(report_data, pd.DataFrame):
-                    for _, row in report_data.head(5).iterrows():
-                        reports.append({
-                            "community": row.get("community", ""),
-                            "title": row.get("title", ""),
-                            "summary": str(row.get("summary", ""))[:1000]
-                        })
-                elif isinstance(report_data, list):
-                    for report in report_data[:5]:
-                        if isinstance(report, dict):
-                            reports.append({
-                                "community": report.get("community", ""),
-                                "title": report.get("title", ""),
-                                "summary": str(report.get("summary", ""))[:1000]
-                            })
+        if not isinstance(context, dict):
+            return reports
+        
+        # Get report_data - check 'reports' first, then 'community_reports'
+        report_data = context.get("reports")
+        if report_data is None:
+            report_data = context.get("community_reports")
+        if report_data is None:
+            return reports
+            
+        # Handle DataFrame
+        if isinstance(report_data, pd.DataFrame):
+            if report_data.empty:
+                return reports
+            for _, row in report_data.head(5).iterrows():
+                reports.append({
+                    "community": row.get("community", ""),
+                    "title": row.get("title", ""),
+                    "summary": str(row.get("summary", ""))[:1000]
+                })
+        # Handle list
+        elif isinstance(report_data, list):
+            for report in report_data[:5]:
+                if isinstance(report, dict):
+                    reports.append({
+                        "community": report.get("community", ""),
+                        "title": report.get("title", ""),
+                        "summary": str(report.get("summary", ""))[:1000]
+                    })
         
         return reports
     
@@ -317,22 +389,33 @@ class GraphRAGService:
         """Extract text unit information from search context."""
         text_units = []
         
-        if isinstance(context, dict):
-            tu_data = context.get("text_units") or context.get("sources")
-            if tu_data is not None:
-                if isinstance(tu_data, pd.DataFrame):
-                    for _, row in tu_data.head(10).iterrows():
-                        text_units.append({
-                            "id": row.get("id", ""),
-                            "text": str(row.get("text", ""))[:500]
-                        })
-                elif isinstance(tu_data, list):
-                    for tu in tu_data[:10]:
-                        if isinstance(tu, dict):
-                            text_units.append({
-                                "id": tu.get("id", ""),
-                                "text": str(tu.get("text", ""))[:500]
-                            })
+        if not isinstance(context, dict):
+            return text_units
+        
+        # Get tu_data - check 'text_units' first, then 'sources'
+        tu_data = context.get("text_units")
+        if tu_data is None:
+            tu_data = context.get("sources")
+        if tu_data is None:
+            return text_units
+            
+        # Handle DataFrame
+        if isinstance(tu_data, pd.DataFrame):
+            if tu_data.empty:
+                return text_units
+            for _, row in tu_data.head(10).iterrows():
+                text_units.append({
+                    "id": row.get("id", ""),
+                    "text": str(row.get("text", ""))[:500]
+                })
+        # Handle list
+        elif isinstance(tu_data, list):
+            for tu in tu_data[:10]:
+                if isinstance(tu, dict):
+                    text_units.append({
+                        "id": tu.get("id", ""),
+                        "text": str(tu.get("text", ""))[:500]
+                    })
         
         return text_units
     

@@ -96,5 +96,30 @@ community_reports:
   max_length: 2000
   max_input_length: 8000
 
+### Query settings ###
+local_search:
+  completion_model_id: default_completion_model
+  embedding_model_id: default_embedding_model
+  max_tokens: 12000
+  llm_max_tokens: 4000
+  top_k_entities: 10
+  top_k_relationships: 10
+  top_k_communities: 5
+  conversation_history_max_turns: 5
+
+global_search:
+  completion_model_id: default_completion_model
+  max_tokens: 12000
+  data_max_tokens: 8000
+  map_max_tokens: 1000
+  reduce_max_tokens: 2000
+  concurrency: 4
+
+drift_search:
+  completion_model_id: default_completion_model
+  embedding_model_id: default_embedding_model
+  max_tokens: 12000
+  top_k_entities: 10
+
 snapshots:
   graphml: true

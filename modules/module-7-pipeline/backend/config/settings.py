@@ -45,8 +45,8 @@ class Settings(BaseSettings):
     # Processing mode: "cu" for Content Understanding, "di" for Document Intelligence
     document_processing_mode: str = "cu"
     
-    # GraphRAG settings
-    graphrag_index_path: str = "./graphrag-index"  # Path to GraphRAG project root
+    # GraphRAG settings - use absolute path
+    graphrag_index_path: str = "/Users/robenhai/RAG-WorkShop/modules/module-7-pipeline/backend/graphrag-index"
     graphrag_enabled: bool = True  # Enable GraphRAG export during document processing
     graphrag_auto_index: bool = True  # Auto-run GraphRAG indexing after export (default: on)
 

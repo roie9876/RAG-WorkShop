@@ -59,25 +59,31 @@ class GenerationService:
         Returns:
             Dict with answer, model, tokens_used
         """
+        import asyncio
+        
         # Format contexts with source numbers
         formatted_contexts = self._format_contexts(contexts)
         
-        # Generate response
-        response = self.client.chat.completions.create(
-            model=self.settings.azure_openai_deployment,
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT.format(contexts=formatted_contexts)
-                },
-                {
-                    "role": "user",
-                    "content": query
-                }
-            ],
-            temperature=0.3,
-            max_tokens=1500
-        )
+        # Run sync OpenAI call in thread pool to avoid blocking
+        def _sync_generate():
+            return self.client.chat.completions.create(
+                model=self.settings.azure_openai_deployment,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": SYSTEM_PROMPT.format(contexts=formatted_contexts)
+                    },
+                    {
+                        "role": "user",
+                        "content": query
+                    }
+                ],
+                temperature=0.3,
+                max_tokens=1500
+            )
+        
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, _sync_generate)
         
         return {
             "answer": response.choices[0].message.content,
