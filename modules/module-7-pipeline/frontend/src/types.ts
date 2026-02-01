@@ -180,8 +180,17 @@ export interface IndexSchema {
   }
 }
 
+export interface IndexedDocument {
+  filename: string
+  doc_id: string
+  chunk_count: number
+}
+
 export interface IndexStats {
-  document_count: number
+  document_count: number  // Total chunks (backwards compatibility)
+  chunk_count: number  // Same as document_count
+  unique_document_count: number  // Actual number of unique documents
+  indexed_documents: IndexedDocument[]  // List of documents with chunk counts
   storage_size_bytes: number
   last_updated?: string
   content_type_counts: Record<string, number>

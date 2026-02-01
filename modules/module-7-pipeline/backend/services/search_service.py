@@ -365,9 +365,9 @@ class SearchService:
     async def get_index_stats(self) -> Dict[str, Any]:
         """Get index statistics. Returns zeros if index doesn't exist."""
         try:
-            # Get document count
+            # Get chunk count (total documents in index)
             results = self.search_client.search(search_text="*", top=0, include_total_count=True)
-            doc_count = results.get_count()
+            chunk_count = results.get_count() or 0
             
             # Get content type distribution
             content_types = {}
@@ -380,8 +380,14 @@ class SearchService:
                 )
                 content_types[ct] = ct_results.get_count() or 0
             
+            # Get unique documents (by source_document field)
+            unique_docs = await self.get_unique_documents()
+            
             return {
-                "document_count": doc_count or 0,
+                "document_count": chunk_count,  # Keep for backwards compatibility (chunk count)
+                "chunk_count": chunk_count,
+                "unique_document_count": len(unique_docs),
+                "indexed_documents": unique_docs,
                 "storage_size_bytes": 0,  # Not easily available via SDK
                 "content_type_counts": content_types
             }
@@ -390,9 +396,43 @@ class SearchService:
             logger.warning(f"Could not get index stats (index may not exist): {e}")
             return {
                 "document_count": 0,
+                "chunk_count": 0,
+                "unique_document_count": 0,
+                "indexed_documents": [],
                 "storage_size_bytes": 0,
                 "content_type_counts": {"text": 0, "table": 0, "figure": 0}
             }
+    
+    async def get_unique_documents(self) -> List[Dict[str, Any]]:
+        """Get list of unique documents in the index with their chunk counts."""
+        try:
+            # Search for all chunks and aggregate by source_document
+            results = self.search_client.search(
+                search_text="*",
+                select=["source_document", "doc_id"],
+                top=1000  # Should be enough for workshop
+            )
+            
+            # Aggregate by source_document
+            doc_chunks: Dict[str, Dict[str, Any]] = {}
+            for chunk in results:
+                source = chunk.get("source_document", "unknown")
+                doc_id = chunk.get("doc_id", "")
+                
+                if source not in doc_chunks:
+                    doc_chunks[source] = {
+                        "filename": source,
+                        "doc_id": doc_id,
+                        "chunk_count": 0
+                    }
+                doc_chunks[source]["chunk_count"] += 1
+            
+            # Sort by filename
+            return sorted(doc_chunks.values(), key=lambda x: x["filename"])
+            
+        except Exception as e:
+            logger.warning(f"Could not get unique documents: {e}")
+            return []
 
     async def delete_documents_by_doc_id(self, doc_id: str) -> int:
         """Delete all chunks for a given doc_id."""

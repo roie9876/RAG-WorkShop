@@ -238,9 +238,30 @@ export function DocumentUpload() {
           </div>
           
           <div className="mt-5 space-y-4">
+            {/* Documents Count - NEW */}
+            <div className="flex items-center justify-between pb-3 border-b border-blue-200">
+              <span className="text-base text-blue-600">Indexed Documents</span>
+              <span className="text-3xl font-bold text-blue-900">{indexStats?.unique_document_count ?? 0}</span>
+            </div>
+            
+            {/* Document List - NEW */}
+            {indexStats?.indexed_documents && indexStats.indexed_documents.length > 0 && (
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {indexStats.indexed_documents.map((doc) => (
+                  <div key={doc.doc_id || doc.filename} className="flex items-center justify-between px-3 py-2 bg-white/60 rounded-lg text-sm">
+                    <div className="flex items-center gap-2 truncate">
+                      <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                      <span className="truncate text-blue-800 font-medium">{doc.filename}</span>
+                    </div>
+                    <span className="text-blue-600 text-xs flex-shrink-0">{doc.chunk_count} chunks</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            
             <div className="flex items-center justify-between">
               <span className="text-base text-blue-600">Total Chunks</span>
-              <span className="text-3xl font-bold text-blue-900">{indexStats?.document_count ?? 0}</span>
+              <span className="text-2xl font-bold text-blue-900">{indexStats?.chunk_count ?? 0}</span>
             </div>
             {indexStats?.content_type_counts && Object.keys(indexStats.content_type_counts).length > 0 && (
               <div className="grid grid-cols-3 gap-3 pt-4 border-t border-blue-200">

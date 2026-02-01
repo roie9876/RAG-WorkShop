@@ -74,6 +74,9 @@ async def run_graphrag_indexing(request: GraphRAGIndexRequest):
     for entity extraction, relationship extraction, and community summarization.
     
     Typically takes 2-10 minutes per document and costs $0.50-2.00.
+    
+    This endpoint starts indexing in the background and returns immediately.
+    Use GET /api/graphrag/status to check progress.
     """
     try:
         settings = get_settings()
@@ -89,7 +92,8 @@ async def run_graphrag_indexing(request: GraphRAGIndexRequest):
         
         logger.info(f"Starting GraphRAG indexing with {status['input_documents']} documents...")
         
-        result = exporter.run_graphrag_indexing(timeout=request.timeout)
+        # Start indexing in background (non-blocking)
+        result = exporter.start_graphrag_indexing_background()
         
         return {
             "success": result["success"],

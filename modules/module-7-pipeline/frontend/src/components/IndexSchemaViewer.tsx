@@ -82,10 +82,14 @@ export function IndexSchemaViewer() {
 
       {/* Stats Summary */}
       {stats && (
-        <div className="grid grid-cols-2 gap-2 mb-4">
+        <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="p-2 rounded bg-muted/50">
             <p className="text-xs text-muted-foreground">Documents</p>
-            <p className="text-lg font-semibold">{stats.document_count}</p>
+            <p className="text-lg font-semibold">{stats.unique_document_count ?? 0}</p>
+          </div>
+          <div className="p-2 rounded bg-muted/50">
+            <p className="text-xs text-muted-foreground">Chunks</p>
+            <p className="text-lg font-semibold">{stats.chunk_count ?? stats.document_count}</p>
           </div>
           <div className="p-2 rounded bg-muted/50">
             <p className="text-xs text-muted-foreground">Content Types</p>

@@ -355,6 +355,64 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
             if lock_file.exists():
                 lock_file.unlink()
     
+    def start_graphrag_indexing_background(self) -> Dict[str, Any]:
+        """
+        Start GraphRAG indexing in the background (non-blocking).
+        
+        This starts the indexing process and returns immediately.
+        Use get_index_status() to check progress.
+        
+        Returns:
+            Dict with status info
+        """
+        logger.info("🚀 Starting GraphRAG indexing in background...")
+        
+        lock_file = self.graphrag_root / ".indexing_in_progress"
+        
+        # Check if already indexing
+        if lock_file.exists():
+            return {
+                "success": False,
+                "error": "Indexing already in progress",
+                "is_indexing": True
+            }
+        
+        try:
+            # Create lock file
+            lock_file.write_text(f"Started: {datetime.now().isoformat()}")
+            
+            # Start process in background (non-blocking)
+            log_file = self.graphrag_root / "logs" / "indexing-engine.log"
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Use Popen for non-blocking execution
+            with open(log_file, "a") as log_out:
+                process = subprocess.Popen(
+                    [sys.executable, "-m", "graphrag", "index", "--root", str(self.graphrag_root)],
+                    stdout=log_out,
+                    stderr=subprocess.STDOUT,
+                    cwd=str(self.graphrag_root),
+                    start_new_session=True  # Detach from parent process
+                )
+            
+            logger.info(f"✅ GraphRAG indexing started in background (PID: {process.pid})")
+            
+            return {
+                "success": True,
+                "message": "Indexing started in background",
+                "pid": process.pid,
+                "is_indexing": True
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to start GraphRAG indexing: {e}")
+            if lock_file.exists():
+                lock_file.unlink()
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
     def _parse_indexing_progress(self) -> Dict[str, Any]:
         """
         Parse the indexing log to extract real-time progress.

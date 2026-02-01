@@ -33,12 +33,12 @@ flowchart TB
         DI --> FIGURES
     end
 
-    subgraph VISION["👁️ Vision Processing"]
+    subgraph VISIONPROC["👁️ Vision Processing"]
         CROP["✂️ Figure Cropping"]
-        GPT4V["GPT-4 Vision<br/>(AI descriptions)"]
+        GPT41["GPT-4.1 Vision<br/>(AI descriptions)"]
         BLOB["Azure Blob Storage"]
         
-        CROP --> GPT4V
+        CROP --> GPT41
         CROP --> BLOB
     end
 
@@ -52,7 +52,7 @@ flowchart TB
     FIGURES --> CROP
     TEXT --> TCHUNK
     TABLES --> TABCHUNK
-    GPT4V --> FIGCHUNK
+    GPT41 --> FIGCHUNK
 
     subgraph DUAL["⚡ Dual Indexing"]
         direction LR
@@ -105,7 +105,7 @@ flowchart TB
 
     style INPUT fill:#e1f5fe
     style EXTRACTION fill:#fff3e0
-    style VISION fill:#f3e5f5
+    style VISIONPROC fill:#f3e5f5
     style CHUNKING fill:#e8f5e9
     style VECTORPATH fill:#e3f2fd
     style GRAPHPATH fill:#fce4ec
@@ -180,8 +180,16 @@ This section explains **each step of the pipeline** in detail. Understanding the
 
 **File**: [backend/services/document_processor.py](backend/services/document_processor.py)
 
+**Supported File Formats:**
+| Format | Extensions | Notes |
+|--------|------------|-------|
+| PDF | `.pdf` | Full support including scanned documents |
+| Word | `.docx` | Preserves styles, headers, tables |
+| Excel | `.xlsx` | Extracts all sheets as tables |
+| PowerPoint | `.pptx` | Each slide processed separately |
+
 **What happens:**
-1. PDF is sent to Azure Document Intelligence using the `prebuilt-layout` model
+1. Document (PDF, Word, Excel, or PowerPoint) is sent to Azure Document Intelligence using the `prebuilt-layout` model
 2. DI extracts **structured content** including:
    - Text with **reading order** (not just OCR dump)
    - Tables with **cell structure** (rows, columns, headers)
@@ -195,10 +203,18 @@ This section explains **each step of the pipeline** in detail. Understanding the
 
 ```python
 # From document_processor.py - DI extraction
+# Content type is auto-detected based on file extension
+content_type_map = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
 poller = self.di_client.begin_analyze_document(
     model_id="prebuilt-layout",
     document=file_content,
-    content_type="application/pdf"
+    content_type=content_type  # Determined from file extension
 )
 result = poller.result()
 # result.paragraphs, result.tables, result.figures now available
@@ -206,71 +222,138 @@ result = poller.result()
 
 ---
 
-### 🖼️ Step 2: Figure Processing with GPT-4 Vision
+### 🖼️ Step 2: Figure Processing with Document Context Enrichment
 
-**File**: [backend/services/document_processor.py#L89-L150](backend/services/document_processor.py#L89)
+**File**: [backend/services/document_processor.py](backend/services/document_processor.py), [backend/services/chunk_enricher.py](backend/services/chunk_enricher.py)
 
-**What happens:**
-1. For each figure detected by DI, extract the **bounding box polygon**
-2. **Crop the figure** from the PDF page using PIL/Pillow
-3. Upload cropped image to **Azure Blob Storage**
-4. Send image to **GPT-4 Vision** to generate a semantic description
+**The Problem with Naive Figure Handling:**
+Simply extracting a cropped image and asking GPT-4.1 "what is this?" produces poor search results. Why?
+- The model sees an isolated image with no document context
+- It can't know if this diagram is about "Station 36" or "Traffic Analysis"
+- The generated description may miss domain-specific terminology
 
-**Why GPT-4V for figures?**
-- A figure image alone is not searchable by text
-- GPT-4V extracts: text labels, numbers, entity names, diagram meaning
-- The description becomes searchable text while preserving visual context
+**Our Solution: Multi-Source Context Enrichment**
+
+Each cropped figure receives context from **three sources** before generating its searchable description:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FIGURE CONTEXT ENRICHMENT                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   ① DOCUMENT STRUCTURE         ② SURROUNDING TEXT                   │
+│   ├── Document name           ├── 1000 chars BEFORE figure         │
+│   ├── Section path            └── 1000 chars AFTER figure          │
+│   ├── Page number                                                   │
+│   └── Figure caption (if any)                                       │
+│                                                                     │
+│                    ┌───────────────┐                                │
+│                    │   GPT-4.1     │                                │
+│                    │   Vision      │                                │
+│                    └───────────────┘                                │
+│                           │                                         │
+│                    ③ VISUAL ANALYSIS                                │
+│                    └── What the image shows                         │
+│                                                                     │
+│                           ▼                                         │
+│              ┌─────────────────────────┐                            │
+│              │   CONTEXTUAL CAPTION    │                            │
+│              │   (Enriched Description)│                            │
+│              └─────────────────────────┘                            │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**The Enrichment Process:**
+
+1. **Extract Bounding Box**: Document Intelligence detects figure location
+2. **Crop Image**: PIL/Pillow extracts the figure from the source page
+3. **Gather Document Context**:
+   - Section path (e.g., "Chapter 3 > Station 36 > Architectural Plans")
+   - Surrounding text (1000 characters before and after the figure)
+   - Any existing figure caption from the document
+4. **Upload to Blob Storage**: Image is persisted for display in UI
+5. **Generate Contextual Caption**: GPT-4.1 receives ALL context:
 
 ```python
-# From document_processor.py - GPT-4V figure description
-response = self.openai_client.chat.completions.create(
-    model="gpt-4.1",  # Vision-capable model
-    messages=[{
-        "role": "user",
-        "content": [
-            {"type": "text", "text": prompt},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}}
-        ]
-    }]
-)
+# From chunk_enricher.py - The contextual caption prompt
+prompt = f"""You are analyzing a figure from a document.
+
+Document: {file_name}
+Page: {page_number}
+Section: {section_path or "Unknown"}
+
+Visual description (what the image shows):
+{visual_description or "Not provided"}
+
+Figure caption (if any):
+{figure_caption or "Not provided"}
+
+Surrounding document text:
+{surrounding_text[:1500]}
+
+Generate a concise caption (2-3 sentences) that explains this figure IN THE CONTEXT of the document.
+"""
 ```
 
-**Key insight**: The prompt includes **section context** so GPT-4V understands what the figure is about:
-```
-DOCUMENT SECTION: Station 36 - Hazitonut Boulevard
-This image is part of the above section. Keep this context in mind.
-```
+**Why This Matters:**
+- A search for "station 36 entrance design" will find the relevant figure
+- The enriched caption contains domain terminology from surrounding text
+- Context helps GPT-4.1 understand architectural vs. engineering drawings
 
 ---
 
-### 📦 Step 3: Context-Aware Chunking
+### 📦 Step 3: Figure = Single Searchable Chunk
 
-**File**: [backend/services/chunk_enricher.py](backend/services/chunk_enricher.py)
+**Key Design Decision: Each figure becomes ONE chunk in the search index.**
 
-**What happens:**
-Chunks are created **by content type**, not by arbitrary character limits:
+Unlike text (which may span multiple chunks), each figure is an **atomic unit** containing all its enriched metadata. This ensures:
+- Complete context travels with every figure
+- No fragmentation of visual content
+- Precise retrieval - you get the whole figure or nothing
 
-| Content Type | Chunking Strategy |
-|--------------|-------------------|
-| **Text** | Group paragraphs by section header |
-| **Tables** | Keep table as atomic unit (with HTML + Markdown) |
-| **Figures** | Document + Section + Page + Context + AI Description |
+**The Universal Figure Chunk Schema:**
 
-**Why content-type chunking?**
-- Fixed-size chunking (e.g., 500 tokens) **destroys tables** by splitting rows
-- Section-based text chunking keeps **coherent topics together**
-- Figures need **surrounding context** to be findable
+| Field | Description | Example |
+|-------|-------------|---------|
+| `chunk_id` | Unique identifier | `metro_pdf_figure_042` |
+| `doc_id` | Source document ID | `metro_pdf` |
+| `file_name` | Original filename | `metro.pdf` |
+| `chunk_type` | Always "figure" | `figure` |
+| `page_number` | Source page | `42` |
+| `section_path` | Full hierarchy | `Chapter 3 > Station 36 > Entrance` |
+| `content` | Visual description | `Architectural rendering of...` |
+| `contextual_caption` | **Enriched caption** | `Station 36 entrance design showing glass canopy structure...` |
+| `image_url` | Blob storage URL | `https://blob.../figures/fig_042.png` |
+| `embedding` | 3072-dim vector | `[0.012, -0.034, ...]` |
 
-**Example Figure Chunk:**
+**Example Figure Chunk (JSON):**
 ```json
 {
-  "content": "Document: metro.pdf\nSection: Station 36\nPage: 42\n\nSurrounding Context: תחנה 36 - שדרות הציונות...\n\nFigure Description: Architectural rendering showing station entrance with glass canopy...",
-  "content_type": "figure",
-  "page_numbers": [42],
-  "section_header": "Station 36 - Hazitonut Boulevard",
-  "image_blob_path": "https://blob.../figures/metro_pdf/fig_001.png"
+  "chunk_id": "metro_pdf_figure_042",
+  "doc_id": "metro_pdf",
+  "file_name": "metro.pdf",
+  "chunk_type": "figure",
+  "page_number": 42,
+  "section_path": "Chapter 3 > Station 36 > Architectural Design",
+  "content": "Architectural rendering showing modern transit station entrance",
+  "contextual_caption": "This figure shows the proposed entrance design for Station 36 (Hazitonut Boulevard). The rendering depicts a glass canopy structure with integrated lighting, pedestrian access ramps, and connection to the underground platform level. Key features include the distinctive wave-pattern roof design that echoes the station's coastal location.",
+  "image_url": "https://ragworkshop.blob.core.windows.net/figures/metro_pdf/fig_042.png"
 }
 ```
+
+**Content-Type Chunking Strategy:**
+
+| Content Type | Chunking Strategy | Rationale |
+|--------------|-------------------|-----------|
+| **Text** | Group by section headers | Keeps coherent topics together |
+| **Tables** | Atomic unit (preserve structure) | Splitting rows destroys meaning |
+| **Figures** | **Single chunk with all context** | Complete visual + document context |
+
+**Why NOT Split Figures?**
+- Fixed-size chunking (500 tokens) would split description from image URL
+- Section context would be lost across chunk boundaries  
+- Retrieval would return partial information
 
 ---
 
@@ -279,9 +362,25 @@ Chunks are created **by content type**, not by arbitrary character limits:
 **File**: [backend/services/embedding_service.py](backend/services/embedding_service.py)
 
 **What happens:**
-1. Each chunk's `content` field is sent to `text-embedding-3-large`
+1. Each chunk's text is sent to `text-embedding-3-large`
 2. Returns a **3072-dimensional vector** representing semantic meaning
 3. Vector is stored alongside the chunk in Azure AI Search
+
+**Key Detail for Figure Chunks:**
+For figures, we embed the **contextual_caption** (not just the raw visual description):
+
+```python
+# From embedding_service.py - Smart text selection for embedding
+if chunk.get("chunk_type") == "figure":
+    # Prefer contextual caption for better retrieval
+    caption = chunk.get("contextual_caption") or ""
+    content = chunk.get("content") or ""
+    text_to_embed = f"{caption}\n{content}" if caption else content
+```
+
+This means searches like "Station 36 entrance design" will match figures because:
+- The contextual caption contains "Station 36" from document context
+- The visual description contains "entrance" from GPT-4.1 analysis
 
 **Why text-embedding-3-large?**
 - Best-in-class OpenAI embedding model
@@ -581,7 +680,7 @@ Result: ✅ MATCH (matches document, section, context)
 │                     DOCUMENT PROCESSING PIPELINE                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  📄 PDF Upload                                                           │
+│  📄 Document Upload (PDF, Word, Excel, PowerPoint)                       │
 │       │                                                                  │
 │       ▼                                                                  │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
@@ -598,7 +697,7 @@ Result: ✅ MATCH (matches document, section, context)
 │  │  FIGURE PROCESSOR    │               │  CONTEXT BUILDER     │       │
 │  │  • Crop using polygon│               │  • Page → Section map│       │
 │  │  • Upload to Blob    │               │  • Nearby text       │       │
-│  │  • GPT-4V describe   │               │  • Document metadata │       │
+│  │  • GPT-4.1 describe   │               │  • Document metadata │       │
 │  │  • PARALLEL (5 max)  │               │                      │       │
 │  └──────────────────────┘               └──────────────────────┘       │
 │       │                                          │                      │
@@ -757,11 +856,11 @@ The Min Score slider adapts to search mode:
 |--------|----------------------|----------------------|
 | **Figure Detection** | ✅ Yes | ✅ Yes (in markdown) |
 | **Bounding Boxes** | ✅ Yes (polygon coords) | ❌ No |
-| **AI Descriptions** | ❌ No (need GPT-4V) | ⚠️ Only with custom schema |
+| **AI Descriptions** | ❌ No (need GPT-4.1) | ⚠️ Only with custom schema |
 | **Image Cropping** | ✅ Yes | ❌ Not possible |
 | **Works with ANY PDF** | ✅ Yes | ❌ Needs schema per doc type |
 
-**Decision**: Use **DI + GPT-4V** for a generic pipeline that works with any document.
+**Decision**: Use **DI + GPT-4.1** for a generic pipeline that works with any document.
 
 ---
 
@@ -815,10 +914,23 @@ cd modules/module-7-pipeline
 ### UI Features
 
 The frontend provides:
-- **Document Upload** with automatic indexing to both Vector Search and GraphRAG
-- **Index Status Panels** showing document counts, chunk counts, and index health
+- **Document Upload** - Drag & drop with support for **PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx)**
+- **Index Status Panels** showing:
+  - **Unique document count** with filename list
+  - **Total chunks** with breakdown by type (text/table/figure)
+  - **GraphRAG progress** with percentage and ETA during indexing
+- **Real-time Progress** - GraphRAG indexing runs in background, UI stays responsive
 - **Delete Buttons** to clear either index for testing
 - **GraphRAG Auto-Index Toggle** to control whether uploaded documents trigger knowledge graph building
+
+### Supported File Formats
+
+| Format | Extension | What Gets Extracted |
+|--------|-----------|---------------------|
+| PDF | `.pdf` | Text, tables, figures with bounding boxes |
+| Word | `.docx` | Text, tables, embedded images |
+| Excel | `.xlsx` | Tables (each sheet), charts as figures |
+| PowerPoint | `.pptx` | Slides as pages, text, tables, images |
 
 ### Test Document Processing
 
@@ -838,7 +950,7 @@ This module implements a **production dual-index pipeline** that indexes documen
      │
      ▼
 ┌─────────────────────────────────────────────────┐
-│  Document Intelligence + GPT-4V Vision          │
+│  Document Intelligence + GPT-4.1 Vision          │
 │  (Extract text, tables, figures with context)   │
 └─────────────────────────────────────────────────┘
      │
@@ -875,7 +987,7 @@ module-7-pipeline/
 │   │       ├── upload.py             # Document upload + dual indexing
 │   │       └── graphrag.py           # GraphRAG status/build/delete APIs
 │   ├── services/
-│   │   ├── document_processor.py     # DI + GPT-4V pipeline
+│   │   ├── document_processor.py     # DI + GPT-4.1 pipeline
 │   │   ├── search_service.py         # Azure AI Search
 │   │   ├── blob_service.py           # Azure Blob Storage
 │   │   ├── iterative_retriever.py    # Entity-aware retrieval
@@ -996,7 +1108,7 @@ Multiple retrieval iterations with learning outperforms single search.
 | Component | Cost per Document |
 |-----------|------------------|
 | DI Analysis | ~$0.01 per page |
-| GPT-4V (per figure) | ~$0.01-0.02 |
+| GPT-4.1 (per figure) | ~$0.01-0.02 |
 | Embeddings | ~$0.0001 per chunk |
 | Validation (LLM calls) | ~$0.01-0.02 per query |
 | Iterative Retrieval | ~$0.02-0.05 per query |
@@ -1064,45 +1176,66 @@ POST /api/query
 ```
 GET /api/graphrag/status
 ```
-Returns the current status of the GraphRAG index:
+Returns the current status of the GraphRAG index, including real-time progress during indexing:
 ```json
 {
-  "status": "ready",
-  "documents_count": 5,
-  "entities_count": 150,
-  "relationships_count": 200,
-  "communities_count": 12,
-  "last_indexed": "2026-02-01T10:30:00Z"
+  "success": true,
+  "status": {
+    "ready": true,
+    "input_documents": 5,
+    "output_exists": true,
+    "entities_count": 150,
+    "relationships_count": 200,
+    "communities_count": 12,
+    "has_parquet": true,
+    "is_indexing": false,
+    "progress_detail": {
+      "current_step": "Summarize entity/relationship descriptions",
+      "current_progress": 744,
+      "total_items": 7834,
+      "percentage": 9.5,
+      "eta_minutes": 35,
+      "steps_completed": ["create_base_text_units", "extract_graph"],
+      "steps_remaining": ["summarize", "create_communities", "embed"]
+    }
+  }
 }
 ```
 
 ```
-POST /api/graphrag/build
+POST /api/graphrag/index
 ```
-Triggers GraphRAG indexing in the background. Returns immediately.
+Starts GraphRAG indexing in the background (non-blocking). Returns immediately while indexing continues.
 
 ```
 DELETE /api/graphrag/index
 ```
 Deletes all GraphRAG index files (output, cache, logs, input).
 
-### Search Index API Endpoints
+### Index Stats API
 
 ```
-GET /api/search/status
+GET /api/index/stats
 ```
-Returns Azure AI Search index status:
+Returns Azure AI Search index statistics with document details:
 ```json
 {
-  "status": "ready",
-  "index_name": "rag-workshop-index",
-  "document_count": 5,
-  "chunk_count": 150
+  "document_count": 191,
+  "chunk_count": 191,
+  "unique_document_count": 5,
+  "indexed_documents": [
+    {"filename": "metro.pdf", "doc_id": "metro_pdf", "chunk_count": 159},
+    {"filename": "metro4.pdf", "doc_id": "metro4_pdf", "chunk_count": 5},
+    {"filename": "metro_m1_data.xlsx", "doc_id": "metro_m1_data_xlsx", "chunk_count": 1},
+    {"filename": "Metro_M1_Rishon_Stations_Detailed.pptx", "doc_id": "...", "chunk_count": 8}
+  ],
+  "storage_size_bytes": 0,
+  "content_type_counts": {"text": 60, "table": 15, "figure": 108}
 }
 ```
 
 ```
-DELETE /api/search/index
+DELETE /api/index/reset
 ```
 Deletes all documents from the Azure AI Search index.
 
@@ -1183,7 +1316,7 @@ The following are generated during indexing and excluded from git:
 
 ### 📚 Dual-Index Architecture
 
-**Reuse the hard work from document extraction** (DI + GPT-4V figure descriptions) to feed **BOTH** indexes in parallel:
+**Reuse the hard work from document extraction** (DI + GPT-4.1 figure descriptions) to feed **BOTH** indexes in parallel:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1194,7 +1327,7 @@ The following are generated during indexing and excluded from git:
 │       │                                                                      │
 │       ▼                                                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  DOCUMENT INTELLIGENCE + GPT-4V VISION (Existing Pipeline)          │    │
+│  │  DOCUMENT INTELLIGENCE + GPT-4.1 VISION (Existing Pipeline)          │    │
 │  │  • Extract text with reading order                                   │    │
 │  │  • Extract tables as markdown                                        │    │
 │  │  • Crop figures and generate AI descriptions ← EXPENSIVE WORK       │    │
@@ -1276,7 +1409,7 @@ The following are generated during indexing and excluded from git:
 
 **Why it works:**
 
-1. **Reuse Extraction Work**: The expensive DI + GPT-4V processing happens once
+1. **Reuse Extraction Work**: The expensive DI + GPT-4.1 processing happens once
 2. **Parallel Indexing**: Same enriched chunks feed both indexes
 3. **UI Supports Strategy Selection**: Dropdown with Hybrid, Iterative, GraphRAG options
 4. **Educational Value**: Compare answers side-by-side for same query
@@ -1311,7 +1444,7 @@ class GraphRAGExporter:
         Convert enriched chunks to a text file for GraphRAG.
         
         Key insight: Include ALL the rich context we extracted:
-        - Figure descriptions from GPT-4V
+        - Figure descriptions from GPT-4.1
         - Table markdown
         - Section headers
         - Page context
@@ -1340,7 +1473,7 @@ class GraphRAGExporter:
                 output_lines.append("\n")
                 
             elif content_type == "figure":
-                # THIS IS THE KEY: Include GPT-4V description!
+                # THIS IS THE KEY: Include GPT-4.1 description!
                 output_lines.append("\n### Figure\n")
                 if chunk.get("figure_caption"):
                     output_lines.append(f"Caption: {chunk['figure_caption']}\n")
@@ -1378,7 +1511,7 @@ class DocumentProcessor:
         """
         Process document and index to BOTH systems.
         """
-        # Step 1: Existing extraction (DI + GPT-4V) - DONE ONCE
+        # Step 1: Existing extraction (DI + GPT-4.1) - DONE ONCE
         extraction_result = await self._extract_document(file_content)
         
         # Step 2: Create enriched chunks - DONE ONCE

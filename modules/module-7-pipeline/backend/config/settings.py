@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # GraphRAG settings - use absolute path
     graphrag_index_path: str = "/Users/robenhai/RAG-WorkShop/modules/module-7-pipeline/backend/graphrag-index"
     graphrag_enabled: bool = True  # Enable GraphRAG export during document processing
-    graphrag_auto_index: bool = True  # Auto-run GraphRAG indexing after export (default: on)
+    graphrag_auto_index: bool = False  # Auto-run GraphRAG indexing after export (DISABLED - run manually when ready)
 
     
     def get_storage_account_name(self) -> str:

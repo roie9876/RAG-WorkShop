@@ -50,9 +50,19 @@ class IndexSchema(BaseModel):
     semantic_config: Optional[SemanticConfig] = None
 
 
+class IndexedDocument(BaseModel):
+    """Info about a document in the index."""
+    filename: str
+    doc_id: str
+    chunk_count: int
+
+
 class IndexStats(BaseModel):
     """Index statistics."""
-    document_count: int
+    document_count: int  # Total chunks (backwards compatibility)
+    chunk_count: int  # Same as document_count
+    unique_document_count: int  # Actual number of unique documents
+    indexed_documents: List[IndexedDocument] = []  # List of documents with chunk counts
     storage_size_bytes: int
     last_updated: Optional[datetime] = None
     content_type_counts: dict = {}
@@ -148,14 +158,27 @@ async def get_index_stats():
     """
     Get index statistics.
     
-    Returns document count, storage size, and content type distribution.
+    Returns chunk count, unique document count, document list, and content type distribution.
     """
     try:
         search_service = SearchService()
         stats = await search_service.get_index_stats()
         
+        # Convert indexed_documents to list of IndexedDocument objects
+        indexed_docs = [
+            IndexedDocument(
+                filename=doc.get("filename", "unknown"),
+                doc_id=doc.get("doc_id", ""),
+                chunk_count=doc.get("chunk_count", 0)
+            )
+            for doc in stats.get("indexed_documents", [])
+        ]
+        
         return IndexStats(
             document_count=stats.get("document_count", 0),
+            chunk_count=stats.get("chunk_count", 0),
+            unique_document_count=stats.get("unique_document_count", 0),
+            indexed_documents=indexed_docs,
             storage_size_bytes=stats.get("storage_size_bytes", 0),
             last_updated=stats.get("last_updated"),
             content_type_counts=stats.get("content_type_counts", {})
