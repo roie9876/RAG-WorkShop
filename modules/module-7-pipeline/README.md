@@ -2,26 +2,128 @@
 
 ## 📍 Overview
 
-This module implements a **production-ready multimodal RAG pipeline** that processes documents with text, tables, and figures. The key insights are:
+This module implements a **production-ready dual-index multimodal RAG pipeline** that processes documents with text, tables, and figures, indexing them to **both** Azure AI Search (vector/hybrid) and **GraphRAG** (knowledge graph).
+
+### Key Insights
 
 1. **Images alone are not enough** – figures need **document context** to be retrievable
 2. **Chunking can fragment context** – entity identifiers may be separated from related data
 3. **Smart retrieval fixes chunking problems** – iterative entity-aware retrieval reconnects fragmented information
 4. **Validation ensures quality** – filter irrelevant chunks and validate answer accuracy
+5. **GraphRAG enables relationship queries** – knowledge graphs answer "what depends on X?" questions
 
-```mermaid
-flowchart LR
-    DOC["📄 PDF"] --> DI["🔍 Document Intelligence"]
-    DI --> CROP["✂️ Figure Cropping"]
-    CROP --> GPT4V["👁️ GPT-4V Vision"]
-    DI --> CHUNK["📦 Context-Aware Chunking"]
-    GPT4V --> CHUNK
-    CHUNK --> EMBED["🧮 Embeddings"]
-    EMBED --> INDEX["🔎 Azure AI Search"]
-    INDEX --> RETRIEVE["🔄 Iterative Retrieval"]
-    RETRIEVE --> VALIDATE["✅ Validation"]
-    VALIDATE --> RAG["🤖 RAG Answer"]
+### 🏗️ Full Pipeline Architecture
+
 ```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                     MODULE 7: DUAL-INDEX MULTIMODAL RAG PIPELINE                    │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+                                    📄 PDF UPLOAD
+                                         │
+                                         ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                        DOCUMENT INTELLIGENCE EXTRACTION                              │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                      │
+│  │ 📝 Text         │  │ 📊 Tables       │  │ 🖼️ Figures      │                      │
+│  │ (with reading   │  │ (cell structure │  │ (bounding box   │                      │
+│  │  order)         │  │  preserved)     │  │  coordinates)   │                      │
+│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘                      │
+└───────────┼─────────────────────┼─────────────────────┼─────────────────────────────┘
+            │                     │                     │
+            │                     │                     ▼
+            │                     │         ┌─────────────────────┐
+            │                     │         │ ✂️ FIGURE CROPPING  │
+            │                     │         │   + GPT-4V VISION   │
+            │                     │         │  (AI descriptions)  │
+            │                     │         └──────────┬──────────┘
+            │                     │                    │
+            ▼                     ▼                    ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                         CONTEXT-AWARE CHUNKING                                       │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                      │
+│  │ Text Chunks     │  │ Table Chunks    │  │ Figure Chunks   │                      │
+│  │ (by section)    │  │ (atomic units)  │  │ (with context)  │                      │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘                      │
+└────────────────────────────────────┬────────────────────────────────────────────────┘
+                                     │
+          ┌──────────────────────────┴──────────────────────────┐
+          │                                                     │
+          ▼                                                     ▼
+┌─────────────────────────────────┐       ┌─────────────────────────────────────────┐
+│   PATH A: VECTOR INDEX          │       │   PATH B: GRAPHRAG INDEX                │
+│                                 │       │                                         │
+│  ┌─────────────────────────┐   │       │  ┌─────────────────────────────────┐   │
+│  │ 🧮 Generate Embeddings  │   │       │  │ 📤 Export as Text Files         │   │
+│  │   (text-embedding-3-lg) │   │       │  │   (enriched chunks → .txt)      │   │
+│  └───────────┬─────────────┘   │       │  └───────────────┬─────────────────┘   │
+│              │                 │       │                  │                     │
+│              ▼                 │       │                  ▼                     │
+│  ┌─────────────────────────┐   │       │  ┌─────────────────────────────────┐   │
+│  │ 🔎 Azure AI Search      │   │       │  │ 🕸️ GraphRAG Indexing (LLM)     │   │
+│  │   • Vector search       │   │       │  │   • Entity extraction           │   │
+│  │   • Hybrid (BM25+vec)   │   │       │  │   • Relationship extraction     │   │
+│  │   • Semantic ranker     │   │       │  │   • Community detection         │   │
+│  └───────────┬─────────────┘   │       │  │   • Community summaries         │   │
+│              │                 │       │  └───────────────┬─────────────────┘   │
+└──────────────┼─────────────────┘       │                  │                     │
+               │                         │                  ▼                     │
+               │                         │  ┌─────────────────────────────────┐   │
+               │                         │  │ 📁 Parquet Files + LanceDB      │   │
+               │                         │  │   • entities.parquet            │   │
+               │                         │  │   • relationships.parquet       │   │
+               │                         │  │   • communities.parquet         │   │
+               │                         │  │   • community_reports.parquet   │   │
+               │                         │  └───────────────┬─────────────────┘   │
+               │                         └──────────────────┼─────────────────────┘
+               │                                            │
+               └────────────────────┬───────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                           QUERY-TIME ROUTING                                         │
+│                                                                                      │
+│   🔍 User Query: "What depends on Station 36?"                                      │
+│                                                                                      │
+│   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                     │
+│   │ 🔄 HYBRID       │  │ 🔁 ITERATIVE    │  │ 🕸️ GRAPHRAG     │                     │
+│   │ Vector + BM25   │  │ Multi-hop with  │  │ Knowledge graph │                     │
+│   │ (fast lookup)   │  │ entity bridging │  │ traversal       │                     │
+│   └────────┬────────┘  └────────┬────────┘  └────────┬────────┘                     │
+│            │                    │                    │                              │
+│            └────────────────────┴────────────────────┘                              │
+│                                 │                                                   │
+└─────────────────────────────────┼───────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                            VALIDATION & GENERATION                                   │
+│                                                                                      │
+│  ┌─────────────────────────┐     ┌─────────────────────────┐                        │
+│  │ ✅ Chunk Validation     │ ──▶ │ 🤖 Answer Generation    │                        │
+│  │   • Entity filtering    │     │   (GPT-4.1)             │                        │
+│  │   • Relevance scoring   │     │                         │                        │
+│  └─────────────────────────┘     └───────────┬─────────────┘                        │
+│                                              │                                      │
+│                                              ▼                                      │
+│                                  ┌─────────────────────────┐                        │
+│                                  │ 📊 Validation Report    │                        │
+│                                  │   • Grounding check     │                        │
+│                                  │   • Confidence score    │                        │
+│                                  │   • Missing aspects     │                        │
+│                                  └─────────────────────────┘                        │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Strategy Selection Guide
+
+| Question Type | Best Strategy | Why |
+|---------------|---------------|-----|
+| "What is X?" | **Hybrid** | Fast semantic + keyword lookup |
+| "Tell me everything about X" | **Iterative** | Multi-hop retrieval finds related info |
+| "What depends on X?" | **GraphRAG** | Relationship traversal |
+| "Summarize all stations" | **GraphRAG** | Global community summaries |
+| "Show the diagram for X" | **Hybrid** | Figure retrieval with context |
 
 ---
 
