@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Database, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
+import { Database, ChevronDown, ChevronRight, RefreshCw, Trash2 } from 'lucide-react'
 import { indexApi } from '../services/api'
 import type { IndexSchema, IndexStats } from '../types'
 
@@ -29,6 +29,22 @@ export function IndexSchemaViewer() {
     }
   }
 
+  const handleDeleteIndex = async () => {
+    if (!confirm('Delete the search index? This will remove all chunks.')) return
+    setLoading(true)
+    setError(null)
+    try {
+      await indexApi.deleteIndex()
+      setSchema(null)
+      setStats(null)
+    } catch (err) {
+      setError('Failed to delete index')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -40,14 +56,24 @@ export function IndexSchemaViewer() {
           <Database className="h-5 w-5" />
           Index Schema
         </h2>
-        <button
-          onClick={fetchData}
-          disabled={loading}
-          className="p-1 hover:bg-muted rounded transition-colors disabled:opacity-50"
-          title="Refresh"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDeleteIndex}
+            disabled={loading}
+            className="p-1 hover:bg-muted rounded transition-colors disabled:opacity-50"
+            title="Delete index"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="p-1 hover:bg-muted rounded transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {error && (

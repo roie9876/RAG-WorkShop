@@ -6,9 +6,10 @@ const DEFAULT_CONFIG: QueryConfig = {
   top_k: 5,
   search_mode: 'hybrid',
   semantic_ranker: true,
-  min_score: 0,
+  min_score: 2.0,
   content_type_filter: 'all',
-  retrieval_strategy: 'auto',
+  retrieval_strategy: 'iterative',
+  enable_validation: true,
 }
 
 export function useConfig() {

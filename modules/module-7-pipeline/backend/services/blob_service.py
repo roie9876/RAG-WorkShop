@@ -11,6 +11,7 @@ from typing import Literal
 try:
     from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
     from azure.identity import DefaultAzureCredential
+    from azure.core.exceptions import ResourceNotFoundError
     AZURE_STORAGE_AVAILABLE = True
 except ImportError:
     AZURE_STORAGE_AVAILABLE = False
@@ -58,8 +59,31 @@ class BlobService:
                 logger.info(f"BlobService connected with DefaultAzureCredential")
         
         return self._client
+
+    def _resolve_container_and_path(self, blob_path: str, container_name: str | None = None) -> tuple[str, str]:
+        """Resolve container name and clean blob path.
+
+        Supports paths prefixed with "documents/" or "figures/" and maps them to
+        their respective containers. The blob_path stored in the container
+        keeps the prefix (e.g., "figures/doc_id/fig_001.png" inside the figures container).
+        """
+        if container_name:
+            return container_name, blob_path
+
+        if blob_path.startswith("documents/"):
+            # Keep full path - blobs are stored with prefix inside container
+            return self.settings.get_documents_container_name(), blob_path
+        if blob_path.startswith("figures/"):
+            # Keep full path - blobs are stored with prefix inside container
+            return self.settings.get_figures_container_name(), blob_path
+
+        # Heuristic: figure images are stored as fig_*.png under a doc_id folder
+        if "/fig_" in blob_path or blob_path.startswith("fig_"):
+            return self.settings.get_figures_container_name(), blob_path
+
+        return self.settings.get_documents_container_name(), blob_path
     
-    async def upload_document(self, content: bytes, blob_path: str) -> str:
+    async def upload_document(self, content: bytes, blob_path: str, container_name: str | None = None) -> str:
         """
         Upload a document to blob storage.
         
@@ -70,7 +94,7 @@ class BlobService:
         Returns:
             Full blob URL (without SAS)
         """
-        container_name = self.settings.get_container_name()
+        container_name, clean_path = self._resolve_container_and_path(blob_path, container_name)
         logger.info(f"Uploading to container: {container_name}, path: {blob_path}")
         
         container_client = self.client.get_container_client(container_name)
@@ -82,7 +106,7 @@ class BlobService:
         except Exception as e:
             logger.debug(f"Container exists or error: {e}")
         
-        blob_client = container_client.get_blob_client(blob_path)
+        blob_client = container_client.get_blob_client(clean_path)
         blob_client.upload_blob(content, overwrite=True)
         logger.info(f"Uploaded blob: {blob_client.url}")
         
@@ -101,7 +125,11 @@ class BlobService:
             Blob path (use generate_sas_url for access URL)
         """
         blob_path = f"figures/{doc_id}/{figure_id}.png"
-        await self.upload_document(image_bytes, blob_path)
+        await self.upload_document(
+            image_bytes,
+            blob_path,
+            container_name=self.settings.get_figures_container_name()
+        )
         return blob_path
     
     async def generate_sas_url(
@@ -121,8 +149,22 @@ class BlobService:
         Returns:
             Dict with url and expires_at
         """
-        if not self.settings.azure_storage_account_key:
+        account_name = self.settings.get_storage_account_name()
+        account_key = self.settings.get_storage_account_key()
+        if not account_key:
             raise ValueError("Storage account key required for SAS generation")
+
+        container_name, clean_path = self._resolve_container_and_path(blob_path)
+
+        # Fallback: if figures blob is stored in documents container (legacy), use that
+        if blob_path.startswith("figures/"):
+            try:
+                container_client = self.client.get_container_client(container_name)
+                container_client.get_blob_client(clean_path).get_blob_properties()
+            except ResourceNotFoundError:
+                container_name = self.settings.get_documents_container_name()
+            except Exception:
+                pass
         
         # Set permissions
         if permission == "read":
@@ -135,18 +177,18 @@ class BlobService:
         
         # Generate SAS token
         sas_token = generate_blob_sas(
-            account_name=self.settings.azure_storage_account_name,
-            container_name=self.settings.azure_storage_container_name,
-            blob_name=blob_path,
-            account_key=self.settings.azure_storage_account_key,
+            account_name=account_name,
+            container_name=container_name,
+            blob_name=clean_path,
+            account_key=account_key,
             permission=sas_permissions,
             expiry=expiry
         )
         
         # Build full URL
         base_url = (
-            f"https://{self.settings.azure_storage_account_name}.blob.core.windows.net/"
-            f"{self.settings.azure_storage_container_name}/{blob_path}"
+            f"https://{account_name}.blob.core.windows.net/"
+            f"{container_name}/{clean_path}"
         )
         sas_url = f"{base_url}?{sas_token}"
         
@@ -158,11 +200,17 @@ class BlobService:
     async def delete_blob(self, blob_path: str) -> bool:
         """Delete a blob."""
         try:
-            container_client = self.client.get_container_client(
-                self.settings.azure_storage_container_name
-            )
-            blob_client = container_client.get_blob_client(blob_path)
+            container_name, clean_path = self._resolve_container_and_path(blob_path)
+            container_client = self.client.get_container_client(container_name)
+            blob_client = container_client.get_blob_client(clean_path)
             blob_client.delete_blob()
             return True
         except Exception:
             return False
+
+    async def download_blob(self, blob_path: str) -> bytes:
+        """Download blob content as bytes."""
+        container_name, clean_path = self._resolve_container_and_path(blob_path)
+        container_client = self.client.get_container_client(container_name)
+        blob_client = container_client.get_blob_client(clean_path)
+        return blob_client.download_blob().readall()

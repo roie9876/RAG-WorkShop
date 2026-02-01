@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     
     # Content Understanding
     azure_content_understanding_endpoint: str = ""
+    azure_content_understanding_key: str = ""
+    azure_content_understanding_api_version: str = "2025-11-01"  # GA version
+    
+    # Processing mode: "cu" for Content Understanding, "di" for Document Intelligence
+    document_processing_mode: str = "cu"
     
     def get_storage_account_name(self) -> str:
         """Extract storage account name from connection string or use direct setting."""
@@ -67,9 +72,24 @@ class Settings(BaseSettings):
     def get_container_name(self) -> str:
         """Get container name with fallback."""
         return self.azure_storage_container_documents or self.azure_storage_container_name
+
+    def get_documents_container_name(self) -> str:
+        """Get documents container name."""
+        return self.azure_storage_container_documents or self.azure_storage_container_name
+
+    def get_figures_container_name(self) -> str:
+        """Get figures container name."""
+        return self.azure_storage_container_figures or "figures"
+
+    def get_search_endpoint(self) -> str:
+        """Normalize search endpoint to include scheme."""
+        endpoint = (self.azure_search_endpoint or "").strip()
+        if endpoint and not endpoint.startswith("http://") and not endpoint.startswith("https://"):
+            endpoint = f"https://{endpoint}"
+        return endpoint
     
     class Config:
-        env_file = ".env"
+        env_file = [".env", "../../.env", "../../../.env"]
         env_file_encoding = "utf-8"
         extra = "ignore"  # Ignore extra fields from .env
 

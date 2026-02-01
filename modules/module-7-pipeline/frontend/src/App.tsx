@@ -4,6 +4,7 @@ import { QueryInput } from './components/QueryInput'
 import { RetrievalConfig } from './components/RetrievalConfig'
 import { AnswerDisplay } from './components/AnswerDisplay'
 import { RetrievalDetails } from './components/RetrievalDetails'
+import { ValidationReportPanel } from './components/ValidationReport'
 import { IndexSchemaViewer } from './components/IndexSchemaViewer'
 import { useQuery } from './hooks/useQuery'
 import { useConfig } from './hooks/useConfig'
@@ -12,11 +13,13 @@ import type { QueryResponse, QueryConfig } from './types'
 function App() {
   const [queryResponse, setQueryResponse] = useState<QueryResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [currentQuestion, setCurrentQuestion] = useState('')
   
   const { config, updateConfig } = useConfig()
   const { executeQuery } = useQuery()
 
   const handleQuery = async (question: string) => {
+    setCurrentQuestion(question)
     setIsLoading(true)
     try {
       const response = await executeQuery(question, config)
@@ -26,6 +29,10 @@ function App() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleRetryQuery = async (retryQuery: string) => {
+    await handleQuery(retryQuery)
   }
 
   const handleConfigChange = (newConfig: Partial<QueryConfig>) => {
@@ -66,6 +73,14 @@ function App() {
             {/* Answer Display */}
             {queryResponse && (
               <AnswerDisplay response={queryResponse} isLoading={isLoading} />
+            )}
+
+            {/* Validation Report (NEW!) */}
+            {queryResponse?.validation_report && (
+              <ValidationReportPanel 
+                report={queryResponse.validation_report} 
+                onRetry={handleRetryQuery}
+              />
             )}
 
             {/* Retrieval Details (Observability) */}

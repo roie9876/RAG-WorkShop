@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload, File, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { Upload, File, CheckCircle, XCircle, Loader2, RefreshCw } from 'lucide-react'
 import { documentsApi } from '../services/api'
 import type { DocumentStatus } from '../types'
 
@@ -42,6 +42,16 @@ export function DocumentUpload() {
       }
     }
     checkStatus()
+  }
+
+  const handleReindex = async (docId: string) => {
+    try {
+      const updated = await documentsApi.reindex(docId)
+      setDocuments((prev) => prev.map((d) => (d.id === docId ? updated : d)))
+      pollStatus(docId)
+    } catch (error) {
+      console.error('Reindex failed:', error)
+    }
   }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -123,7 +133,18 @@ export function DocumentUpload() {
                   )}
                 </div>
               </div>
-              {getStatusIcon(doc.status)}
+              <div className="flex items-center gap-2">
+                {doc.status === 'completed' && (
+                  <button
+                    onClick={() => handleReindex(doc.id)}
+                    className="p-1 rounded hover:bg-muted"
+                    title="Reindex document"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
+                )}
+                {getStatusIcon(doc.status)}
+              </div>
             </div>
           ))}
         </div>

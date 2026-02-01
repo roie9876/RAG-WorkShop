@@ -64,6 +64,17 @@ class IndexInfo(BaseModel):
     stats: IndexStats
 
 
+class FigureChunkSample(BaseModel):
+    """Figure chunk sample for debugging."""
+    id: str
+    content_type: str
+    image_blob_path: Optional[str] = None
+    figure_caption: Optional[str] = None
+    source_document: Optional[str] = None
+    page_numbers: List[int] = []
+    score: Optional[float] = None
+
+
 @router.get("/schema", response_model=IndexSchema)
 async def get_index_schema():
     """
@@ -160,3 +171,25 @@ async def get_index_info():
     schema = await get_index_schema()
     stats = await get_index_stats()
     return IndexInfo(schema_=schema, stats=stats)
+
+
+@router.delete("/reset")
+async def delete_index():
+    """Delete the search index."""
+    try:
+        search_service = SearchService()
+        await search_service.delete_index()
+        return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/figures", response_model=List[FigureChunkSample])
+async def list_figure_chunks(top: int = 20):
+    """List figure chunks and their image paths (debug)."""
+    try:
+        search_service = SearchService()
+        rows = await search_service.get_chunks_by_content_type("figure", top=top)
+        return [FigureChunkSample(**row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

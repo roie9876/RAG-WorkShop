@@ -316,6 +316,12 @@ Be concise. Only suggest follow-up if critical information is clearly missing.""
         """Add SAS URLs to chunks."""
         for chunk in chunks:
             if chunk.get("image_blob_path"):
+                if chunk.get("content_type") == "figure":
+                    image_path = chunk["image_blob_path"]
+                    if image_path.startswith("documents/"):
+                        chunk["image_blob_path"] = "figures/" + image_path[len("documents/"):]
+                    elif not image_path.startswith("figures/"):
+                        chunk["image_blob_path"] = "figures/" + image_path.lstrip("/")
                 try:
                     sas_result = await self.blob_service.generate_sas_url(
                         chunk["image_blob_path"],

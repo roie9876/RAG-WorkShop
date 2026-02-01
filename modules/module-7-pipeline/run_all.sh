@@ -22,7 +22,11 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # Start backend in background
-echo "📦 Starting backend..."
+echo "📦 Restarting backend..."
+# Stop any existing backend on port 8000
+if command -v lsof >/dev/null 2>&1; then
+    lsof -ti :8000 | xargs kill -9 2>/dev/null
+fi
 ./run_backend.sh &
 BACKEND_PID=$!
 

@@ -56,7 +56,7 @@ class SearchService:
         
         if self._search_client is None:
             self._search_client = SearchClient(
-                endpoint=self.settings.azure_search_endpoint,
+                endpoint=self.settings.get_search_endpoint(),
                 index_name=self.settings.azure_search_index_name,
                 credential=AzureKeyCredential(self.settings.azure_search_api_key)
             )
@@ -68,7 +68,7 @@ class SearchService:
         """Get index client for schema operations."""
         if self._index_client is None:
             self._index_client = SearchIndexClient(
-                endpoint=self.settings.azure_search_endpoint,
+                endpoint=self.settings.get_search_endpoint(),
                 credential=AzureKeyCredential(self.settings.azure_search_api_key)
             )
         return self._index_client
@@ -84,18 +84,22 @@ class SearchService:
             )
         return self._openai_client
     
-    async def create_index_if_not_exists(self):
+    async def create_index_if_not_exists(self, force_recreate: bool = False):
         """Create the search index if it doesn't exist."""
         index_name = self.settings.azure_search_index_name
         
         # Check if exists
         try:
-            self.index_client.get_index(index_name)
-            return  # Already exists
+            existing = self.index_client.get_index(index_name)
+            if not force_recreate:
+                return  # Already exists
+            else:
+                self.index_client.delete_index(index_name)
+                logger.info(f"Deleted existing index: {index_name}")
         except Exception:
             pass  # Doesn't exist, create it
         
-        # Define fields
+        # Define fields - includes all fields for text, table, and figure chunks
         fields = [
             SearchField(name="id", type=SearchFieldDataType.String, key=True),
             SearchField(name="content", type=SearchFieldDataType.String, searchable=True),
@@ -107,7 +111,7 @@ class SearchService:
                 vector_search_dimensions=3072,
                 vector_search_profile_name="hnsw-profile"
             ),
-            SearchField(name="source_document", type=SearchFieldDataType.String, filterable=True),
+            SearchField(name="source_document", type=SearchFieldDataType.String, filterable=True, searchable=True),
             SearchField(name="source_document_blob_path", type=SearchFieldDataType.String),
             SearchField(name="doc_id", type=SearchFieldDataType.String, filterable=True),
             SearchField(
@@ -115,9 +119,16 @@ class SearchService:
                 type=SearchFieldDataType.Collection(SearchFieldDataType.Int32)
             ),
             SearchField(name="section_header", type=SearchFieldDataType.String, searchable=True),
+            
+            # Figure-specific fields
             SearchField(name="image_blob_path", type=SearchFieldDataType.String),
-            SearchField(name="table_html", type=SearchFieldDataType.String),
             SearchField(name="figure_caption", type=SearchFieldDataType.String, searchable=True),
+            SearchField(name="figure_description", type=SearchFieldDataType.String, searchable=True),
+            SearchField(name="surrounding_text", type=SearchFieldDataType.String, searchable=True),
+            
+            # Table-specific fields
+            SearchField(name="table_html", type=SearchFieldDataType.String),
+            SearchField(name="table_markdown", type=SearchFieldDataType.String, searchable=True),
         ]
         
         # Vector search config
@@ -289,7 +300,19 @@ class SearchService:
     async def get_index_schema(self) -> Dict[str, Any]:
         """Get the index schema."""
         index = self.index_client.get_index(self.settings.azure_search_index_name)
-        
+
+        def _serialize_hnsw_params(params: Any) -> Dict[str, Any]:
+            if params is None:
+                return {}
+            if isinstance(params, dict):
+                return params
+            return {
+                "m": getattr(params, "m", None),
+                "efConstruction": getattr(params, "ef_construction", None) or getattr(params, "efConstruction", None),
+                "efSearch": getattr(params, "ef_search", None) or getattr(params, "efSearch", None),
+                "metric": getattr(params, "metric", None),
+            }
+
         return {
             "name": index.name,
             "fields": [
@@ -311,7 +334,7 @@ class SearchService:
                     {
                         "name": algo.name,
                         "kind": "hnsw",
-                        "hnswParameters": algo.parameters
+                        "hnswParameters": _serialize_hnsw_params(algo.parameters)
                     }
                     for algo in (index.vector_search.algorithms if index.vector_search else [])
                 ]
@@ -334,24 +357,78 @@ class SearchService:
         }
     
     async def get_index_stats(self) -> Dict[str, Any]:
-        """Get index statistics."""
-        # Get document count
-        results = self.search_client.search(search_text="*", top=0, include_total_count=True)
-        doc_count = results.get_count()
-        
-        # Get content type distribution
-        content_types = {}
-        for ct in ["text", "table", "figure"]:
-            ct_results = self.search_client.search(
+        """Get index statistics. Returns zeros if index doesn't exist."""
+        try:
+            # Get document count
+            results = self.search_client.search(search_text="*", top=0, include_total_count=True)
+            doc_count = results.get_count()
+            
+            # Get content type distribution
+            content_types = {}
+            for ct in ["text", "table", "figure"]:
+                ct_results = self.search_client.search(
+                    search_text="*",
+                    filter=f"content_type eq '{ct}'",
+                    top=0,
+                    include_total_count=True
+                )
+                content_types[ct] = ct_results.get_count() or 0
+            
+            return {
+                "document_count": doc_count or 0,
+                "storage_size_bytes": 0,  # Not easily available via SDK
+                "content_type_counts": content_types
+            }
+        except Exception as e:
+            # Index doesn't exist or other error - return empty stats
+            logger.warning(f"Could not get index stats (index may not exist): {e}")
+            return {
+                "document_count": 0,
+                "storage_size_bytes": 0,
+                "content_type_counts": {"text": 0, "table": 0, "figure": 0}
+            }
+
+    async def delete_documents_by_doc_id(self, doc_id: str) -> int:
+        """Delete all chunks for a given doc_id."""
+        deleted = 0
+        try:
+            results = self.search_client.search(
                 search_text="*",
-                filter=f"content_type eq '{ct}'",
-                top=0,
-                include_total_count=True
+                filter=f"doc_id eq '{doc_id}'",
+                top=1000
             )
-            content_types[ct] = ct_results.get_count() or 0
-        
-        return {
-            "document_count": doc_count or 0,
-            "storage_size_bytes": 0,  # Not easily available via SDK
-            "content_type_counts": content_types
-        }
+            ids = [r["id"] for r in results]
+            if ids:
+                self.search_client.delete_documents([{ "id": i } for i in ids])
+                deleted = len(ids)
+            logger.info(f"Deleted {deleted} documents for doc_id={doc_id}")
+        except Exception as e:
+            logger.warning(f"Failed to delete documents for doc_id={doc_id}: {e}")
+        return deleted
+
+    async def delete_index(self) -> None:
+        """Delete the search index."""
+        index_name = self.settings.azure_search_index_name
+        self.index_client.delete_index(index_name)
+        logger.info(f"Deleted index: {index_name}")
+
+    async def get_chunks_by_content_type(self, content_type: str, top: int = 20) -> List[Dict[str, Any]]:
+        """Fetch sample chunks by content type (debug)."""
+        results = self.search_client.search(
+            search_text="*",
+            filter=f"content_type eq '{content_type}'",
+            top=top
+        )
+
+        rows = []
+        for r in results:
+            rows.append({
+                "id": r.get("id"),
+                "content_type": r.get("content_type"),
+                "image_blob_path": r.get("image_blob_path"),
+                "figure_caption": r.get("figure_caption"),
+                "source_document": r.get("source_document"),
+                "page_numbers": r.get("page_numbers"),
+                "score": r.get("@search.score")
+            })
+        return rows

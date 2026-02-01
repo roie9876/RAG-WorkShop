@@ -140,6 +140,16 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             content_type_filter=content_type_filter if content_type_filter != "all" else None,
             min_score=min_score
         )
+
+        # If user asks for figures and no explicit filter, fetch figures from relevant pages
+        if content_type_filter == "all" and self._should_boost_figures(query):
+            # Extract relevant pages and documents from text chunks
+            relevant_pages = self._extract_relevant_pages(chunks)
+            
+            if relevant_pages:
+                # Get figures from the same pages as the text content
+                figure_chunks = await self._get_figures_for_pages(relevant_pages)
+                chunks = self._merge_chunks(chunks, figure_chunks)
         
         # Add SAS URLs for figures and documents
         chunks = await self._enrich_with_sas_urls(chunks)
@@ -171,6 +181,15 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             content_type_filter=content_type_filter if content_type_filter != "all" else None,
             min_score=min_score
         )
+
+        if content_type_filter == "all" and self._should_boost_figures(query):
+            # Extract relevant pages and documents from text chunks
+            relevant_pages = self._extract_relevant_pages(chunks)
+            
+            if relevant_pages:
+                # Get figures from the same pages as the text content
+                figure_chunks = await self._get_figures_for_pages(relevant_pages)
+                chunks = self._merge_chunks(chunks, figure_chunks)
         
         # Add SAS URLs
         chunks = await self._enrich_with_sas_urls(chunks)
@@ -187,6 +206,76 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         return await self._retrieve_hybrid(
             query, top_k, "hybrid", True, 0.0, "all"
         )
+
+    def _extract_relevant_pages(self, chunks: List[Dict[str, Any]]) -> Dict[str, set]:
+        """Extract page numbers and documents from text chunks.
+        
+        Returns: dict mapping document name to set of page numbers
+        """
+        doc_pages = {}
+        for chunk in chunks:
+            if chunk.get("content_type") == "text":
+                doc = chunk.get("source_document", "")
+                pages = chunk.get("page_numbers", [])
+                if doc and pages:
+                    if doc not in doc_pages:
+                        doc_pages[doc] = set()
+                    doc_pages[doc].update(pages)
+                    # Also include adjacent pages (figures often span pages)
+                    for p in list(pages):
+                        doc_pages[doc].add(p - 1)
+                        doc_pages[doc].add(p + 1)
+        return doc_pages
+
+    async def _get_figures_for_pages(self, doc_pages: Dict[str, set]) -> List[Dict[str, Any]]:
+        """Get figure chunks from specific pages of specific documents."""
+        # Get all figures from index
+        all_figures = await self.search_service.search(
+            query="*",
+            top_k=100,
+            search_mode="text",
+            semantic_ranker=False,
+            content_type_filter="figure",
+            min_score=0
+        )
+        
+        # Filter to only figures from relevant pages
+        relevant_figures = []
+        for fig in all_figures:
+            doc = fig.get("source_document", "")
+            pages = fig.get("page_numbers", [])
+            if doc in doc_pages:
+                # Check if any page of this figure is in the relevant pages
+                if any(p in doc_pages[doc] for p in pages):
+                    relevant_figures.append(fig)
+        
+        return relevant_figures[:10]  # Limit to 10 figures
+
+    def _should_boost_figures(self, query: str) -> bool:
+        """Heuristic: detect if user is asking for figures/images/plots."""
+        q = query.lower()
+        keywords = [
+            # English
+            "figure", "fig", "image", "diagram", "chart", "plot", "graph",
+            "curve", "characteristics", "v-i", "vi", "map", "picture", "photo",
+            "illustration", "drawing", "sketch", "visual", "show me",
+            # Hebrew (singular and plural forms)
+            "תמונה", "תמונות", "תרשים", "תרשימים", "מפה", "מפות",
+            "גרף", "גרפים", "איור", "איורים", "ציור", "ציורים",
+            "תצלום", "תצלומים", "מיקום", "הצג", "הראה", "ויזואלי",
+            "סכמה", "דיאגרמה", "תמונ"  # partial match for תמונות/תמונה
+        ]
+        return any(k in q for k in keywords)
+
+    def _merge_chunks(self, primary: List[Dict[str, Any]], extra: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Merge chunk lists by id, preserving order with extras appended."""
+        seen = {c.get("id") for c in primary}
+        merged = list(primary)
+        for c in extra:
+            if c.get("id") not in seen:
+                merged.append(c)
+                seen.add(c.get("id"))
+        return merged
     
     async def _expand_query(self, query: str) -> str:
         """Expand query with LLM for better retrieval."""
@@ -216,6 +305,13 @@ Return only the expanded query, no explanations."""
         for chunk in chunks:
             # Add SAS URL for figures
             if chunk.get("image_blob_path"):
+                # Normalize legacy paths for figures
+                if chunk.get("content_type") == "figure":
+                    image_path = chunk["image_blob_path"]
+                    if image_path.startswith("documents/"):
+                        chunk["image_blob_path"] = "figures/" + image_path[len("documents/"):]
+                    elif not image_path.startswith("figures/"):
+                        chunk["image_blob_path"] = "figures/" + image_path.lstrip("/")
                 try:
                     sas_result = await self.blob_service.generate_sas_url(
                         chunk["image_blob_path"],

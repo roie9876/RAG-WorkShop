@@ -17,12 +17,13 @@ RULES:
 3. ALWAYS cite sources using [Source N] format where N is the source number
 4. Be concise but complete
 5. For technical questions, include relevant details
-6. If a figure or table is relevant, mention it explicitly
+6. When figures or images are included in the context, they will be AUTOMATICALLY DISPLAYED to the user - do NOT tell the user to "look at page X" or "see the PDF". Just reference the figure naturally (e.g., "As shown in the figure from page 14...")
+7. Focus on answering the question with the figures that ARE provided in context, not figures that might exist elsewhere
 
 CONTEXT:
 {contexts}
 
-Answer the question based on the context above. Include citations."""
+Answer the question based on the context above. Include citations. Figures from the context will be displayed automatically."""
 
 
 class GenerationService:

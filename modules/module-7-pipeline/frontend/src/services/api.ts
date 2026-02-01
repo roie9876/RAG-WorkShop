@@ -77,6 +77,11 @@ export const documentsApi = {
   delete: async (docId: string): Promise<void> => {
     await api.delete(`/documents/${docId}`)
   },
+
+  reindex: async (docId: string): Promise<DocumentStatus> => {
+    const response = await api.post(`/documents/${docId}/reindex`)
+    return response.data
+  },
 }
 
 // Index API
@@ -89,6 +94,10 @@ export const indexApi = {
   getStats: async (): Promise<IndexStats> => {
     const response = await api.get('/index/stats')
     return response.data
+  },
+
+  deleteIndex: async (): Promise<void> => {
+    await api.delete('/index/reset')
   },
 }
 

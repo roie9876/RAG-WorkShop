@@ -6,7 +6,8 @@ export interface QueryConfig {
   semantic_ranker: boolean
   min_score: number
   content_type_filter: 'all' | 'text' | 'table' | 'figure'
-  retrieval_strategy: 'auto' | 'hybrid' | 'agentic' | 'graphrag'
+  retrieval_strategy: 'auto' | 'hybrid' | 'agentic' | 'iterative' | 'graphrag'
+  enable_validation?: boolean
 }
 
 export interface SourceChunk {
@@ -44,6 +45,22 @@ export interface MultiHopStep {
   tool_calls: ToolCall[]
 }
 
+export interface IterativeStep {
+  iteration: number
+  search_queries: string[]
+  results_count: number
+  entities_found: Record<string, string>
+  reasoning: string
+}
+
+export interface IterativeTrace {
+  total_iterations: number
+  steps: IterativeStep[]
+  all_entities: Record<string, string>
+  aspects_covered: string[]
+  aspects_missing: string[]
+}
+
 export interface RetrievalMetadata {
   strategy_used: string
   total_chunks_retrieved: number
@@ -58,7 +75,57 @@ export interface RetrievalMetadata {
     results?: number
   }>
   multi_hop_trace?: MultiHopStep[]
+  iterative_trace?: IterativeTrace
   content_type_distribution: Record<string, number>
+}
+
+// Validation Types
+export interface ChunkValidationDetail {
+  chunk_id: string
+  is_relevant: boolean
+  relevance_score: number
+  entity_conflict: boolean
+  conflict_details?: string
+  reasoning: string
+}
+
+export interface FilteredChunkInfo {
+  chunk_id: string
+  reason: string
+  relevance_score: number
+  entity_conflict: boolean
+}
+
+export interface ValidationIssue {
+  severity: 'info' | 'warning' | 'error'
+  type: string
+  description: string
+}
+
+export interface AnswerQualityReport {
+  overall_quality: number
+  is_grounded: boolean
+  completeness_score: number
+  aspects_answered: string[]
+  aspects_missing: string[]
+  confidence: 'low' | 'medium' | 'high'
+  issues: ValidationIssue[]
+  recommendations: string[]
+}
+
+export interface ValidationReport {
+  validation_enabled: boolean
+  total_chunks_retrieved: number
+  chunks_kept: number
+  chunks_filtered: number
+  filtered_chunks: FilteredChunkInfo[]
+  chunk_validations: ChunkValidationDetail[]
+  answer_quality?: AnswerQualityReport
+  overall_score: number
+  validation_passed: boolean
+  retry_suggested: boolean
+  retry_query?: string
+  warnings: string[]
 }
 
 export interface QueryResponse {
@@ -69,6 +136,7 @@ export interface QueryResponse {
     model: string
     tokens_used: number
   }
+  validation_report?: ValidationReport
 }
 
 export interface DocumentStatus {
@@ -76,6 +144,7 @@ export interface DocumentStatus {
   filename: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
   uploaded_at: string
+  blob_path?: string
   processed_at?: string
   chunks_created?: number
   figures_extracted?: number

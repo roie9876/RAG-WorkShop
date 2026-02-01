@@ -13,6 +13,8 @@ import json
 from services.retrieval_router import RetrievalRouter
 from services.generation import GenerationService
 from services.agent_service import AgentService
+from services.iterative_retriever import IterativeRetriever
+from services.validation_service import ValidationService
 
 router = APIRouter()
 
@@ -27,13 +29,14 @@ class QueryRequest(BaseModel):
         default="hybrid", description="Search mode"
     )
     semantic_ranker: bool = Field(default=True, description="Enable semantic ranking")
-    min_score: float = Field(default=0.0, ge=0, le=1, description="Minimum relevance score")
+    min_score: float = Field(default=0.0, ge=0, le=4, description="Minimum relevance score (0-1 for vector, 0-4 for semantic)")
     content_type_filter: Literal["all", "text", "table", "figure"] = Field(
         default="all", description="Filter by content type"
     )
-    retrieval_strategy: Literal["auto", "hybrid", "agentic", "graphrag"] = Field(
+    retrieval_strategy: Literal["auto", "hybrid", "agentic", "iterative", "graphrag"] = Field(
         default="auto", description="Retrieval strategy"
     )
+    enable_validation: bool = Field(default=True, description="Enable answer validation")
 
 
 class SourceChunk(BaseModel):
@@ -76,6 +79,70 @@ class MultiHopStep(BaseModel):
     tool_calls: List[ToolCall]
 
 
+class IterativeStep(BaseModel):
+    """An iterative retrieval step."""
+    iteration: int
+    search_queries: List[str]
+    results_count: int
+    entities_found: dict
+    reasoning: str
+
+
+class IterativeTraceResponse(BaseModel):
+    """Trace of iterative retrieval process."""
+    total_iterations: int
+    steps: List[IterativeStep]
+    all_entities: dict
+    aspects_covered: List[str]
+    aspects_missing: List[str]
+
+
+class ChunkValidationDetail(BaseModel):
+    """Validation result for a single chunk."""
+    chunk_id: str
+    is_relevant: bool
+    relevance_score: float
+    entity_conflict: bool
+    conflict_details: Optional[str] = None
+    reasoning: str = ""
+
+
+class FilteredChunkInfo(BaseModel):
+    """Info about a filtered chunk."""
+    chunk_id: str
+    reason: str
+    relevance_score: float
+    entity_conflict: bool
+
+
+class AnswerQualityReport(BaseModel):
+    """Answer quality validation result."""
+    overall_quality: float
+    is_grounded: bool
+    completeness_score: float
+    aspects_answered: List[str] = []
+    aspects_missing: List[str] = []
+    confidence: str = "medium"
+    issues: List[dict] = []
+    recommendations: List[str] = []
+
+
+class ValidationReportResponse(BaseModel):
+    """Complete validation report."""
+    validation_enabled: bool = True
+    total_chunks_retrieved: int = 0
+    chunks_kept: int = 0
+    chunks_filtered: int = 0
+    filtered_chunks: List[FilteredChunkInfo] = []
+    chunk_validations: List[ChunkValidationDetail] = []
+    answer_quality: Optional[AnswerQualityReport] = None
+    overall_score: float = 0.0
+    validation_passed: bool = True
+    retry_suggested: bool = False
+    retry_query: Optional[str] = None
+    warnings: List[str] = []
+
+
 class RetrievalMetadata(BaseModel):
     """Full observability metadata for retrieval."""
     strategy_used: str
@@ -85,6 +152,7 @@ class RetrievalMetadata(BaseModel):
     query_decomposition: Optional[QueryDecomposition] = None
     activity_log: Optional[List[dict]] = None
     multi_hop_trace: Optional[List[MultiHopStep]] = None
+    iterative_trace: Optional[IterativeTraceResponse] = None
     content_type_distribution: dict = {}
 
 
@@ -94,6 +162,7 @@ class QueryResponse(BaseModel):
     sources: List[SourceChunk]
     retrieval_metadata: RetrievalMetadata
     generation_metadata: dict = {}
+    validation_report: Optional[ValidationReportResponse] = None
 
 
 @router.post("", response_model=QueryResponse)
@@ -115,6 +184,8 @@ async def execute_query(request: QueryRequest):
         retrieval_router = RetrievalRouter()
         generation_service = GenerationService()
         agent_service = AgentService()
+        iterative_retriever = IterativeRetriever()
+        validation_service = ValidationService()
         
         # Determine retrieval strategy
         if request.retrieval_strategy == "auto":
@@ -122,8 +193,25 @@ async def execute_query(request: QueryRequest):
         else:
             strategy = request.retrieval_strategy
         
+        # Track iterative trace separately
+        iterative_trace_data = None
+        validation_report_data = None
+        
         # Execute retrieval based on strategy
-        if strategy == "agentic":
+        if strategy == "iterative":
+            # Use iterative entity-aware retrieval
+            chunks, iter_trace = await iterative_retriever.retrieve(
+                query=request.question,
+                max_iterations=3,
+                top_k_per_iteration=request.top_k,
+                search_mode=request.search_mode,
+                semantic_ranker=request.semantic_ranker,
+                min_score=request.min_score,
+                content_type_filter=request.content_type_filter
+            )
+            retrieval_result = {"chunks": chunks}
+            iterative_trace_data = iter_trace
+        elif strategy == "agentic":
             # Use Microsoft AI Agents for complex queries
             retrieval_result = await agent_service.execute_agentic_query(
                 query=request.question,
@@ -145,13 +233,39 @@ async def execute_query(request: QueryRequest):
         
         retrieval_time_ms = int((time.time() - start_time) * 1000)
         
-        # Generate answer with citations
+        # Get initial chunks
+        chunks_for_generation = retrieval_result["chunks"]
+        
+        # === VALIDATION STAGE 1: Filter chunks before generation ===
+        if request.enable_validation:
+            chunks_for_generation, validation_report_data = await validation_service.validate_chunks(
+                query=request.question,
+                chunks=retrieval_result["chunks"]
+            )
+            
+            # If all chunks filtered, warn but continue with original
+            if not chunks_for_generation and retrieval_result["chunks"]:
+                validation_report_data.warnings.append(
+                    "All chunks were filtered as irrelevant. Using original chunks."
+                )
+                chunks_for_generation = retrieval_result["chunks"]
+        
+        # Generate answer with citations (using filtered chunks)
         generation_result = await generation_service.generate_answer(
             query=request.question,
-            contexts=retrieval_result["chunks"]
+            contexts=chunks_for_generation
         )
         
-        # Build response with full observability
+        # === VALIDATION STAGE 2: Validate answer quality ===
+        if request.enable_validation and validation_report_data:
+            validation_report_data = await validation_service.validate_answer(
+                query=request.question,
+                answer=generation_result["answer"],
+                chunks=chunks_for_generation,
+                report=validation_report_data
+            )
+        
+        # Build response with full observability (use filtered chunks as sources)
         sources = [
             SourceChunk(
                 id=chunk["id"],
@@ -164,12 +278,12 @@ async def execute_query(request: QueryRequest):
                 section_header=chunk.get("section_header"),
                 image_sas_url=chunk.get("image_sas_url")
             )
-            for chunk in retrieval_result["chunks"]
+            for chunk in chunks_for_generation
         ]
         
-        # Content type distribution
+        # Content type distribution (from filtered chunks)
         content_types = {}
-        for chunk in retrieval_result["chunks"]:
+        for chunk in chunks_for_generation:
             ct = chunk.get("content_type", "text")
             content_types[ct] = content_types.get(ct, 0) + 1
         
@@ -177,6 +291,7 @@ async def execute_query(request: QueryRequest):
         query_decomposition = None
         multi_hop_trace = None
         activity_log = None
+        iterative_trace_response = None
         
         if strategy == "agentic" and "agent_trace" in retrieval_result:
             trace = retrieval_result["agent_trace"]
@@ -210,22 +325,103 @@ async def execute_query(request: QueryRequest):
             
             activity_log = trace.get("activity_log", [])
         
+        # Build iterative trace if iterative strategy was used
+        if strategy == "iterative" and iterative_trace_data:
+            iterative_trace_response = IterativeTraceResponse(
+                total_iterations=iterative_trace_data.total_iterations,
+                steps=[
+                    IterativeStep(
+                        iteration=step.iteration,
+                        search_queries=step.search_queries,
+                        results_count=step.results_count,
+                        entities_found=step.entities_found,
+                        reasoning=step.reasoning
+                    )
+                    for step in iterative_trace_data.steps
+                ],
+                all_entities=iterative_trace_data.all_entities,
+                aspects_covered=iterative_trace_data.aspects_covered,
+                aspects_missing=iterative_trace_data.aspects_missing
+            )
+        
         metadata = RetrievalMetadata(
             strategy_used=strategy,
-            total_chunks_retrieved=len(sources),
+            total_chunks_retrieved=len(retrieval_result["chunks"]),  # Original count
             retrieval_time_ms=retrieval_time_ms,
             parameters={
                 "top_k": request.top_k,
                 "search_mode": request.search_mode,
                 "semantic_ranker": request.semantic_ranker,
                 "min_score": request.min_score,
-                "content_type_filter": request.content_type_filter
+                "content_type_filter": request.content_type_filter,
+                "enable_validation": request.enable_validation
             },
             query_decomposition=query_decomposition,
             activity_log=activity_log,
             multi_hop_trace=multi_hop_trace,
+            iterative_trace=iterative_trace_response,
             content_type_distribution=content_types
         )
+        
+        # Build validation report response
+        validation_response = None
+        if request.enable_validation and validation_report_data:
+            # Convert chunk validations
+            chunk_validations_response = [
+                ChunkValidationDetail(
+                    chunk_id=cv.chunk_id,
+                    is_relevant=cv.is_relevant,
+                    relevance_score=cv.relevance_score,
+                    entity_conflict=cv.entity_conflict,
+                    conflict_details=cv.conflict_details,
+                    reasoning=cv.reasoning
+                )
+                for cv in validation_report_data.chunk_validations
+            ]
+            
+            # Convert filtered chunks info
+            filtered_chunks_response = [
+                FilteredChunkInfo(
+                    chunk_id=fc["chunk_id"],
+                    reason=fc["reason"],
+                    relevance_score=fc["relevance_score"],
+                    entity_conflict=fc["entity_conflict"]
+                )
+                for fc in validation_report_data.filtered_reasons
+            ]
+            
+            # Convert answer quality
+            answer_quality_response = None
+            if validation_report_data.answer_quality:
+                aq = validation_report_data.answer_quality
+                answer_quality_response = AnswerQualityReport(
+                    overall_quality=aq.overall_quality,
+                    is_grounded=aq.is_grounded,
+                    completeness_score=aq.completeness_score,
+                    aspects_answered=aq.aspects_answered,
+                    aspects_missing=aq.aspects_missing,
+                    confidence=aq.confidence,
+                    issues=[
+                        {"severity": i.severity.value, "type": i.issue_type, "description": i.description}
+                        for i in aq.issues
+                    ],
+                    recommendations=aq.recommendations
+                )
+            
+            validation_response = ValidationReportResponse(
+                validation_enabled=True,
+                total_chunks_retrieved=validation_report_data.total_chunks_retrieved,
+                chunks_kept=validation_report_data.chunks_kept,
+                chunks_filtered=validation_report_data.chunks_filtered,
+                filtered_chunks=filtered_chunks_response,
+                chunk_validations=chunk_validations_response,
+                answer_quality=answer_quality_response,
+                overall_score=validation_report_data.overall_score,
+                validation_passed=validation_report_data.validation_passed,
+                retry_suggested=validation_report_data.retry_suggested,
+                retry_query=validation_report_data.retry_query,
+                warnings=validation_report_data.warnings
+            )
         
         return QueryResponse(
             answer=generation_result["answer"],
@@ -234,7 +430,8 @@ async def execute_query(request: QueryRequest):
             generation_metadata={
                 "model": generation_result.get("model", "gpt-4.1"),
                 "tokens_used": generation_result.get("tokens_used", 0)
-            }
+            },
+            validation_report=validation_response
         )
         
     except Exception as e:

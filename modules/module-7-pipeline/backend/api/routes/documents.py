@@ -12,6 +12,7 @@ import uuid
 
 from services.document_processor import DocumentProcessor
 from services.blob_service import BlobService
+from services.search_service import SearchService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,6 +24,7 @@ class DocumentStatus(BaseModel):
     filename: str
     status: str  # pending, processing, completed, failed
     uploaded_at: datetime
+    blob_path: Optional[str] = None
     processed_at: Optional[datetime] = None
     chunks_created: Optional[int] = None
     figures_extracted: Optional[int] = None
@@ -71,11 +73,13 @@ async def upload_document(
     doc_id = str(uuid.uuid4())
     
     # Create status record
+    blob_path = f"documents/{doc_id}/{file.filename}"
     doc_status = DocumentStatus(
         id=doc_id,
         filename=file.filename,
         status="pending",
-        uploaded_at=datetime.utcnow()
+        uploaded_at=datetime.utcnow(),
+        blob_path=blob_path
     )
     document_store[doc_id] = doc_status
     
@@ -88,16 +92,24 @@ async def upload_document(
         process_document_background,
         doc_id=doc_id,
         filename=file.filename,
-        content=content
+        content=content,
+        blob_path=blob_path,
+        reindex=False
     )
     
     logger.info(f"✅ Upload accepted, processing in background: {doc_id}")
     return doc_status
 
 
-async def process_document_background(doc_id: str, filename: str, content: bytes):
+async def process_document_background(
+    doc_id: str,
+    filename: str,
+    content: Optional[bytes] = None,
+    blob_path: Optional[str] = None,
+    reindex: bool = False
+):
     """Background task to process uploaded document."""
-    logger.info(f"🔄 Starting background processing for {doc_id}: {filename}")
+    logger.info(f"🔄 Starting background processing for {doc_id}: {filename} (reindex={reindex})")
     try:
         # Update status to processing
         document_store[doc_id].status = "processing"
@@ -106,12 +118,25 @@ async def process_document_background(doc_id: str, filename: str, content: bytes
         logger.info(f"📦 Initializing services...")
         blob_service = BlobService()
         doc_processor = DocumentProcessor()
+        search_service = SearchService()
         
-        # 1. Upload to blob storage
-        blob_path = f"documents/{doc_id}/{filename}"
-        logger.info(f"☁️ Uploading to blob: {blob_path}")
-        await blob_service.upload_document(content, blob_path)
-        logger.info(f"✅ Blob upload complete")
+        # 1. Upload or fetch from blob storage
+        if blob_path is None:
+            blob_path = f"documents/{doc_id}/{filename}"
+
+        if content is not None:
+            logger.info(f"☁️ Uploading to blob: {blob_path}")
+            await blob_service.upload_document(content, blob_path)
+            logger.info(f"✅ Blob upload complete")
+        else:
+            logger.info(f"☁️ Downloading from blob: {blob_path}")
+            content = await blob_service.download_blob(blob_path)
+            logger.info(f"✅ Blob download complete")
+
+        # 1b. If reindex, delete existing chunks for this doc
+        if reindex:
+            logger.info(f"🧹 Deleting existing chunks for doc_id={doc_id}")
+            await search_service.delete_documents_by_doc_id(doc_id)
         
         # 2. Process with DI + CU
         logger.info(f"🔍 Processing with Document Intelligence + Content Understanding...")
@@ -159,7 +184,34 @@ async def delete_document(doc_id: str):
     if doc_id not in document_store:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    # TODO: Delete from blob storage and search index
+    # Delete from search index
+    search_service = SearchService()
+    await search_service.delete_documents_by_doc_id(doc_id)
     del document_store[doc_id]
     
     return {"status": "deleted", "id": doc_id}
+
+
+@router.post("/{doc_id}/reindex", response_model=DocumentStatus)
+async def reindex_document(doc_id: str, background_tasks: BackgroundTasks):
+    """Reindex an existing document without creating duplicates."""
+    if doc_id not in document_store:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    doc_status = document_store[doc_id]
+    if not doc_status.blob_path:
+        raise HTTPException(status_code=400, detail="Document blob path not found")
+
+    doc_status.status = "processing"
+    document_store[doc_id] = doc_status
+
+    background_tasks.add_task(
+        process_document_background,
+        doc_id=doc_id,
+        filename=doc_status.filename,
+        content=None,
+        blob_path=doc_status.blob_path,
+        reindex=True
+    )
+
+    return doc_status

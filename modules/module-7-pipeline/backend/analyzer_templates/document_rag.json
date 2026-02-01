@@ -1,0 +1,11 @@
+{
+  "description": "Document analyzer for RAG pipeline",
+  "baseAnalyzerId": "prebuilt-document",
+  "config": {
+    "returnDetails": true,
+    "enableFigureDescription": true
+  },
+  "models": {
+    "completion": "gpt-4.1"
+  }
+}
