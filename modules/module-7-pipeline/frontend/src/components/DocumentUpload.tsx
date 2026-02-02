@@ -332,7 +332,12 @@ export function DocumentUpload() {
                 onClick={handleDeleteGraphragIndex}
                 className="p-2 rounded-lg hover:bg-red-100 transition-colors"
                 title="Delete GraphRAG index"
-                disabled={deletingGraphragIndex || ((graphragStatus?.input_documents ?? 0) === 0 && !graphragStatus?.ready)}
+                disabled={deletingGraphragIndex || (
+                  (graphragStatus?.input_documents ?? 0) === 0 && 
+                  !graphragStatus?.ready && 
+                  !graphragStatus?.is_indexing &&
+                  (graphragStatus?.entities_count ?? 0) === 0
+                )}
               >
                 {deletingGraphragIndex ? (
                   <Loader2 className="h-5 w-5 text-red-500 animate-spin" />
