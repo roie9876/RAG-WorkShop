@@ -34,6 +34,8 @@ export function DocumentUpload() {
     setLoadingGraphragStatus(true)
     try {
       const response = await graphragApi.getStatus()
+      console.log('GraphRAG status:', response.status)
+      console.log('Progress detail:', response.status.progress_detail)
       setGraphragStatus(response.status)
     } catch (error) {
       console.error('Failed to fetch GraphRAG status:', error)

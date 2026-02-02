@@ -498,12 +498,25 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
                     current_item = int(progress_match.group(1))
                     total_items = int(progress_match.group(2))
                     
-                    # Detect which step this progress belongs to
-                    for step in step_names:
-                        step_readable = step.replace('_', ' ')
-                        if step_readable in line.lower():
-                            current_step = step
-                            break
+                    # Map log messages to step names
+                    line_lower = line.lower()
+                    if "entity" in line_lower or "relationship" in line_lower or "summarize" in line_lower:
+                        current_step = "extract_graph"
+                    elif "community report" in line_lower:
+                        current_step = "create_community_reports"
+                    elif "embedding" in line_lower:
+                        current_step = "generate_text_embeddings"
+                    elif "covariate" in line_lower:
+                        current_step = "extract_covariates"
+                    elif "communit" in line_lower:
+                        current_step = "create_communities"
+                    else:
+                        # Fallback: detect which step from step name patterns
+                        for step in step_names:
+                            step_readable = step.replace('_', ' ')
+                            if step_readable in line_lower:
+                                current_step = step
+                                break
             
             # Calculate overall progress
             weight_completed = 0
@@ -605,10 +618,15 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
                     communities_df = pd.read_parquet(communities_path)
                     status["communities_count"] = len(communities_df)
                 
-                # Ready if we have entities and relationships
+                # Check for community_reports - required for global search
+                community_reports_path = self.output_dir / "community_reports.parquet"
+                has_community_reports = community_reports_path.exists()
+                
+                # Ready only if we have ALL required files including community_reports
                 status["ready"] = (
                     status["entities_count"] > 0 and 
-                    status["relationships_count"] > 0
+                    status["relationships_count"] > 0 and
+                    has_community_reports
                 )
             except Exception as e:
                 logger.warning(f"Could not read Parquet files: {e}")

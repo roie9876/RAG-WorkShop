@@ -325,8 +325,41 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             
             logger.info(f"GraphRAG returned {len(chunks)} chunks")
             
+            # GraphRAG doesn't have figures - augment with figures from Azure AI Search
+            # if user is asking for images/תמונות
+            all_chunks = chunks
+            if self._should_boost_figures(query):
+                logger.info("GraphRAG: User asked for figures, fetching from Azure AI Search")
+                try:
+                    # Extract entities from GraphRAG result to use as search terms
+                    entities = result.get("entities", [])
+                    entity_names = [e.get("title", e.get("name", "")) for e in entities[:5]]
+                    
+                    # Build search query from original query + top entities
+                    figure_query = query
+                    if entity_names:
+                        figure_query = f"{query} {' '.join(entity_names)}"
+                    
+                    # Search for figures in Azure AI Search
+                    figures = await self.search_service.search(
+                        query=figure_query,
+                        top_k=10,
+                        search_mode="hybrid",
+                        semantic_ranker=True,
+                        content_type_filter="figure"
+                    )
+                    
+                    if figures:
+                        logger.info(f"GraphRAG: Found {len(figures)} related figures from Azure AI Search")
+                        # Enrich figures with SAS URLs
+                        figures = await self._enrich_with_sas_urls(figures)
+                        # Append figures to chunks
+                        all_chunks = self._merge_chunks(chunks, figures)
+                except Exception as fig_err:
+                    logger.warning(f"Failed to fetch figures for GraphRAG: {fig_err}")
+            
             return {
-                "chunks": chunks,
+                "chunks": all_chunks,
                 "graphrag_metadata": {
                     "mode": result.get("mode", "drift"),
                     "entities_found": len(result.get("entities", [])),
