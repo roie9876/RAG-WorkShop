@@ -41,6 +41,21 @@ class DocumentListResponse(BaseModel):
 document_store: dict[str, DocumentStatus] = {}
 
 
+class BatchUploadResponse(BaseModel):
+    """Response for batch upload."""
+    documents: List[DocumentStatus]
+    total: int
+    accepted: int
+    rejected: int
+
+
+def validate_file_extension(filename: str) -> tuple[bool, str]:
+    """Validate file extension and return (is_valid, extension)."""
+    allowed_extensions = {".pdf", ".docx", ".xlsx", ".pptx"}
+    file_ext = "." + filename.split(".")[-1].lower() if "." in filename else ""
+    return file_ext in allowed_extensions, file_ext
+
+
 @router.post("/upload", response_model=DocumentStatus)
 async def upload_document(
     background_tasks: BackgroundTasks,
@@ -64,13 +79,12 @@ async def upload_document(
         enable_graphrag_index: Whether to automatically build GraphRAG index (default: True)
     """
     # Validate file type
-    allowed_extensions = {".pdf", ".docx", ".xlsx", ".pptx"}
-    file_ext = "." + file.filename.split(".")[-1].lower() if "." in file.filename else ""
+    is_valid, file_ext = validate_file_extension(file.filename)
     
-    if file_ext not in allowed_extensions:
+    if not is_valid:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type: {file_ext}. Allowed: {allowed_extensions}"
+            detail=f"Unsupported file type: {file_ext}. Allowed: .pdf, .docx, .xlsx, .pptx"
         )
     
     logger.info(f"📤 Upload request received: {file.filename} ({file_ext})")
@@ -106,6 +120,82 @@ async def upload_document(
     
     logger.info(f"✅ Upload accepted, processing in background: {doc_id} (GraphRAG indexing: {enable_graphrag_index})")
     return doc_status
+
+
+@router.post("/upload/batch", response_model=BatchUploadResponse)
+async def upload_documents_batch(
+    background_tasks: BackgroundTasks,
+    files: List[UploadFile] = File(...),
+    enable_graphrag_index: bool = Form(default=True)
+):
+    """
+    Upload multiple documents for processing in a single request.
+    
+    Supports: PDF, DOCX, XLSX, PPTX
+    
+    All documents will be processed in parallel in the background.
+    
+    Args:
+        files: List of document files to upload
+        enable_graphrag_index: Whether to automatically build GraphRAG index (default: True)
+    
+    Returns:
+        BatchUploadResponse with status of all uploaded documents
+    """
+    logger.info(f"📤 Batch upload request received: {len(files)} files")
+    
+    uploaded_docs: List[DocumentStatus] = []
+    rejected_count = 0
+    
+    for file in files:
+        # Validate file type
+        is_valid, file_ext = validate_file_extension(file.filename)
+        
+        if not is_valid:
+            logger.warning(f"⚠️ Rejected file with unsupported type: {file.filename} ({file_ext})")
+            rejected_count += 1
+            continue
+        
+        logger.info(f"📤 Processing file: {file.filename} ({file_ext})")
+        
+        # Generate document ID
+        doc_id = str(uuid.uuid4())
+        
+        # Create status record
+        blob_path = f"documents/{doc_id}/{file.filename}"
+        doc_status = DocumentStatus(
+            id=doc_id,
+            filename=file.filename,
+            status="pending",
+            uploaded_at=datetime.utcnow(),
+            blob_path=blob_path
+        )
+        document_store[doc_id] = doc_status
+        uploaded_docs.append(doc_status)
+        
+        # Read file content
+        content = await file.read()
+        logger.info(f"📦 File read: {len(content)} bytes, doc_id={doc_id}")
+        
+        # Process in background
+        background_tasks.add_task(
+            process_document_background,
+            doc_id=doc_id,
+            filename=file.filename,
+            content=content,
+            blob_path=blob_path,
+            reindex=False,
+            enable_graphrag_index=enable_graphrag_index
+        )
+    
+    logger.info(f"✅ Batch upload accepted: {len(uploaded_docs)} files queued, {rejected_count} rejected")
+    
+    return BatchUploadResponse(
+        documents=uploaded_docs,
+        total=len(files),
+        accepted=len(uploaded_docs),
+        rejected=rejected_count
+    )
 
 
 async def process_document_background(

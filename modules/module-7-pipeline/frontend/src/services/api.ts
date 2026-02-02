@@ -53,6 +53,13 @@ export const queryApi = {
 }
 
 // Documents API
+export interface BatchUploadResponse {
+  documents: DocumentStatus[]
+  total: number
+  accepted: number
+  rejected: number
+}
+
 export const documentsApi = {
   upload: async (file: File, enableGraphragIndex: boolean = true): Promise<DocumentStatus> => {
     const formData = new FormData()
@@ -60,6 +67,19 @@ export const documentsApi = {
     formData.append('enable_graphrag_index', String(enableGraphragIndex))
 
     const response = await api.post('/documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  },
+
+  uploadBatch: async (files: File[], enableGraphragIndex: boolean = true): Promise<BatchUploadResponse> => {
+    const formData = new FormData()
+    files.forEach((file) => {
+      formData.append('files', file)
+    })
+    formData.append('enable_graphrag_index', String(enableGraphragIndex))
+
+    const response = await api.post('/documents/upload/batch', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     return response.data

@@ -56,18 +56,28 @@ export function DocumentUpload() {
   }, [fetchGraphragStatus, fetchIndexStats, isIndexing, graphragStatus?.is_indexing])
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return
+    
     setUploading(true)
 
-    for (const file of acceptedFiles) {
-      try {
-        const status = await documentsApi.upload(file, enableGraphragIndex)
-        setDocuments((prev) => [...prev, status])
-
-        // Poll for status updates
-        pollStatus(status.id)
-      } catch (error) {
-        console.error('Upload failed:', error)
+    try {
+      // Use batch upload for multiple files
+      const response = await documentsApi.uploadBatch(acceptedFiles, enableGraphragIndex)
+      
+      // Add all uploaded documents to the list
+      setDocuments((prev) => [...prev, ...response.documents])
+      
+      // Start polling for each document's status
+      response.documents.forEach((doc) => {
+        pollStatus(doc.id)
+      })
+      
+      // Show notification if some files were rejected
+      if (response.rejected > 0) {
+        console.warn(`${response.rejected} file(s) were rejected (unsupported format)`)
       }
+    } catch (error) {
+      console.error('Batch upload failed:', error)
     }
 
     setUploading(false)
@@ -444,13 +454,20 @@ export function DocumentUpload() {
         <Upload className="h-12 w-12 mx-auto mb-5 text-muted-foreground" />
         {isDragActive ? (
           <p className="text-primary text-lg">Drop files here...</p>
+        ) : uploading ? (
+          <>
+            <p className="text-muted-foreground text-lg flex items-center justify-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Uploading files...
+            </p>
+          </>
         ) : (
           <>
             <p className="text-muted-foreground text-lg">
               Drag & drop files here, or click to browse
             </p>
             <p className="text-base text-muted-foreground/75 mt-2">
-              Supports PDF, DOCX, XLSX, PPTX
+              Supports PDF, DOCX, XLSX, PPTX • <span className="font-medium">Multiple files supported</span>
             </p>
           </>
         )}
