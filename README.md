@@ -320,18 +320,46 @@ RAG-WorkShop/
 
 ---
 
-## 📄 Sample Documents
+## � Sample Dataset: Israel M1 Metro Line
 
-This workshop uses **Metro Station planning documents** as examples:
-- Station specifications with tables
-- Architectural diagrams and maps
-- Multi-page planning documents
+Throughout this workshop, we use real planning documents from the **Israel M1 Metro Line** project as our example dataset.
 
-These are realistic technical documents with:
-- ✅ Tables (data that loses structure when extracted as text)
-- ✅ Figures/diagrams (visual information)
-- ✅ Hebrew + English content (multilingual)
-- ✅ Complex layouts
+![M1 Metro Line Map](data/sample-pdfs/m1.png)
+
+### Why This Dataset?
+
+The M1 Metro Line documents are perfect for learning RAG because they contain:
+
+| Content Type | Example | RAG Challenge |
+|--------------|---------|---------------|
+| **Tables** | Station passenger counts, construction timelines | Structure gets destroyed in naive extraction |
+| **Figures** | Metro maps, station layouts, architectural diagrams | Visual info is completely lost |
+| **Hebrew + English** | Bilingual content throughout | Multilingual handling |
+| **Cross-references** | "See Station 36 details on page 12" | Context fragmentation |
+
+### Sample Documents
+
+| File | Format | Contains |
+|------|--------|----------|
+| `metro-s36.pdf` | PDF | Station 36 specifications, tables, diagrams |
+| `metro-s37.pdf` | PDF | Station 37 specifications |
+| `Metro_M1_Rishon_Stations_Detailed.pptx` | PowerPoint | Station overview slides with images |
+| `m1-map.docx` | Word | Metro line route descriptions |
+
+### Where to Find Them
+
+```
+data/
+├── sample-pdfs/          # PDF documents
+│   ├── metro-s36.pdf
+│   ├── metro-s37.pdf
+│   └── m1.png            # Metro line map
+└── sample-office/        # Office documents
+    ├── Metro_M1_Rishon_Stations_Detailed.pptx
+    └── m1-map.docx
+```
+
+> 💡 **Tip**: Open `metro-s36.pdf` and look at pages with tables and diagrams. In Module 1, you'll see how naive RAG completely fails to extract this information correctly.
 
 ---
 
