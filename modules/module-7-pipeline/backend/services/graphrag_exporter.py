@@ -636,6 +636,7 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
     def clear_index(self) -> bool:
         """
         Clear the GraphRAG index (both input and output).
+        Also removes any indexing lock files to cancel in-progress builds.
         
         Returns:
             True if successful
@@ -643,6 +644,18 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
         import shutil
         
         try:
+            # Remove indexing lock file if it exists (cancel in-progress indexing)
+            lock_file = self.graphrag_root / ".indexing_in_progress"
+            if lock_file.exists():
+                lock_file.unlink()
+                logger.info("Removed indexing lock file")
+            
+            # Remove indexing log file
+            log_file = self.graphrag_root / "indexing.log"
+            if log_file.exists():
+                log_file.unlink()
+                logger.info("Removed indexing log file")
+            
             if self.input_dir.exists():
                 shutil.rmtree(self.input_dir)
                 self.input_dir.mkdir(parents=True, exist_ok=True)
