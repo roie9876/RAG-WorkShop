@@ -194,4 +194,31 @@ export const blobApi = {
   },
 }
 
+// System API
+export interface SystemStatus {
+  status: string
+  pid: number
+  uptime_seconds: number
+  uptime_formatted: string
+  started_at: string
+  python_version: string
+}
+
+export const systemApi = {
+  getStatus: async (): Promise<SystemStatus> => {
+    const response = await api.get('/system/status')
+    return response.data
+  },
+
+  getHealth: async (): Promise<{ status: string; uptime_seconds: number; pid: number }> => {
+    const response = await api.get('/system/health')
+    return response.data
+  },
+
+  restartBackend: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/system/restart')
+    return response.data
+  },
+}
+
 export default api

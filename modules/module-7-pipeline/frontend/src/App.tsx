@@ -6,6 +6,7 @@ import { AnswerDisplay } from './components/AnswerDisplay'
 import { RetrievalDetails } from './components/RetrievalDetails'
 import { ValidationReportPanel } from './components/ValidationReport'
 import { IndexSchemaViewer } from './components/IndexSchemaViewer'
+import { SystemControls } from './components/SystemControls'
 import { useQuery } from './hooks/useQuery'
 import { useConfig } from './hooks/useConfig'
 import type { QueryResponse, QueryConfig } from './types'
@@ -52,8 +53,9 @@ function App() {
                 <p className="text-base text-muted-foreground">Educational Pipeline Explorer</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">Module 7 - Capstone</span>
+              <SystemControls />
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Upload, File, CheckCircle, XCircle, Loader2, RefreshCw, Database, Network, Trash2 } from 'lucide-react'
 import { documentsApi, graphragApi, indexApi, type GraphRAGStatus } from '../services/api'
@@ -15,45 +15,102 @@ export function DocumentUpload() {
   const [isIndexing, setIsIndexing] = useState(false)
   const [indexStats, setIndexStats] = useState<IndexStats | null>(null)
   const [loadingIndexStats, setLoadingIndexStats] = useState(false)
+  
+  // Use refs to track polling state without causing re-renders
+  const pollingRef = useRef<NodeJS.Timeout | null>(null)
+  const isPollingRef = useRef(false)
 
-  // Fetch AI Search index stats
-  const fetchIndexStats = useCallback(async () => {
-    setLoadingIndexStats(true)
+  // Fetch AI Search index stats (don't set loading during polling)
+  const fetchIndexStats = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoadingIndexStats(true)
     try {
       const stats = await indexApi.getStats()
       setIndexStats(stats)
     } catch (error) {
       console.error('Failed to fetch index stats:', error)
     } finally {
-      setLoadingIndexStats(false)
+      if (showLoading) setLoadingIndexStats(false)
     }
   }, [])
 
-  // Fetch GraphRAG status on mount and periodically
-  const fetchGraphragStatus = useCallback(async () => {
-    setLoadingGraphragStatus(true)
+  // Fetch GraphRAG status on mount and periodically (don't set loading during polling)
+  const fetchGraphragStatus = useCallback(async (showLoading = true) => {
+    // Prevent concurrent fetches
+    if (isPollingRef.current) return
+    isPollingRef.current = true
+    
+    if (showLoading) setLoadingGraphragStatus(true)
     try {
       const response = await graphragApi.getStatus()
       console.log('GraphRAG status:', response.status)
       console.log('Progress detail:', response.status.progress_detail)
-      setGraphragStatus(response.status)
+      // Only update if we got valid data
+      if (response.status) {
+        setGraphragStatus(response.status)
+      }
     } catch (error) {
       console.error('Failed to fetch GraphRAG status:', error)
+      // Don't clear the status on error - keep showing last known state
     } finally {
-      setLoadingGraphragStatus(false)
+      if (showLoading) setLoadingGraphragStatus(false)
+      isPollingRef.current = false
     }
   }, [])
 
+  // Set up polling with stable interval
   useEffect(() => {
-    fetchGraphragStatus()
-    fetchIndexStats()
-    // Poll every 30 seconds normally, every 5 seconds when indexing
-    const interval = setInterval(() => {
-      fetchGraphragStatus()
-      fetchIndexStats()
-    }, isIndexing || graphragStatus?.is_indexing ? 5000 : 30000)
-    return () => clearInterval(interval)
-  }, [fetchGraphragStatus, fetchIndexStats, isIndexing, graphragStatus?.is_indexing])
+    // Initial fetch
+    fetchGraphragStatus(true)
+    fetchIndexStats(true)
+    
+    // Start polling function
+    const startPolling = () => {
+      // Clear any existing interval
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+      }
+      
+      // Determine polling rate based on current state
+      const isCurrentlyIndexing = isIndexing || graphragStatus?.is_indexing
+      const pollInterval = isCurrentlyIndexing ? 3000 : 30000
+      
+      pollingRef.current = setInterval(() => {
+        fetchGraphragStatus(false) // Don't show loading spinner during polling
+        fetchIndexStats(false)
+      }, pollInterval)
+    }
+    
+    startPolling()
+    
+    // Cleanup on unmount
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+      }
+    }
+  }, []) // Only run on mount
+  
+  // Adjust polling rate when indexing state changes
+  useEffect(() => {
+    const isCurrentlyIndexing = isIndexing || graphragStatus?.is_indexing
+    
+    // Clear and restart with new interval
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+    }
+    
+    const pollInterval = isCurrentlyIndexing ? 3000 : 30000
+    pollingRef.current = setInterval(() => {
+      fetchGraphragStatus(false)
+      fetchIndexStats(false)
+    }, pollInterval)
+    
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+      }
+    }
+  }, [isIndexing, graphragStatus?.is_indexing, fetchGraphragStatus, fetchIndexStats])
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return
@@ -96,9 +153,9 @@ export function DocumentUpload() {
         } else if (status.status === 'completed') {
           // Refresh both indexes after document processing completes
           setTimeout(() => {
-            fetchIndexStats()
+            fetchIndexStats(false)
             if (enableGraphragIndex) {
-              fetchGraphragStatus()
+              fetchGraphragStatus(false)
             }
           }, 3000)
         }
@@ -163,7 +220,7 @@ export function DocumentUpload() {
     setDeletingGraphragIndex(true)
     try {
       await graphragApi.clearIndex()
-      await fetchGraphragStatus()
+      await fetchGraphragStatus(true)
     } catch (error) {
       console.error('Failed to delete GraphRAG index:', error)
       alert('Failed to delete GraphRAG index: ' + (error as Error).message)
@@ -171,6 +228,10 @@ export function DocumentUpload() {
       setDeletingGraphragIndex(false)
     }
   }
+
+  // Manual refresh handlers (show loading)
+  const handleRefreshIndexStats = () => fetchIndexStats(true)
+  const handleRefreshGraphragStatus = () => fetchGraphragStatus(true)
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -227,7 +288,7 @@ export function DocumentUpload() {
                 </span>
               )}
               <button
-                onClick={fetchIndexStats}
+                onClick={handleRefreshIndexStats}
                 className="p-2 rounded-lg hover:bg-blue-200 transition-colors"
                 title="Refresh status"
                 disabled={loadingIndexStats}
@@ -321,7 +382,7 @@ export function DocumentUpload() {
                 </span>
               )}
               <button
-                onClick={fetchGraphragStatus}
+                onClick={handleRefreshGraphragStatus}
                 className="p-2 rounded-lg hover:bg-purple-200 transition-colors"
                 title="Refresh status"
                 disabled={loadingGraphragStatus}

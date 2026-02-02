@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 
 from api.routes import documents, query, index, blob, config
 from api.routes import graphrag  # GraphRAG routes
+from api.routes import system  # System management routes
 
 # Configure logging
 logging.basicConfig(
@@ -59,7 +60,8 @@ app.include_router(query.router, prefix="/api/query", tags=["Query"])
 app.include_router(index.router, prefix="/api/index", tags=["Index"])
 app.include_router(blob.router, prefix="/api/blob", tags=["Blob Storage"])
 app.include_router(config.router, prefix="/api/config", tags=["Configuration"])
-app.include_router(graphrag.router, prefix="/api/graphrag", tags=["GraphRAG"])  # NEW!
+app.include_router(graphrag.router, prefix="/api/graphrag", tags=["GraphRAG"])
+app.include_router(system.router, prefix="/api/system", tags=["System"])
 
 
 @app.get("/")

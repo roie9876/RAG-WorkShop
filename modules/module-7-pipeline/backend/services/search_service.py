@@ -188,14 +188,56 @@ class SearchService:
         # Upload to index
         self.search_client.upload_documents(chunks)
     
+    def _truncate_for_embedding(self, text: str, max_tokens: int = 7500) -> str:
+        """
+        Truncate text to fit within embedding model token limit.
+        
+        text-embedding-3-large has 8192 token limit.
+        
+        IMPORTANT: Hebrew text tokenizes at ~1 char per token (not 3-4 like English)!
+        So we use a very conservative character limit.
+        """
+        # Hebrew uses ~1 char per token, English ~4 chars per token
+        # Use 1.0 ratio to be safe for Hebrew/mixed content
+        max_chars = max_tokens  # 1:1 ratio for Hebrew safety
+        
+        logger.info(f"[TRUNCATE CHECK] Input length: {len(text)} chars, max allowed: {max_chars}")
+        
+        if len(text) <= max_chars:
+            logger.info(f"[TRUNCATE] Content within limit, no truncation needed")
+            return text
+        
+        logger.warning(f"[TRUNCATE] Content too large ({len(text)} chars), truncating to {max_chars} chars")
+        
+        # Truncate and add indicator
+        truncated = text[:max_chars - 100]
+        # Try to break at a sentence or newline
+        last_newline = truncated.rfind('\n')
+        last_period = truncated.rfind('.')
+        break_point = max(last_newline, last_period)
+        
+        if break_point > max_chars * 0.7:  # Only use break point if it's not too far back
+            truncated = truncated[:break_point + 1]
+        
+        logger.info(f"[TRUNCATE] Final truncated length: {len(truncated)} chars")
+        return truncated + "\n\n[Content truncated for embedding limit]"
+    
     async def _get_embedding(self, text: str) -> List[float]:
         """Generate embedding for text (runs in thread pool to avoid blocking)."""
         import asyncio
         loop = asyncio.get_event_loop()
         
+        logger.info(f"[EMBEDDING] Starting embedding for text of length {len(text)}")
+        
+        # Truncate text if too long for embedding model - MUST happen before closure
+        truncated_text = self._truncate_for_embedding(text)
+        
+        logger.info(f"[EMBEDDING] After truncation: {len(truncated_text)} chars")
+        
         def _sync_get_embedding():
+            logger.info(f"[EMBEDDING SYNC] Calling OpenAI with {len(truncated_text)} chars")
             response = self.openai_client.embeddings.create(
-                input=text,
+                input=truncated_text,  # Use the truncated text
                 model=self.settings.azure_openai_embedding_deployment
             )
             return response.data[0].embedding

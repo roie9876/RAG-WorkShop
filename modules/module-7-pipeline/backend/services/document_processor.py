@@ -741,6 +741,9 @@ class DocumentProcessor:
         chunks = []
         chunk_id = 0
         
+        # Maximum content size for embedding (chars, ~8000 tokens * 3 chars/token)
+        MAX_CHUNK_CHARS = 20000
+        
         # Build context maps
         page_to_section = self._build_page_section_map(di_result)
         page_context = self._build_page_context(di_result)
@@ -749,6 +752,36 @@ class DocumentProcessor:
         figure_nearby_text = self._get_nearby_text_for_figures(di_result, figures)
         
         logger.info(f"Built context maps: {len(set(page_to_section.values()))} sections, {len(page_context)} pages with text")
+        
+        # Helper to split large content into smaller chunks
+        def split_large_content(content: str, max_chars: int = MAX_CHUNK_CHARS) -> List[str]:
+            """Split large content into smaller pieces at logical boundaries."""
+            if len(content) <= max_chars:
+                return [content]
+            
+            parts = []
+            remaining = content
+            while remaining:
+                if len(remaining) <= max_chars:
+                    parts.append(remaining)
+                    break
+                
+                # Try to split at a paragraph or line boundary
+                chunk = remaining[:max_chars]
+                
+                # Look for last double newline (paragraph break)
+                split_at = chunk.rfind('\n\n')
+                if split_at < max_chars * 0.5:
+                    # Look for last single newline
+                    split_at = chunk.rfind('\n')
+                if split_at < max_chars * 0.5:
+                    # Just split at max_chars
+                    split_at = max_chars
+                
+                parts.append(remaining[:split_at].strip())
+                remaining = remaining[split_at:].strip()
+            
+            return parts
         
         # 1. Text chunks from paragraphs
         current_section = "Introduction"
@@ -791,16 +824,21 @@ class DocumentProcessor:
         
         # Don't forget last section
         if current_content:
-            chunks.append({
-                "id": f"{doc_id}_text_{chunk_id:04d}",
-                "content": "\n\n".join(current_content),
-                "content_type": "text",
-                "source_document": filename,
-                "source_document_blob_path": blob_path,
-                "page_numbers": sorted(list(current_pages)),
-                "section_header": current_section,
-                "doc_id": doc_id
-            })
+            section_content = "\n\n".join(current_content)
+            # Split if too large
+            content_parts_split = split_large_content(section_content)
+            for part_idx, part in enumerate(content_parts_split):
+                part_suffix = f"_p{part_idx}" if len(content_parts_split) > 1 else ""
+                chunks.append({
+                    "id": f"{doc_id}_text_{chunk_id:04d}{part_suffix}",
+                    "content": part,
+                    "content_type": "text",
+                    "source_document": filename,
+                    "source_document_blob_path": blob_path,
+                    "page_numbers": sorted(list(current_pages)),
+                    "section_header": current_section,
+                    "doc_id": doc_id
+                })
             chunk_id += 1
         
         # 2. Table chunks - with section context
@@ -825,18 +863,36 @@ class DocumentProcessor:
             ]
             rich_content = "\n".join(p for p in content_parts if p)
             
-            chunks.append({
-                "id": f"{doc_id}_table_{i:04d}",
-                "content": rich_content,
-                "content_type": "table",
-                "source_document": filename,
-                "source_document_blob_path": blob_path,
-                "page_numbers": page_nums,
-                "section_header": table_section,
-                "doc_id": doc_id,
-                "table_html": self._table_to_html(table),
-                "table_markdown": table_md
-            })
+            # Split large tables into multiple chunks
+            if len(rich_content) > MAX_CHUNK_CHARS:
+                logger.warning(f"Table {i} is very large ({len(rich_content)} chars), splitting into multiple chunks")
+                table_parts = split_large_content(rich_content)
+                for part_idx, part in enumerate(table_parts):
+                    chunks.append({
+                        "id": f"{doc_id}_table_{i:04d}_p{part_idx}",
+                        "content": part,
+                        "content_type": "table",
+                        "source_document": filename,
+                        "source_document_blob_path": blob_path,
+                        "page_numbers": page_nums,
+                        "section_header": table_section,
+                        "doc_id": doc_id,
+                        "table_html": self._table_to_html(table) if part_idx == 0 else "",
+                        "table_markdown": table_md if part_idx == 0 else part
+                    })
+            else:
+                chunks.append({
+                    "id": f"{doc_id}_table_{i:04d}",
+                    "content": rich_content,
+                    "content_type": "table",
+                    "source_document": filename,
+                    "source_document_blob_path": blob_path,
+                    "page_numbers": page_nums,
+                    "section_header": table_section,
+                    "doc_id": doc_id,
+                    "table_html": self._table_to_html(table),
+                    "table_markdown": table_md
+                })
         
         # 3. Figure chunks - with FULL DOCUMENT CONTEXT
         for fig in figures:

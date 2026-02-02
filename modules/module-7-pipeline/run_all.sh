@@ -47,5 +47,23 @@ echo "   API Docs: http://localhost:8000/docs"
 echo "=========================================="
 echo ""
 
-# Wait for both processes
-wait
+# Monitor and auto-restart backend if it dies
+while true; do
+    # Check if backend is still running
+    if ! kill -0 $BACKEND_PID 2>/dev/null; then
+        echo ""
+        echo "🔄 Backend stopped. Restarting..."
+        ./run_backend.sh &
+        BACKEND_PID=$!
+        sleep 2
+    fi
+    
+    # Check if frontend is still running
+    if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+        echo ""
+        echo "⚠️  Frontend stopped. Exiting..."
+        cleanup
+    fi
+    
+    sleep 2
+done
