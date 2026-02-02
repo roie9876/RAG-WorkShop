@@ -152,7 +152,11 @@ flowchart LR
         S6["🕸️ GraphRAG<br/>Advanced"]
     end
     
-    M0 --> M1 --> M2 --> M3 --> M4 --> M5 --> M6
+    subgraph M7["Module 7"]
+        S7["🚀 Full<br/>Pipeline"]
+    end
+    
+    M0 --> M1 --> M2 --> M3 --> M4 --> M5 --> M6 --> M7
     
     style M1 fill:#ffcdd2
     style M2 fill:#fff3e0
@@ -160,6 +164,7 @@ flowchart LR
     style M4 fill:#fce4ec
     style M5 fill:#e8f5e9
     style M6 fill:#e3f2fd
+    style M7 fill:#c8e6c9
 ```
 
 ---
@@ -175,6 +180,7 @@ flowchart LR
 | **Module 4** | [Chunking Strategies](modules/module-4-chunking/README.md) | ✂️ Smart splitting (critical!) |
 | **Module 5** | [Search & Retrieval](modules/module-5-search/README.md) | 🧮📦🔍 Embeddings, indexing, search |
 | **Module 6** | [GraphRAG](modules/module-6-graphrag/README.md) | 🕸️ Cross-document reasoning |
+| **Module 7** | [Full Production Pipeline](modules/module-7-pipeline/README.md) | 🚀 End-to-end system with UI |
 
 ### Module Details
 
@@ -218,6 +224,14 @@ Advanced: Cross-document reasoning
 - Answer questions that span multiple documents
 - "What depends on X?" queries
 
+#### Module 7: Full Production Pipeline
+Put it all together in a working application:
+- Complete document processing pipeline
+- Dual indexing (Vector + GraphRAG)
+- Iterative entity-aware retrieval
+- Answer validation
+- React frontend with real-time chat
+
 ---
 
 ## ⏱️ Workshop Duration
@@ -231,9 +245,11 @@ Advanced: Cross-document reasoning
 | Module 4 | 1.5 hours | No (critical!) |
 | Module 5 | 2 hours | No |
 | Module 6 | 2 hours | Yes (advanced) |
+| Module 7 | 2 hours | Yes (production demo) |
 
-**Full Workshop**: ~8 hours  
-**Essential Path** (skip Module 3 & 6): ~5.5 hours
+**Full Workshop**: ~10 hours  
+**Essential Path** (Modules 0-2, 4-5): ~5.5 hours  
+**With Production Demo** (Essential + Module 7): ~7.5 hours
 
 ---
 
