@@ -1,154 +1,338 @@
 # RAG & Multimodal Knowledge Workshop
 
-> Build production-grade RAG systems for complex technical documents using Microsoft AI technologies.
+> Learn to build production-grade RAG systems that actually work on real documents.
 
-## 🎯 What You'll Learn
+---
 
-Move from:
-> "RAG = embeddings + vector search"
+## 🤔 What is RAG?
 
-To:
-> "RAG = document understanding + chunking strategy + retrieval orchestration"
+**RAG** stands for **Retrieval-Augmented Generation**. 
 
-## 🔄 The RAG Pipeline
+In simple terms: **Give the AI your documents as a "cheat sheet" so it answers from YOUR data, not from its imagination.**
+
+### The Problem RAG Solves
+
+Large Language Models (LLMs) like GPT-4 are incredibly smart, but they have a big problem:
+
+> **They don't know YOUR stuff!**
+
+LLMs are trained on public internet data. They've never seen:
+- 📄 Your company's internal documents
+- 📊 Your product specifications  
+- 📋 Your policies and procedures
+- 🗺️ Your project plans
+
+**When you ask about YOUR documents, the LLM guesses... and often gets it wrong (hallucination).**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  YOU: "How many entrances does Metro Station 36 have?"              │
+│                                                                     │
+│  ❌ LLM WITHOUT RAG:                                                │
+│     "Typical metro stations have 2-4 entrances..."                  │
+│     (WRONG - it's guessing based on general knowledge!)             │
+│                                                                     │
+│  ✅ LLM WITH RAG:                                                   │
+│     "According to the Station 36 specification document,            │
+│     the station has 3 entrances: North, South, and West."           │
+│     (CORRECT - from YOUR actual data!)                              │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### The RAG Solution
+
+Instead of hoping the LLM knows the answer, we:
+
+1. **📦 Store** your documents in a searchable database
+2. **🔍 Search** for relevant parts when a user asks a question
+3. **📋 Give** those parts to the LLM as context
+4. **💬 Generate** an answer based on YOUR data
 
 ```mermaid
 flowchart LR
-    subgraph INDEXING["📥 INDEXING TIME (Offline)"]
-        direction LR
-        DOC["📄 Document<br/>PDF, Word, Excel, PPT"]
-        EXTRACT["🔍 Extract<br/>Module 2-3"]
-        CHUNK["✂️ Chunk<br/>Module 4"]
-        EMBED["🧮 Embed<br/>Module 5"]
-        INDEX["📦 Index<br/>Module 5"]
+    subgraph WITHOUT["❌ Without RAG"]
+        Q1["Question"] --> LLM1["LLM"]
+        LLM1 --> A1["Guesses ❌"]
     end
     
-    subgraph QUERY["🔎 QUERY TIME (Online)"]
-        direction LR
-        QUESTION["❓ User Question"]
-        RETRIEVE["🔎 Retrieve<br/>Module 5-6"]
-        GENERATE["🤖 Generate<br/>LLM"]
-        ANSWER["💬 Answer"]
+    subgraph WITH["✅ With RAG"]
+        Q2["Question"] --> S2["Search<br/>Your Docs"]
+        S2 --> C2["Relevant<br/>Context"]
+        C2 --> LLM2["LLM +<br/>Context"]
+        LLM2 --> A2["Accurate ✅"]
     end
     
-    DOC --> EXTRACT
-    EXTRACT --> CHUNK
-    CHUNK --> EMBED
-    EMBED --> INDEX
+    style A1 fill:#ffcdd2
+    style A2 fill:#c8e6c9
+```
+
+---
+
+## 🔄 The RAG Pipeline
+
+RAG has two main phases:
+
+### Phase 1: Indexing (Done Once)
+Process your documents and store them in a searchable format.
+
+### Phase 2: Querying (Every Question)
+Search for relevant content and generate an answer.
+
+```mermaid
+flowchart TB
+    subgraph PHASE1["📥 PHASE 1: INDEXING (Done Once Per Document)"]
+        direction LR
+        DOC["📄 Document<br/>(PDF, Word, etc.)"]
+        EXTRACT["🔍 Extract<br/>Text, Tables,<br/>Figures"]
+        CHUNK["✂️ Chunk<br/>Split into<br/>pieces"]
+        EMBED["🧮 Embed<br/>Convert to<br/>vectors"]
+        INDEX["📦 Index<br/>Store in<br/>database"]
+        
+        DOC --> EXTRACT --> CHUNK --> EMBED --> INDEX
+    end
     
-    QUESTION --> RETRIEVE
-    INDEX -.-> RETRIEVE
-    RETRIEVE --> GENERATE
-    GENERATE --> ANSWER
+    subgraph PHASE2["🔎 PHASE 2: QUERYING (Every Question)"]
+        direction LR
+        QUESTION["❓ User<br/>Question"]
+        SEARCH["🔍 Search<br/>Find relevant<br/>chunks"]
+        CONTEXT["📋 Context<br/>Top matching<br/>chunks"]
+        GENERATE["🤖 Generate<br/>LLM creates<br/>answer"]
+        ANSWER["💬 Answer<br/>Grounded in<br/>your data"]
+        
+        QUESTION --> SEARCH --> CONTEXT --> GENERATE --> ANSWER
+    end
+    
+    INDEX -.->|"stored data"| SEARCH
     
     style DOC fill:#e1f5fe
     style EXTRACT fill:#fff3e0
     style CHUNK fill:#fce4ec
     style EMBED fill:#f3e5f5
     style INDEX fill:#e8f5e9
-    style RETRIEVE fill:#fff8e1
-    style GENERATE fill:#e3f2fd
     style QUESTION fill:#f5f5f5
+    style SEARCH fill:#fff8e1
+    style CONTEXT fill:#ffe0b2
+    style GENERATE fill:#e3f2fd
     style ANSWER fill:#c8e6c9
 ```
 
-## 📚 Workshop Modules
+---
 
-| Module | Topic | Pipeline Stage | Duration |
-|--------|-------|----------------|----------|
-| **Module 0** | [Environment Setup](modules/module-0-setup/README.md) | Setup | 20 min |
-| **Module 1** | [The Problem with Naive RAG](modules/module-1-naive-rag/README.md) | 📄 → ✂️ (Failure!) | 1 hour |
-| **Module 2** | [Document Intelligence](modules/module-2-doc-intelligence/README.md) | 🔍 Extract | 1 hour |
-| **Module 3** | [Content Understanding](modules/module-3-content-understanding/README.md) | 🔍 Extract (Semantic) | 1.25 hours |
-| **Module 4** | [Chunking Strategies](modules/module-4-chunking/README.md) | ✂️ Chunk | 1.5 hours |
-| **Module 5** | [Embeddings, Indexing & Retrieval](modules/module-5-search/README.md) | 🧮 📦 🔎 | 4 hours |
-| **Module 6** | [GraphRAG](modules/module-6-graphrag/README.md) | 🔎 Advanced | 2 hours |
+## 🗺️ Workshop Journey Map
 
-**Total Duration**: ~11 hours (full workshop) or select modules for shorter sessions.
+This workshop teaches you to build RAG systems step by step. Each module covers one part of the pipeline:
+
+```mermaid
+flowchart LR
+    subgraph M0["Module 0"]
+        S0["⚙️ Setup<br/>Azure Resources"]
+    end
+    
+    subgraph M1["Module 1"]
+        S1["❌ Naive RAG<br/>(See it fail!)"]
+    end
+    
+    subgraph M2["Module 2"]
+        S2["🔍 Document<br/>Intelligence"]
+    end
+    
+    subgraph M3["Module 3"]
+        S3["🧠 Content<br/>Understanding"]
+    end
+    
+    subgraph M4["Module 4"]
+        S4["✂️ Smart<br/>Chunking"]
+    end
+    
+    subgraph M5["Module 5"]
+        S5["🔎 Search<br/>& Retrieval"]
+    end
+    
+    subgraph M6["Module 6"]
+        S6["🕸️ GraphRAG<br/>Advanced"]
+    end
+    
+    M0 --> M1 --> M2 --> M3 --> M4 --> M5 --> M6
+    
+    style M1 fill:#ffcdd2
+    style M2 fill:#fff3e0
+    style M3 fill:#fff3e0
+    style M4 fill:#fce4ec
+    style M5 fill:#e8f5e9
+    style M6 fill:#e3f2fd
+```
+
+---
+
+## 📚 What Each Module Covers
+
+| Module | What You Learn | Pipeline Stage |
+|--------|----------------|----------------|
+| **Module 0** | [Setup Azure Resources](modules/module-0-setup/README.md) | Prerequisites |
+| **Module 1** | [Why Naive RAG Fails](modules/module-1-naive-rag/README.md) | See the problem first! |
+| **Module 2** | [Document Intelligence](modules/module-2-doc-intelligence/README.md) | 📄 → Extract text, tables, figures |
+| **Module 3** | [Content Understanding](modules/module-3-content-understanding/README.md) | 📄 → AI-powered semantic extraction |
+| **Module 4** | [Chunking Strategies](modules/module-4-chunking/README.md) | ✂️ Smart splitting (critical!) |
+| **Module 5** | [Search & Retrieval](modules/module-5-search/README.md) | 🧮📦🔍 Embeddings, indexing, search |
+| **Module 6** | [GraphRAG](modules/module-6-graphrag/README.md) | 🕸️ Cross-document reasoning |
+
+### Module Details
+
+#### Module 0: Setup
+Get your Azure environment ready. Deploy Document Intelligence, Azure OpenAI, and Azure AI Search.
+
+#### Module 1: The Problem (Naive RAG)
+**Why start with failure?** Because you need to see WHY the techniques in Modules 2-6 matter.
+- Try basic text extraction + fixed-size chunking
+- Watch it fail on tables, figures, and complex layouts
+- Understand what we need to fix
+
+#### Module 2: Document Intelligence  
+Extract structured content from documents:
+- Text with reading order (not just OCR dump)
+- Tables with rows and columns preserved
+- Figure locations (bounding boxes)
+
+#### Module 3: Content Understanding
+Use AI to understand document semantics:
+- Automatic field extraction
+- Figure descriptions
+- Semantic structure
+
+#### Module 4: Chunking Strategies
+**This is where most RAG systems fail!** Learn to chunk smartly:
+- Don't split tables in half
+- Keep figures with their context
+- Preserve section structure
+
+#### Module 5: Search & Retrieval
+Build your search system:
+- Create embeddings (convert text to vectors)
+- Index in Azure AI Search
+- Hybrid search (vector + keyword)
+- Semantic ranking
+
+#### Module 6: GraphRAG
+Advanced: Cross-document reasoning
+- Build knowledge graphs
+- Answer questions that span multiple documents
+- "What depends on X?" queries
+
+---
+
+## ⏱️ Workshop Duration
+
+| Module | Duration | Can Skip? |
+|--------|----------|-----------|
+| Module 0 | 20 min | No (required setup) |
+| Module 1 | 45 min | No (important motivation) |
+| Module 2 | 1 hour | No |
+| Module 3 | 1 hour | Yes (optional) |
+| Module 4 | 1.5 hours | No (critical!) |
+| Module 5 | 2 hours | No |
+| Module 6 | 2 hours | Yes (advanced) |
+
+**Full Workshop**: ~8 hours  
+**Essential Path** (skip Module 3 & 6): ~5.5 hours
+
+---
 
 ## 🛠️ Technology Stack
 
-| Component | Technology |
-|-----------|------------|
-| Document Processing | Azure AI Document Intelligence |
-| Semantic Extraction | Azure AI Content Understanding |
-| Search & Retrieval | Azure AI Search (vector + hybrid + semantic) |
-| LLM Orchestration | Azure AI Foundry |
-| Text & Vision | Azure OpenAI GPT-4.1 |
-| Embeddings | Azure OpenAI text-embedding-3-large |
-| Graph Processing | Microsoft GraphRAG |
+| What | Technology | Why |
+|------|------------|-----|
+| Extract text from documents | Azure AI Document Intelligence | Preserves tables, figures, structure |
+| AI content understanding | Azure AI Content Understanding | Semantic field extraction |
+| Store & search | Azure AI Search | Vector + keyword + semantic search |
+| Generate answers | Azure OpenAI GPT-4.1 | Best reasoning capability |
+| Create vectors | Azure OpenAI text-embedding-3-large | Best embedding model |
+| Graph reasoning | Microsoft GraphRAG | Cross-document relationships |
+
+---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Azure subscription with Owner or Contributor access
+- Azure subscription (Owner or Contributor access)
 - Python 3.11+ 
 - VS Code with Python extension
 - Git
 
-### 1. Clone the Repository
+### Step 1: Clone the Repository
 ```bash
 git clone https://github.com/your-org/RAG-WorkShop.git
 cd RAG-WorkShop
 ```
 
-### 2. Deploy Azure Resources
+### Step 2: Deploy Azure Resources
 ```bash
 cd infra
 chmod +x deploy.sh
 ./deploy.sh
 ```
 
-### 3. Install Dependencies
+### Step 3: Install Python Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Validate Setup
+### Step 4: Validate Setup
 Open `modules/module-0-setup/health-check.ipynb` and run all cells.
+
+---
 
 ## 📁 Project Structure
 
 ```
 RAG-WorkShop/
-├── modules/           # Workshop modules (0-6)
-│   ├── module-0-setup/
-│   ├── module-1-naive-rag/
-│   ├── module-2-doc-intelligence/
-│   ├── module-3-content-understanding/
-│   ├── module-4-chunking/
-│   ├── module-5-search/
-│   └── module-6-graphrag/
-├── src/               # Shared Python utilities
-├── data/              # Sample documents
-│   ├── sample-pdfs/
-│   └── sample-office/
-├── infra/             # Azure Bicep templates
-├── .dev/              # PRD and progress tracking
-├── .env.template      # Environment variable template
-└── requirements.txt   # Python dependencies
+├── modules/                    # Workshop modules
+│   ├── module-0-setup/         # Azure setup & validation
+│   ├── module-1-naive-rag/     # See RAG fail (motivation)
+│   ├── module-2-doc-intelligence/  # Extract content
+│   ├── module-3-content-understanding/  # Semantic extraction
+│   ├── module-4-chunking/      # Chunking strategies
+│   ├── module-5-search/        # Embeddings & search
+│   ├── module-6-graphrag/      # Graph reasoning
+│   └── module-7-pipeline/      # Full production pipeline
+├── data/                       # Sample documents
+│   ├── sample-pdfs/            # Metro station PDFs
+│   └── sample-office/          # Word, Excel, PowerPoint
+├── src/                        # Shared Python utilities
+├── infra/                      # Azure deployment (Bicep)
+└── requirements.txt            # Python dependencies
 ```
 
-## 🌍 Supported Regions
+---
 
-**Recommended**: `swedencentral` (EU data residency, full feature support)
+## 📄 Sample Documents
 
-| Service | swedencentral | westus | australiaeast |
-|---------|--------------|--------|---------------|
-| Content Understanding (GA) | ✅ | ✅ | ✅ |
-| Azure AI Search | ✅ | ✅ | ✅ |
-| Azure OpenAI GPT-4.1 | ✅ | ✅ | ✅ |
-| Document Intelligence | ✅ | ✅ | ✅ |
+This workshop uses **Metro Station planning documents** as examples:
+- Station specifications with tables
+- Architectural diagrams and maps
+- Multi-page planning documents
 
-## 📖 Documentation
+These are realistic technical documents with:
+- ✅ Tables (data that loses structure when extracted as text)
+- ✅ Figures/diagrams (visual information)
+- ✅ Hebrew + English content (multilingual)
+- ✅ Complex layouts
 
-- [Full PRD](.dev/PRD.md) - Complete workshop specification (internal)
-- [API Reference Links](.dev/PRD.md#appendix-c-api-reference-quick-links)
+---
 
-## 🤝 Contributing
+## 🌍 Azure Region
 
-Contributions welcome! Please read the PRD for architectural guidelines.
+**Recommended**: `swedencentral`
+
+All required services are available in this region with full feature support.
+
+---
+
+## ➡️ Start Here
+
+Ready to begin? Start with **[Module 0: Setup](modules/module-0-setup/README.md)**
+
+---
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+MIT License

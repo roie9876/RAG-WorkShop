@@ -103,14 +103,14 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
           <input
             type="range"
             min="1"
-            max="20"
+            max="50"
             value={config.top_k}
             onChange={(e) => onChange({ top_k: parseInt(e.target.value) })}
             className="w-full h-3 bg-muted rounded-lg appearance-none cursor-pointer"
           />
           <div className="flex justify-between text-sm text-muted-foreground mt-2">
             <span>1</span>
-            <span>20</span>
+            <span>50</span>
           </div>
         </div>
 

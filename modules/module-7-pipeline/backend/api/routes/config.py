@@ -12,7 +12,7 @@ router = APIRouter()
 
 class QueryConfig(BaseModel):
     """Query-time configuration (user adjustable)."""
-    top_k: int = Field(default=5, ge=1, le=20, description="Number of chunks to retrieve")
+    top_k: int = Field(default=5, ge=1, le=50, description="Number of chunks to retrieve")
     search_mode: Literal["vector", "text", "hybrid", "semantic"] = Field(
         default="hybrid", description="Search mode"
     )
