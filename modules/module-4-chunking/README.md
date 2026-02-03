@@ -42,6 +42,154 @@ By the end of this module, participants will be able to:
 
 CU (via `prebuilt-documentSearch`) gives you **extracted content** — markdown text, tables, figures with descriptions. **YOU** still need to implement the chunking logic.
 
+---
+
+## 🧠 Semantic Chunking vs Layout Chunking: The Full Picture
+
+This is one of the most misunderstood concepts in RAG. Let's clarify exactly what each means and what DI/CU provide.
+
+### Two Fundamentally Different Approaches
+
+| Aspect | Layout Chunking | Semantic Chunking |
+|--------|-----------------|-------------------|
+| **Boundary based on** | Visual structure (how it **looks**) | Topic shifts (what it **means**) |
+| **Triggers** | Headers, page breaks, paragraphs, tables | Topic change, conceptual shift |
+| **Example** | "I see `## Section 2.1`, start new chunk" | "Text shifted from 'architecture' to 'pricing', start new chunk" |
+| **Intelligence needed** | Pattern matching (regex) | AI/embeddings to detect meaning |
+
+### Real Example: Same Paragraph, Different Results
+
+Consider this paragraph from a metro document:
+> "The M1 Metro uses regenerative braking to improve energy efficiency by 30%. **Moving on to passenger experience,** the stations feature real-time arrival displays and air conditioning."
+
+| Chunking Type | What Happens | Result |
+|---------------|--------------|--------|
+| **Layout** | No split (it's one paragraph) | ❌ Engineering + passenger experience mixed |
+| **Semantic** | Split at "Moving on to passenger experience" | ✅ Separate chunks for engineering and UX |
+
+### What Document Intelligence (DI) Provides
+
+DI (`prebuilt-layout`) gives you **structural elements** for layout chunking:
+
+| DI Output | Use for Layout Chunking |
+|-----------|------------------------|
+| `paragraphs[]` with `role: "sectionHeading"` | Split at headers |
+| `paragraphs[]` with bounding boxes | Split by visual position |
+| `tables[]` with cell structure | Keep tables atomic |
+| `figures[]` with polygons | Keep figures as units |
+| Page numbers | Split by page |
+
+**DI does NOT give you**: Topic detection, semantic boundaries, meaning shifts
+
+### What Content Understanding (CU) Provides
+
+CU (`prebuilt-documentSearch`) gives you **everything DI gives** plus **semantic enhancements**:
+
+| CU Output | Use for Chunking |
+|-----------|------------------|
+| Everything from DI (structure) | Layout chunking ✅ |
+| `paragraphs[].role` (sectionHeading, title, pageHeader, pageFooter) | **Semantic hints** for smart layout chunking |
+| AI-generated figure descriptions | Semantic understanding of visuals |
+| Document summary | High-level context |
+
+**CU does NOT give you**: Automatic topic-boundary detection for semantic chunking
+
+### The Truth: Neither DI nor CU Do "Semantic Chunking" Automatically
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    WHAT THE SERVICES PROVIDE                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Document Intelligence (prebuilt-layout):                       │
+│  └── Structure for LAYOUT chunking ✅                           │
+│      (headers, paragraphs, tables, figures with bounding boxes) │
+│                                                                 │
+│  Content Understanding (prebuilt-documentSearch):               │
+│  └── Structure for LAYOUT chunking ✅ (same as DI)              │
+│  └── Paragraph ROLES for smarter layout chunking ✅             │
+│  └── AI descriptions for figures/charts ✅                      │
+│  └── Automatic SEMANTIC chunking? ❌ NO!                        │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                    WHAT YOU MUST IMPLEMENT                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Layout Chunking (using DI or CU output):                       │
+│  └── Parse markdown headers (#, ##, ###)                        │
+│  └── Detect table boundaries (|col|col|)                        │
+│  └── Extract figure patterns (![](url))                         │
+│                                                                 │
+│  Semantic Chunking (YOU build this):                            │
+│  └── Use embeddings to detect topic shifts                      │
+│  └── Compare consecutive paragraph similarities                 │
+│  └── Split when similarity drops below threshold                │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Implementing Semantic Chunking (Advanced)
+
+Since neither DI nor CU provide automatic semantic chunking, here's how you implement it:
+
+```python
+from openai import AzureOpenAI
+
+def semantic_chunk(paragraphs: list[str], threshold: float = 0.7) -> list[list[str]]:
+    """
+    Split paragraphs into chunks based on topic similarity.
+    When similarity between consecutive paragraphs drops below threshold,
+    start a new chunk.
+    """
+    # 1. Get embeddings for each paragraph
+    embeddings = get_embeddings(paragraphs)  # Call Azure OpenAI
+    
+    chunks = []
+    current_chunk = [paragraphs[0]]
+    
+    for i in range(1, len(paragraphs)):
+        # 2. Compare similarity with previous paragraph
+        similarity = cosine_similarity(embeddings[i-1], embeddings[i])
+        
+        if similarity < threshold:
+            # Topic shift detected! Start new chunk
+            chunks.append(current_chunk)
+            current_chunk = [paragraphs[i]]
+        else:
+            # Same topic, continue chunk
+            current_chunk.append(paragraphs[i])
+    
+    chunks.append(current_chunk)
+    return chunks
+```
+
+### When to Use Each
+
+| Use Case | Chunking Type | Why |
+|----------|---------------|-----|
+| Technical docs with clear headers | Layout (header-based) | Structure already defines topics |
+| Legal documents with sections | Layout (header-based) | Formal structure matches meaning |
+| Transcripts, conversations | Semantic | No visual structure, topics shift mid-paragraph |
+| Poorly structured PDFs | Semantic | Headers don't reflect actual topics |
+| Mixed content | Hybrid | Layout for structure, semantic for long text sections |
+
+### Summary: The Complete Picture
+
+| Capability | Document Intelligence | Content Understanding | You Implement |
+|------------|----------------------|----------------------|---------------|
+| Text extraction | ✅ | ✅ | - |
+| Headers/paragraphs | ✅ | ✅ | - |
+| Tables with structure | ✅ | ✅ | - |
+| Figures with bounding boxes | ✅ | ✅ | - |
+| Paragraph roles (hints) | ❌ | ✅ | - |
+| AI figure descriptions | ❌ | ✅ | - |
+| **Layout chunking** | Provides data | Provides data | ✅ Your code |
+| **Semantic chunking** | ❌ | ❌ | ✅ Your code + embeddings |
+
+> **Key Insight**: CU makes **layout chunking smarter** (via paragraph roles and AI descriptions), but **semantic chunking is always your responsibility** to implement using embeddings.
+
+---
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │            CU prebuilt-documentSearch OUTPUT                    │

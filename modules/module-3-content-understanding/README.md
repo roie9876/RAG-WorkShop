@@ -250,11 +250,13 @@ The `prebuilt-documentSearch` analyzer is optimized for RAG (Retrieval-Augmented
 | Lab 3.5 | Create a custom schema for your domain |
 
 ## Content Understanding Capabilities
-- **Semantic chunking**: Split by topic, not layout
+- **Paragraph roles**: `sectionHeading`, `title`, `pageHeader`, `pageFooter` hints
 - **Entity extraction**: Custom schemas for your domain
 - **Field extraction**: Structured data from unstructured text
 - **Relationship detection**: Links between entities
 - **Classification**: Document and section categorization
+
+> ⚠️ **Clarification**: CU provides **paragraph roles** that help with smarter layout chunking, but it does NOT perform automatic semantic (topic-based) chunking. You implement chunking logic yourself — see Module 4.
 
 ## API Version
 - **GA API**: `2025-11-01`
@@ -271,10 +273,45 @@ The `prebuilt-documentSearch` analyzer requires specific Azure OpenAI model depl
 > ⚠️ **Important**: Other prebuilt analyzers (like `prebuilt-document`) require `gpt-4.1` instead. Check the [official samples](https://github.com/Azure-Samples/azure-ai-content-understanding-python) for model requirements per analyzer.
 
 ## Semantic Chunking vs Layout Chunking
-| Approach | Boundary | Example |
-|----------|----------|---------|
-| Layout-based | "Section 2.1" header | DI paragraph/section |
-| Semantic | "Now let's discuss pricing..." | CU topic shift |
+
+Understanding this distinction is critical for building effective RAG systems:
+
+### Layout Chunking (Structure-Based)
+Splits documents based on **visual/structural elements**:
+- Headers (`## Section 2.1`)
+- Page breaks
+- Paragraph boundaries
+- Table/figure boundaries
+
+**How it works**: "I see a header, so I start a new chunk here."
+
+**Tool**: Document Intelligence (`prebuilt-layout`) gives you the structure to implement this.
+
+### Semantic Chunking (Meaning-Based)
+Splits documents based on **topic shifts**, regardless of visual structure:
+- Topic changes mid-paragraph
+- Conceptual boundaries
+- Thematic transitions
+
+**How it works**: "The text shifted from discussing 'architecture' to 'pricing', so I start a new chunk here."
+
+**Tool**: Content Understanding's AI descriptions + embeddings enable topic detection.
+
+### Example Comparison
+
+Consider this paragraph:
+> "The M1 Metro uses regenerative braking to improve efficiency. **Now let's discuss the fare structure.** Tickets cost 5.90 ILS for a single ride..."
+
+| Approach | Chunk Boundary | Result |
+|----------|----------------|--------|
+| **Layout** | No split (same paragraph) | ❌ Architecture + pricing mixed in one chunk |
+| **Semantic** | Split at "Now let's discuss..." | ✅ Separate chunks for architecture and pricing |
+
+### Why It Matters for RAG
+
+When a user asks "How much does a metro ticket cost?", semantic chunking ensures the answer comes from a **focused pricing chunk**, not a chunk that mixes pricing with technical specs.
+
+> 📚 **Coming Up**: Chunking strategies are covered in depth in **[Module 4 – Chunking Strategies](../module-4-chunking/README.md)**. This module focuses on extracting content with CU; the next module teaches you how to chunk it effectively for retrieval.
 
 ## Estimated Time
 - Concepts: 25 minutes
