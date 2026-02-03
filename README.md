@@ -339,8 +339,8 @@ The M1 Metro Line documents are perfect for learning RAG because they contain:
 
 | File | Format | Contains |
 |------|--------|----------|
-| `metro-s36.pdf` | PDF | Station 36 specifications, tables, diagrams |
-| `metro-s37.pdf` | PDF | Station 37 specifications |
+| `metro-s35.pdf` - `metro-s41.pdf` | PDF | Individual station specifications (7 stations) |
+| `m1s-s35-s41.pdf` | PDF | Combined document with all 7 stations |
 | `Metro_M1_Rishon_Stations_Detailed.pptx` | PowerPoint | Station overview slides with images |
 | `m1-map.docx` | Word | Metro line route descriptions |
 
@@ -348,11 +348,17 @@ The M1 Metro Line documents are perfect for learning RAG because they contain:
 
 ```
 data/
-├── sample-pdfs/          # PDF documents
-│   ├── metro-s36.pdf
-│   ├── metro-s37.pdf
-│   └── m1.png            # Metro line map
-└── sample-office/        # Office documents
+├── sample-pdfs/                    # PDF documents
+│   ├── metro-s35.pdf               # Station 35 - קפלן
+│   ├── metro-s36.pdf               # Station 36 - שדרות הציונות
+│   ├── metro-s37.pdf               # Station 37 - יוסף בורג
+│   ├── metro-s38.pdf               # Station 38 - הרצוג
+│   ├── metro-s39.pdf               # Station 39 - שבזי
+│   ├── metro-s40.pdf               # Station 40 - הרא״ה
+│   ├── metro-s41.pdf               # Station 41 - סוקולוב
+│   ├── m1s-s35-s41.pdf             # All stations combined (~40 pages)
+│   └── m1.png                      # Metro line map
+└── sample-office/                  # Office documents
     ├── Metro_M1_Rishon_Stations_Detailed.pptx
     └── m1-map.docx
 ```
