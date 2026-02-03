@@ -280,20 +280,18 @@ git clone https://github.com/your-org/RAG-WorkShop.git
 cd RAG-WorkShop
 ```
 
-### Step 2: Deploy Azure Resources
-```bash
-cd infra
-chmod +x deploy.sh
-./deploy.sh
-```
-
-### Step 3: Install Python Dependencies
+### Step 2: Install Python Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 4: Validate Setup
-Open `modules/module-0-setup/health-check.ipynb` and run all cells.
+### Step 3: Setup Azure Resources & Validate
+Open **[Module 0 - Setup](modules/module-0-setup/README.md)** and follow the interactive notebooks:
+
+1. `setup.ipynb` - Deploy Azure resources and configure environment
+2. `health-check.ipynb` - Validate all connections
+
+> 💡 **Advanced users**: You can also run `./infra/deploy.sh` directly from the command line.
 
 ---
 
