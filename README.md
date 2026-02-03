@@ -212,10 +212,33 @@ flowchart LR
 ### Prerequisites
 - Azure subscription (Owner or Contributor access)
 - Python 3.11+
-- VS Code with Python extension
+- VS Code with [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python) + [Jupyter](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter) extensions
 - Git
 
 **Ready to begin?** Head to **[Module 0 - Setup](modules/module-0-setup/README.md)** for complete setup instructions.
+
+---
+
+## 📁 Project Structure
+
+```
+RAG-WorkShop/
+├── modules/                    # Workshop modules
+│   ├── module-0-setup/         # Azure setup & validation
+│   ├── module-1-naive-rag/     # See RAG fail (motivation)
+│   ├── module-2-doc-intelligence/  # Extract content
+│   ├── module-3-content-understanding/  # Semantic extraction
+│   ├── module-4-chunking/      # Chunking strategies
+│   ├── module-5-search/        # Embeddings & search
+│   ├── module-6-graphrag/      # Graph reasoning
+│   └── module-7-pipeline/      # Full production pipeline
+├── data/                       # Sample documents
+│   ├── sample-pdfs/            # Metro station PDFs
+│   └── sample-office/          # Word, Excel, PowerPoint
+├── src/                        # Shared Python utilities
+├── infra/                      # Azure deployment (Bicep)
+└── requirements.txt            # Python dependencies
+```
 
 ---
 

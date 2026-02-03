@@ -17,7 +17,9 @@ By the end of this module, participants will be able to:
 ### Prerequisites
 - Azure subscription (Owner or Contributor access)
 - Python 3.11+
-- VS Code with Python extension
+- VS Code with extensions:
+  - [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
+  - [Jupyter](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter)
 - Git
 
 ### Step 1: Clone the Repository
@@ -32,12 +34,35 @@ pip install -r requirements.txt
 ```
 
 ### Step 3: Setup Azure Resources & Validate
+
+**Option A: Interactive Notebooks (Recommended for beginners)**
+
 Open the interactive notebooks in this module:
 
 1. **`setup.ipynb`** - Deploy Azure resources and configure environment
 2. **`health-check.ipynb`** - Validate all connections
 
-> 💡 **Advanced users**: You can also run `./infra/deploy.sh` directly from the command line.
+**Option B: Command Line (For advanced users)**
+
+Run the deployment script directly from terminal:
+
+```bash
+cd infra
+
+# Default deployment (region: swedencentral)
+./deploy.sh
+
+# Or customize with environment variables
+RESOURCE_GROUP="my-rag-rg" LOCATION="westeurope" ./deploy.sh
+```
+
+The script will:
+1. ✅ Check Azure CLI login (prompts `az login` if needed)
+2. ✅ Create resource group
+3. ✅ Deploy all Azure resources via Bicep
+4. ✅ Generate `.env` file with all connection strings
+
+> ⚠️ **Requires**: Azure CLI installed (`az --version`)
 
 ---
 
