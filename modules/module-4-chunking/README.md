@@ -255,78 +255,77 @@ def semantic_chunk(paragraphs: list[str], threshold: float = 0.7) -> list[list[s
 
 Before learning the right strategies, let's understand **exactly** why naive chunking destroys information.
 
-### Case Study: Page 8 of an Electrical Engineering Textbook
+### Case Study: Metro Station 36 Document
 
 ```mermaid
 flowchart TB
-    subgraph ORIGINAL["📄 Original Document (Page 8)"]
+    subgraph ORIGINAL["📄 Original Document (metro-s36.pdf)"]
         direction TB
-        EQ["📐 Equation:<br/>I = dQ/dt<br/>Where Q is charge,<br/>t is time in seconds"]
-        TABLE["📊 Motor Specs Table:<br/>| Model | Voltage | Power |<br/>| X100 | 380V | 15kW |"]
-        FOOTER["📋 Footer:<br/>MRCET EAMCET CODE: MLRD<br/>www.mrcet.ac.in - Page 8"]
+        SPEC["📋 Station Specs:<br/>תחזית נוסעים לשנת 2040<br/>צופה כ- 2,400 נוסעים עולים<br/>ויורדים בשעת שיא"]
+        TABLE["📊 Land Use Legend:<br/>| ייעוד | צבע |<br/>| מגורים | כתום |<br/>| תעסוקה | סגול |"]
+        FOOTER["📋 Footer:<br/>נ.ת.ע | נתיבי תחבורה עירוניים<br/>מנספלד-קהת אדריכלים | 161"]
     end
     
     subgraph NAIVE["❌ Fixed 500-Character Chunks"]
         direction TB
-        C1["Chunk 1 (chars 1-500):<br/>'...I = dQ/dt Where Q is the<br/>charge and its unit is Coulomb'"]
-        C2["Chunk 2 (chars 501-1000):<br/>'t is the time and its unit<br/>is second... Model X100'"]
-        C3["Chunk 3 (chars 1001-1500):<br/>'380V 15kW... MRCET EAMCET<br/>CODE: MLRD page 8'"]
+        C1["Chunk 1 (chars 1-500):<br/>'...תחזית נוסעים לשנת 2040<br/>צופה כ-'"]
+        C2["Chunk 2 (chars 501-1000):<br/>'2,400 נוסעים עולים ויורדים<br/>בשעת שיא... מגורים'"]
+        C3["Chunk 3 (chars 1001-1500):<br/>'כתום... נ.ת.ע | נתיבי<br/>תחבורה עירוניים 161'"]
     end
     
     ORIGINAL --> NAIVE
     
-    style EQ fill:#c8e6c9
+    style SPEC fill:#c8e6c9
     style TABLE fill:#c8e6c9
     style C1 fill:#ffcdd2
     style C2 fill:#ffcdd2
     style C3 fill:#ffcdd2
 ```
 
-### Failure 1: The "Split Equation" Problem
+### Failure 1: The "Split Passenger Count" Problem
 
 **Original content:**
-> $I = \frac{dQ}{dt}$  
-> Where:
-> - Q is the charge (unit: Coulomb)
-> - t is the time (unit: second)
+> קיבולת נוסעים צפויה  
+> תחזית נוסעים לשנת 2040 צופה כ- 2,400 נוסעים עולים ויורדים בשעת שיא.
 
 **After naive chunking:**
-- **Chunk 1**: "...I = dQ/dt Where Q is the charge..."
-- **Chunk 2**: "t is the time and its unit is second..."
+- **Chunk 1**: "...קיבולת נוסעים צפויה תחזית נוסעים לשנת 2040 צופה כ-"
+- **Chunk 2**: "2,400 נוסעים עולים ויורדים בשעת שיא..."
 
-**The disaster**: If the user asks *"What does t represent in the current formula?"*, Chunk 2 says "t is time" but has NO CONTEXT about which formula! The knowledge graph is destroyed.
+**The disaster**: If the user asks *"How many passengers does Station 36 serve?"*, Chunk 2 has the number "2,400" but NO CONTEXT about what station or what metric! The critical information is split.
 
 ### Failure 2: The "Footer Pollution" Problem
 
-Every page contains metadata that has nothing to do with the content:
+Every page contains metadata that has nothing to do with the station content:
 
 **Naive chunk includes:**
-> "...current flows from positive to negative. MRCET EAMCET CODE: MLRD www.mrcet.ac.in 8"
+> "...נגישות הולכי רגל בצירים ראשיים. נ.ת.ע | נתיבי תחבורה עירוניים להסעת המונים בע״מ מטרו M1S מנספלד-קהת אדריכלים בע״מ 161"
 
-**The disaster**: If a user asks *"What is the EAMCET code?"*, the LLM might respond with "MLRD" even though this is irrelevant college metadata mixed with physics content.
+**The disaster**: If a user asks *"What is the page number?"*, the LLM might respond with "161" even though this is irrelevant document metadata mixed with actual station information about pedestrian access.
 
 ### Failure 3: The "Table Destruction" Problem
 
-**Original table:**
-| Model | Voltage | Power |
-|-------|---------|-------|
-| X100  | 380V    | 15kW  |
-| X200  | 440V    | 22kW  |
+**Original table (Land Use Legend):**
+| ייעוד קרקע | צבע במפה |
+|------------|----------|
+| מגורים א׳  | כתום     |
+| תעסוקה     | סגול     |
+| מסחר       | כחול     |
 
 **After naive text extraction:**
-> "Model Voltage Power X100 380V 15kW X200 440V 22kW"
+> "ייעוד קרקע צבע במפה מגורים א׳ כתום תעסוקה סגול מסחר כחול"
 
-**The disaster**: The structure is gone. When the user asks *"What's the voltage of X200?"*, the LLM might return "380V" because it can't understand the table relationships.
+**The disaster**: The structure is gone. When the user asks *"What color represents residential areas (מגורים)?"*, the LLM might return "סגול" (purple) because it can't understand the table relationships.
 
 ### Summary: What Naive Chunking Destroys
 
 | Content Type | What Gets Destroyed | Impact |
 |--------------|---------------------|--------|
-| **Equations** | Variable definitions separated from formula | LLM can't explain variables |
-| **Tables** | Row-column relationships flattened | Wrong values retrieved |
-| **Figures** | Not indexed at all | "I don't have that information" |
-| **Sections** | Headers separated from content | Missing context |
-| **Lists** | Items split across chunks | Incomplete answers |
+| **Passenger Stats** | Numbers separated from context | Wrong station data retrieved |
+| **Tables** | Row-column relationships flattened | Wrong land use colors |
+| **Maps/Figures** | Not indexed at all | "I don't have that information" |
+| **Sections** | Headers separated from content | Missing station context |
+| **Bilingual Text** | Hebrew/English mixed incorrectly | Garbled responses |
 
 ---
 
