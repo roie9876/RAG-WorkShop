@@ -343,6 +343,7 @@ The M1 Metro Line documents are perfect for learning RAG because they contain:
 | `m1s-s35-s41.pdf` | PDF | Combined document with all 7 stations |
 | `Metro_M1_Rishon_Stations_Detailed.pptx` | PowerPoint | Station overview slides with images |
 | `m1-map.docx` | Word | Metro line route descriptions |
+| `metro_m1_data.xlsx` | Excel | Station data in tabular format |
 
 ### Where to Find Them
 
@@ -360,7 +361,8 @@ data/
 │   └── m1.png                      # Metro line map
 └── sample-office/                  # Office documents
     ├── Metro_M1_Rishon_Stations_Detailed.pptx
-    └── m1-map.docx
+    ├── m1-map.docx
+    └── metro_m1_data.xlsx
 ```
 
 > 💡 **Tip**: Open `metro-s36.pdf` and look at pages with tables and diagrams. In Module 1, you'll see how naive RAG completely fails to extract this information correctly.
