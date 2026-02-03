@@ -78,6 +78,26 @@ CU handles steps 1 and 2. It gives you the **raw material** (extracted content w
 
 ---
 
+## 📊 Comparison: OCR vs Document Intelligence vs Content Understanding
+
+Now that you've learned Document Intelligence in Module 2, let's see how Content Understanding compares:
+
+| Capability | Simple OCR | Document Intelligence | Content Understanding |
+|------------|------------|----------------------|----------------------|
+| Text extraction | ✅ Raw characters | ✅ With reading order | ✅ With reading order |
+| Table structure | ❌ Flattened | ✅ Rows/columns preserved | ✅ Rows/columns preserved |
+| Figure detection | ❌ Ignored | ✅ Bounding boxes | ✅ Bounding boxes + **AI descriptions** |
+| Reading order | ❌ Lost | ✅ Preserved | ✅ Preserved |
+| Semantic understanding | ❌ None | ❌ None | ✅ **AI-powered** |
+| Chart → Code | ❌ No | ❌ No | ✅ **Chart.js output** |
+| Diagram → Code | ❌ No | ❌ No | ✅ **Mermaid.js output** |
+| Document summary | ❌ No | ❌ No | ✅ **One-paragraph summary** |
+| Audio/Video support | ❌ No | ❌ No | ✅ **Full support** |
+| LLM Required | ❌ No | ❌ No | ✅ Yes (GPT-4.1-mini) |
+| Cost | 💰 Lowest | 💰 Low | 💰💰 Higher |
+
+> 📖 **Official comparison**: [Choosing the Right AI Tool](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/choosing-right-ai-tool)
+
 ## 🔑 CU vs Document Intelligence: What's the Real Difference?
 
 This is a common source of confusion! Let's clarify once and for all.

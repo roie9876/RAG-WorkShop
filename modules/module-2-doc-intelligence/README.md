@@ -18,23 +18,94 @@ flowchart LR
 
 ---
 
+## 🧠 What is Azure AI Document Intelligence?
+
+**Azure AI Document Intelligence** is an AI-powered document processing service that goes far beyond simple OCR. It uses machine learning to understand document **structure** – not just extract text.
+
+### The Key Difference: Structure, Not Just Text
+
+| What You Get | Simple OCR | Document Intelligence |
+|--------------|------------|----------------------|
+| **Text** | ✅ Raw characters | ✅ With reading order |
+| **Tables** | ❌ Flattened to text | ✅ Rows, columns, cells preserved |
+| **Figures** | ❌ Ignored | ✅ Detected with bounding boxes |
+| **Sections** | ❌ Lost | ✅ Title, headers, footers identified |
+| **Layout** | ❌ Gone | ✅ Paragraphs, lists, hierarchy |
+
+### Why This Matters for RAG
+
+In Module 1, you saw naive RAG fail because:
+- Tables became garbage text
+- Figures were completely lost
+- Context was destroyed
+
+**Document Intelligence solves these problems** by preserving the structural relationships in your documents.
+
+### Document Structure Layout Analysis
+
+Document structure layout analysis extracts:
+- **Geometric roles**: Text, tables, figures, selection marks
+- **Logical roles**: Titles, headings, headers, footers
+
+![Document Layout Example](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/media/document-layout-example-new.png)
+
+> 📖 **Documentation**: [Document Intelligence Layout Model](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/prebuilt/layout)
+
+---
+
+## 🔧 The `prebuilt-layout` Model
+
+For RAG applications, we use the **`prebuilt-layout`** model. It's the Swiss Army knife of document extraction.
+
+### What It Extracts
+
+| Element | What You Get |
+|---------|--------------|
+| **Pages** | Page dimensions, orientation, unit type |
+| **Paragraphs** | Text blocks with roles (title, sectionHeading, footnote, etc.) |
+| **Tables** | Row/column structure, merged cells, headers |
+| **Figures** | Bounding boxes, captions, related text |
+| **Selection marks** | Checkboxes, radio buttons (selected/unselected) |
+| **Text** | Lines, words with confidence scores |
+| **Styles** | Handwritten vs printed detection |
+
+### Supported File Formats
+
+| Category | Formats |
+|----------|---------|
+| **Images** | PDF, JPEG, PNG, BMP, TIFF, HEIF |
+| **Office** | Word (.docx), Excel (.xlsx), PowerPoint (.pptx) |
+| **Text** | HTML, Markdown, plain text |
+| **Structured** | XML, JSON, CSV |
+
+### Output Format: Markdown
+
+Document Intelligence can output results as **GitHub Flavored Markdown** – perfect for RAG!
+
+- Tables become proper markdown tables
+- Headers preserve hierarchy
+- Figures get markdown image syntax
+- Selection marks use Unicode checkboxes (☒ and ☐)
+
+---
+
 ## Objective
-Understand what Azure AI Document Intelligence does and how to use its outputs.
+Understand what Azure AI Document Intelligence does and how to use its outputs for RAG.
 
 ## Learning Outcomes
 By the end of this module, participants will be able to:
-- Explain the difference between OCR, Document Intelligence, and Content Understanding
-- Use the prebuilt-layout model to extract structured content
+- Explain what Document Intelligence does and why it matters for RAG
+- Use the `prebuilt-layout` model to extract structured content
 - Process multiple document formats (PDF, Word, Excel, PowerPoint)
 - Leverage markdown output and reading order preservation
 - Extract tables and figures with their bounding boxes
 
 ## Key Message
-> Document Intelligence gives you structure, not just text.
+> Document Intelligence gives you **structure**, not just text. This structure is what makes RAG work on real documents.
 
 ## Topics Covered
-1. What Document Intelligence does vs traditional OCR
-2. Prebuilt-layout model capabilities
+1. What Document Intelligence is and why it matters
+2. The `prebuilt-layout` model capabilities
 3. Document Intelligence output structure:
    - Text content with reading order
    - Tables with cell structure
@@ -57,7 +128,7 @@ By the end of this module, participants will be able to:
 ## Document Intelligence Output Structure
 ```
 AnalyzeResult
-├── content (full text)
+├── content (full text or markdown)
 ├── pages[]
 │   ├── pageNumber
 │   ├── lines[]
@@ -69,20 +140,12 @@ AnalyzeResult
 ├── figures[]
 │   ├── boundingRegions[]
 │   └── caption
-└── paragraphs[]
-    ├── content
-    └── role (title, sectionHeading, etc.)
+├── paragraphs[]
+│   ├── content
+│   └── role (title, sectionHeading, etc.)
+└── sections[]
+    └── elements (hierarchical structure)
 ```
-
-## Comparison: OCR vs DI vs Content Understanding
-| Capability | OCR | Document Intelligence | Content Understanding |
-|------------|-----|----------------------|----------------------|
-| Text extraction | ✅ | ✅ | ✅ |
-| Table structure | ❌ | ✅ | ✅ |
-| Figure detection | ❌ | ✅ | ✅ |
-| Reading order | ❌ | ✅ | ✅ |
-| Semantic understanding | ❌ | ❌ | ✅ |
-| Custom entity extraction | ❌ | ❌ | ✅ |
 
 ## Estimated Time
 - Concepts: 20 minutes
@@ -93,7 +156,6 @@ AnalyzeResult
 | File | Description |
 |------|-------------|
 | `lab.ipynb` | Guided lab for Document Intelligence |
-| `solution.ipynb` | Complete reference solution |
 | `failure-examples/` | Edge cases and limitations |
 
 ---
