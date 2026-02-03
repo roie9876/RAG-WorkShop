@@ -182,74 +182,15 @@ flowchart LR
 | **Module 6** | [GraphRAG](modules/module-6-graphrag/README.md) | 🕸️ Cross-document reasoning |
 | **Module 7** | [Full Production Pipeline](modules/module-7-pipeline/README.md) | 🚀 End-to-end system with UI |
 
-### Module Details
-
-#### Module 0: Setup
-Get your Azure environment ready. Deploy Document Intelligence, Azure OpenAI, and Azure AI Search.
-
-#### Module 1: The Problem (Naive RAG)
-**Why start with failure?** Because you need to see WHY the techniques in Modules 2-6 matter.
-- Try basic text extraction + fixed-size chunking
-- Watch it fail on tables, figures, and complex layouts
-- Understand what we need to fix
-
-#### Module 2: Document Intelligence  
-Extract structured content from documents:
-- Text with reading order (not just OCR dump)
-- Tables with rows and columns preserved
-- Figure locations (bounding boxes)
-
-#### Module 3: Content Understanding
-Use AI to understand document semantics:
-- Automatic field extraction
-- Figure descriptions
-- Semantic structure
-
-#### Module 4: Chunking Strategies
-**This is where most RAG systems fail!** Learn to chunk smartly:
-- Don't split tables in half
-- Keep figures with their context
-- Preserve section structure
-
-#### Module 5: Search & Retrieval
-Build your search system:
-- Create embeddings (convert text to vectors)
-- Index in Azure AI Search
-- Hybrid search (vector + keyword)
-- Semantic ranking
-
-#### Module 6: GraphRAG
-Advanced: Cross-document reasoning
-- Build knowledge graphs
-- Answer questions that span multiple documents
-- "What depends on X?" queries
-
-#### Module 7: Full Production Pipeline
-Put it all together in a working application:
-- Complete document processing pipeline
-- Dual indexing (Vector + GraphRAG)
-- Iterative entity-aware retrieval
-- Answer validation
-- React frontend with real-time chat
-
 ---
 
 ## ⏱️ Workshop Duration
 
-| Module | Duration | Can Skip? |
-|--------|----------|-----------|
-| Module 0 | 20 min | No (required setup) |
-| Module 1 | 45 min | No (important motivation) |
-| Module 2 | 1 hour | No |
-| Module 3 | 1 hour | Yes (optional) |
-| Module 4 | 1.5 hours | No (critical!) |
-| Module 5 | 2 hours | No |
-| Module 6 | 2 hours | Yes (advanced) |
-| Module 7 | 2 hours | Yes (production demo) |
-
 **Full Workshop**: ~10 hours  
 **Essential Path** (Modules 0-2, 4-5): ~5.5 hours  
 **With Production Demo** (Essential + Module 7): ~7.5 hours
+
+> 💡 Modules 3 and 6 are optional but recommended for advanced scenarios.
 
 ---
 
@@ -270,51 +211,11 @@ Put it all together in a working application:
 
 ### Prerequisites
 - Azure subscription (Owner or Contributor access)
-- Python 3.11+ 
+- Python 3.11+
 - VS Code with Python extension
 - Git
 
-### Step 1: Clone the Repository
-```bash
-git clone https://github.com/your-org/RAG-WorkShop.git
-cd RAG-WorkShop
-```
-
-### Step 2: Install Python Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### Step 3: Setup Azure Resources & Validate
-Open **[Module 0 - Setup](modules/module-0-setup/README.md)** and follow the interactive notebooks:
-
-1. `setup.ipynb` - Deploy Azure resources and configure environment
-2. `health-check.ipynb` - Validate all connections
-
-> 💡 **Advanced users**: You can also run `./infra/deploy.sh` directly from the command line.
-
----
-
-## 📁 Project Structure
-
-```
-RAG-WorkShop/
-├── modules/                    # Workshop modules
-│   ├── module-0-setup/         # Azure setup & validation
-│   ├── module-1-naive-rag/     # See RAG fail (motivation)
-│   ├── module-2-doc-intelligence/  # Extract content
-│   ├── module-3-content-understanding/  # Semantic extraction
-│   ├── module-4-chunking/      # Chunking strategies
-│   ├── module-5-search/        # Embeddings & search
-│   ├── module-6-graphrag/      # Graph reasoning
-│   └── module-7-pipeline/      # Full production pipeline
-├── data/                       # Sample documents
-│   ├── sample-pdfs/            # Metro station PDFs
-│   └── sample-office/          # Word, Excel, PowerPoint
-├── src/                        # Shared Python utilities
-├── infra/                      # Azure deployment (Bicep)
-└── requirements.txt            # Python dependencies
-```
+**Ready to begin?** Head to **[Module 0 - Setup](modules/module-0-setup/README.md)** for complete setup instructions.
 
 ---
 

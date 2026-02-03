@@ -1,6 +1,6 @@
 # Module 0 – Environment Setup (Zero to Ready)
 
-## Objective
+## 🎯 Objective
 Get participants to a working environment with minimal friction.
 
 ## Learning Outcomes
@@ -10,19 +10,61 @@ By the end of this module, participants will be able to:
 - Validate their setup with a health-check notebook
 - Troubleshoot common setup issues
 
-## Prerequisites
-- Azure subscription with Owner or Contributor role
-- VS Code with Python extension installed
-- Python 3.11+ installed locally
-- Git installed
+---
 
-## Topics Covered
-1. Azure resource deployment (Bicep)
-2. Environment variable configuration
-3. SDK installation and verification
-4. Connection testing for all services
+## 🚀 Quick Start
 
-## Azure Resources Deployed
+### Prerequisites
+- Azure subscription (Owner or Contributor access)
+- Python 3.11+
+- VS Code with Python extension
+- Git
+
+### Step 1: Clone the Repository
+```bash
+git clone https://github.com/roie9876/RAG-WorkShop.git
+cd RAG-WorkShop
+```
+
+### Step 2: Install Python Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### Step 3: Setup Azure Resources & Validate
+Open the interactive notebooks in this module:
+
+1. **`setup.ipynb`** - Deploy Azure resources and configure environment
+2. **`health-check.ipynb`** - Validate all connections
+
+> 💡 **Advanced users**: You can also run `./infra/deploy.sh` directly from the command line.
+
+---
+
+## 📁 Project Structure
+
+```
+RAG-WorkShop/
+├── modules/                    # Workshop modules
+│   ├── module-0-setup/         # Azure setup & validation ← YOU ARE HERE
+│   ├── module-1-naive-rag/     # See RAG fail (motivation)
+│   ├── module-2-doc-intelligence/  # Extract content
+│   ├── module-3-content-understanding/  # Semantic extraction
+│   ├── module-4-chunking/      # Chunking strategies
+│   ├── module-5-search/        # Embeddings & search
+│   ├── module-6-graphrag/      # Graph reasoning
+│   └── module-7-pipeline/      # Full production pipeline
+├── data/                       # Sample documents
+│   ├── sample-pdfs/            # Metro station PDFs
+│   └── sample-office/          # Word, Excel, PowerPoint
+├── src/                        # Shared Python utilities
+├── infra/                      # Azure deployment (Bicep)
+└── requirements.txt            # Python dependencies
+```
+
+---
+
+## ☁️ Azure Resources Deployed
 | Resource | Purpose |
 |----------|---------|
 | Azure OpenAI | GPT-4.1, GPT-4.1-mini, text-embedding-3-large |
@@ -31,25 +73,21 @@ By the end of this module, participants will be able to:
 | Azure AI Foundry | Hub + Project for agent orchestration |
 | Storage Account | Document and figure storage |
 
-## Estimated Time
+## ⏱️ Estimated Time
 - Deployment: 10-15 minutes
 - Configuration: 5 minutes
 - Validation: 5 minutes
 - **Total: ~20 minutes**
 
-## Files in This Module
+## 📂 Files in This Module
 | File | Description |
 |------|-------------|
-| `setup.ipynb` | Interactive setup wizard |
-| `health-check.ipynb` | Validate all connections |
+| `setup.ipynb` | Interactive setup wizard - deploys Azure resources |
+| `health-check.ipynb` | Validates all connections work |
+| `cleanup.ipynb` | Remove resources when done (optional) |
 
-## Quick Start
-1. Open `setup.ipynb`
-2. Follow the interactive prompts
-3. Run `health-check.ipynb` to verify
-
-## Troubleshooting
-Common issues and solutions will be documented in the notebooks.
+## 🔧 Troubleshooting
+Common issues and solutions are documented in the notebooks.
 
 ---
 
