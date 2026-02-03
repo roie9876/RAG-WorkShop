@@ -80,13 +80,13 @@ Search for relevant content and generate an answer.
 
 ```mermaid
 flowchart TB
-    subgraph PHASE1["📥 PHASE 1: INDEXING (Done Once Per Document)"]
+    subgraph PHASE1["📥 PHASE 1: INDEXING (Done Once)"]
         direction LR
         DOC["📄 Document<br/>(PDF, Word, etc.)"]
-        EXTRACT["🔍 Extract<br/>Text, Tables,<br/>Figures"]
-        CHUNK["✂️ Chunk<br/>Split into<br/>pieces"]
-        EMBED["🧮 Embed<br/>Convert to<br/>vectors"]
-        INDEX["📦 Index<br/>Store in<br/>database"]
+        EXTRACT["🔍 <b>Extract</b><br/>Text, Tables,<br/>Figures"]
+        CHUNK["✂️ <b>Chunk</b><br/>Split into<br/>pieces"]
+        EMBED["🧮 <b>Embed</b><br/>Convert to<br/>vectors"]
+        INDEX["📦 <b>Index</b><br/>Store in<br/>database"]
         
         DOC --> EXTRACT --> CHUNK --> EMBED --> INDEX
     end
@@ -94,10 +94,10 @@ flowchart TB
     subgraph PHASE2["🔎 PHASE 2: QUERYING (Every Question)"]
         direction LR
         QUESTION["❓ User<br/>Question"]
-        SEARCH["🔍 Search<br/>Find relevant<br/>chunks"]
-        CONTEXT["📋 Context<br/>Top matching<br/>chunks"]
-        GENERATE["🤖 Generate<br/>LLM creates<br/>answer"]
-        ANSWER["💬 Answer<br/>Grounded in<br/>your data"]
+        SEARCH["🔍 <b>Search</b><br/>Find relevant<br/>chunks"]
+        CONTEXT["📋 <b>Context</b><br/>Top matching<br/>chunks"]
+        GENERATE["🤖 <b>Generate</b><br/>LLM creates<br/>answer"]
+        ANSWER["💬 <b>Answer</b><br/>Grounded in<br/>your data"]
         
         QUESTION --> SEARCH --> CONTEXT --> GENERATE --> ANSWER
     end
