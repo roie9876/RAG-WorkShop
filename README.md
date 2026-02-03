@@ -387,9 +387,11 @@ Ready to begin? Start with **[Module 0: Setup](modules/module-0-setup/README.md)
 
 ### Created By
 
-**[Roie Ben Haim](https://www.linkedin.com/in/roie9876/)** - Cloud Solution Architect at Microsoft
+**[Roie Ben Haim](https://www.linkedin.com/in/roie9876/)** - Solution Specialist Azure at Microsoft
 
-With over 20 years of experience in software development and cloud architecture, Roie specializes in AI/ML solutions, Azure infrastructure, and helping organizations build production-grade AI systems. This workshop reflects his passion for teaching complex technical concepts in an accessible, hands-on way.
+With over 20 years of experience in data center technologies and over 6 years at Microsoft, Roie focuses on helping public sector and regulated customers adopt cutting-edge AI and cloud solutions. His expertise includes delivering demos and PoCs using Azure OpenAI, RAG, and Cognitive Services, and facilitating discussions around security, compliance, and data governance.
+
+At Microsoft, he collaborates with engineering, product, and executive teams to deliver workshops and technical enablement sessions, accelerating AI decision-making and cloud modernization initiatives. With certifications such as VCDX-NV and CCIE and a deep focus on Generative AI and LLM integration, Roie is committed to driving transformative innovation in sensitive and regulated environments.
 
 ### Reviewed By
 
