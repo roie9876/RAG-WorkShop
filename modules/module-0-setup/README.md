@@ -65,6 +65,11 @@ RAG-WorkShop/
 ---
 
 ## ☁️ Azure Resources Deployed
+
+### 🌍 Recommended Region: `swedencentral`
+
+All required services are available in this region with full feature support, including **Content Understanding** (GA API `2025-11-01`).
+
 | Resource | Purpose |
 |----------|---------|
 | Azure OpenAI | GPT-4.1, GPT-4.1-mini, text-embedding-3-large |

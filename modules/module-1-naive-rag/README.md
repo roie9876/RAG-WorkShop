@@ -79,6 +79,56 @@ CHUNK 2: "2,400 passengers during peak hours. The main entrance..."
 
 ---
 
+## 📚 The Dataset: Israel M1 Metro Line
+
+Throughout this workshop, we use real planning documents from the **Israel M1 Metro Line** project.
+
+![M1 Metro Line Map](../../data/sample-pdfs/m1.png)
+
+### Why This Dataset?
+
+These documents are perfect for learning RAG because they contain everything that breaks naive approaches:
+
+| Content Type | Example | RAG Challenge |
+|--------------|---------|---------------|
+| **Tables** | Station passenger counts, construction timelines | Structure gets destroyed in naive extraction |
+| **Figures** | Metro maps, station layouts, architectural diagrams | Visual info is completely lost |
+| **Hebrew + English** | Bilingual content throughout | Multilingual handling |
+| **Cross-references** | "See Station 36 details on page 12" | Context fragmentation |
+
+### Sample Documents
+
+| File | Format | Contains |
+|------|--------|----------|
+| `metro-s35.pdf` - `metro-s41.pdf` | PDF | Individual station specifications (7 stations) |
+| `m1s-s35-s41.pdf` | PDF | Table of Contents for stations 35-41 |
+| `Metro_M1_Rishon_Stations_Detailed.pptx` | PowerPoint | Station overview slides with images |
+| `m1-map.docx` | Word | Metro line route descriptions |
+| `metro_m1_data.xlsx` | Excel | Station data in tabular format |
+
+### Where to Find Them
+
+```
+data/
+├── sample-pdfs/                    # PDF documents
+│   ├── metro-s35.pdf               # Station 35 - קפלן
+│   ├── metro-s36.pdf               # Station 36 - שדרות הציונות  ← We use this one!
+│   ├── metro-s37.pdf               # Station 37 - יוסף בורג
+│   ├── metro-s38.pdf               # Station 38 - הרצוג
+│   ├── metro-s39.pdf               # Station 39 - שבזי
+│   ├── metro-s40.pdf               # Station 40 - הרא״ה
+│   ├── metro-s41.pdf               # Station 41 - סוקולוב
+│   └── m1s-s35-s41.pdf             # Table of Contents (stations 35-41)
+└── sample-office/                  # Office documents
+    ├── Metro_M1_Rishon_Stations_Detailed.pptx
+    ├── m1-map.docx
+    └── metro_m1_data.xlsx
+```
+
+> 💡 **Tip**: Open `metro-s36.pdf` and look at pages with tables and diagrams. You'll see how naive RAG completely fails to extract this information correctly.
+
+---
+
 ## 🧪 What We'll Do in the Lab
 
 In the hands-on notebook, you will:
