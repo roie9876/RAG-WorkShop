@@ -340,7 +340,7 @@ The M1 Metro Line documents are perfect for learning RAG because they contain:
 | File | Format | Contains |
 |------|--------|----------|
 | `metro-s35.pdf` - `metro-s41.pdf` | PDF | Individual station specifications (7 stations) |
-| `m1s-s35-s41.pdf` | PDF | Combined document with all 7 stations |
+| `m1s-s35-s41.pdf` | PDF | Table of Contents for stations 35-41 |
 | `Metro_M1_Rishon_Stations_Detailed.pptx` | PowerPoint | Station overview slides with images |
 | `m1-map.docx` | Word | Metro line route descriptions |
 | `metro_m1_data.xlsx` | Excel | Station data in tabular format |
@@ -357,7 +357,7 @@ data/
 │   ├── metro-s39.pdf               # Station 39 - שבזי
 │   ├── metro-s40.pdf               # Station 40 - הרא״ה
 │   ├── metro-s41.pdf               # Station 41 - סוקולוב
-│   ├── m1s-s35-s41.pdf             # All stations combined (~40 pages)
+│   ├── m1s-s35-s41.pdf             # Table of Contents (stations 35-41)
 │   └── m1.png                      # Metro line map
 └── sample-office/                  # Office documents
     ├── Metro_M1_Rishon_Stations_Detailed.pptx
@@ -383,6 +383,22 @@ Ready to begin? Start with **[Module 0: Setup](modules/module-0-setup/README.md)
 
 ---
 
-## 📄 License
+## � Credits
+
+### Created By
+
+**[Roie Ben Haim](https://www.linkedin.com/in/roie9876/)** - Cloud Solution Architect at Microsoft
+
+With over 20 years of experience in software development and cloud architecture, Roie specializes in AI/ML solutions, Azure infrastructure, and helping organizations build production-grade AI systems. This workshop reflects his passion for teaching complex technical concepts in an accessible, hands-on way.
+
+### Reviewed By
+
+**[Maayan Luxemburg](https://www.linkedin.com/in/maayan-luxemburg-0374a882/)** - Cloud Solution Architect at Microsoft
+
+Special thanks to Maayan for her thorough technical review, valuable feedback, and dedication to ensuring this workshop meets the highest quality standards. Her expertise in AI and cloud solutions helped shape the content into a truly comprehensive learning experience.
+
+---
+
+## �📄 License
 
 MIT License
