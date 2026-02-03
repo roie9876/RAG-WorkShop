@@ -48,7 +48,7 @@ By the end of this module, participants will be able to:
 │   OUTPUT:                                                       │
 │   ├── Extracted text (OCR)                                      │
 │   ├── Document structure (headers, paragraphs, tables)          │
-│   ├── Figures with bounding boxes                               │
+│   ├── Figure references (markdown image links)                  │
 │   ├── AI-generated descriptions (for figures/charts/diagrams)   │
 │   ├── Chart.js code (for charts)                                │
 │   ├── Mermaid.js syntax (for diagrams)                          │
@@ -56,6 +56,8 @@ By the end of this module, participants will be able to:
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+> **Note:** CU provides **semantic understanding** of figures (AI descriptions), not geometric bounding boxes. If you need bounding box coordinates for figure cropping, use **Document Intelligence** (`prebuilt-layout`) which outputs figure polygons.
 
 ### Why Use CU for RAG?
 
