@@ -4,12 +4,17 @@ This folder contains screenshots from Azure Portal to help workshop participants
 
 ## Required Screenshots
 
+### Part 1: Embeddings
+
+| Filename | Description | How to Capture |
+|----------|-------------|----------------|
+| `openai-deployments.png` | Azure OpenAI model deployments showing text-embedding-3-large | Azure Portal → Azure OpenAI → Model deployments |
+
 ### Part 2: Azure AI Search Index
 
 | Filename | Description | How to Capture |
 |----------|-------------|----------------|
 | `search-service-overview.png` | Azure AI Search service overview page | Azure Portal → AI Search → Overview |
-| `search-indexes-list.png` | List of indexes showing our module5-metro-index | Azure Portal → AI Search → Indexes |
 | `search-index-schema.png` | Index schema showing fields (id, content, embedding, etc.) | Azure Portal → AI Search → Indexes → module5-metro-index → Fields |
 | `search-index-documents.png` | Search Explorer showing indexed documents | Azure Portal → AI Search → Indexes → module5-metro-index → Search Explorer |
 
@@ -17,25 +22,16 @@ This folder contains screenshots from Azure Portal to help workshop participants
 
 | Filename | Description | How to Capture |
 |----------|-------------|----------------|
-| `search-explorer-text.png` | Search Explorer with text/BM25 search results | Search Explorer → Query: "תחנה 36" |
-| `search-explorer-vector.png` | Search Explorer with vector search results | Search Explorer → Vector query mode |
-| `search-explorer-hybrid.png` | Search Explorer with hybrid search results | Search Explorer → Hybrid mode |
 | `semantic-config.png` | Semantic configuration in index settings | Azure Portal → AI Search → Indexes → Semantic configurations |
-
-### Part 4: Retrieval Patterns
-
-| Filename | Description | How to Capture |
-|----------|-------------|----------------|
-| `search-filters.png` | Using filters in Search Explorer (content_type=table) | Search Explorer with $filter |
 
 ### Part 5: Agentic Retrieval (Preview)
 
 | Filename | Description | How to Capture |
 |----------|-------------|----------------|
 | `search-tier-upgrade.png` | Azure AI Search pricing tier selection (Standard) | Azure Portal → AI Search → Settings → Scale |
-| `search-managed-identity.png` | Managed Identity configuration | Azure Portal → AI Search → Identity |
-| `search-rbac-roles.png` | RBAC role assignments on Search service | Azure Portal → AI Search → Access control (IAM) → Role assignments |
+| `search-managed-identity.png` | Managed Identity configuration (System Assigned = ON) | Azure Portal → AI Search → Identity |
 | `search-auth-options.png` | Authentication options (API keys and/or RBAC) | Azure Portal → AI Search → Settings → Keys |
+| `search-rbac-roles.png` | RBAC role assignments on Search service | Azure Portal → AI Search → Access control (IAM) → Role assignments |
 | `knowledge-sources.png` | Knowledge Sources in AI Search (preview) | Azure Portal → AI Search → Knowledge sources |
 | `knowledge-bases.png` | Knowledge Bases in AI Search (preview) | Azure Portal → AI Search → Knowledge bases |
 
