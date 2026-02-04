@@ -67,12 +67,14 @@ resource figuresContainer 'Microsoft.Storage/storageAccounts/blobServices/contai
 }
 
 // Azure AI Search
+// Using Standard tier to enable Agentic Retrieval (Module 5 Part 5)
+// Note: Standard tier costs ~$250/month vs Basic ~$75/month
 resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
   name: searchServiceName
   location: location
   tags: union(tags, { SecurityControl: 'Ignore' })
   sku: {
-    name: 'basic'
+    name: 'standard'  // Required for Agentic Retrieval
   }
   properties: {
     replicaCount: 1
