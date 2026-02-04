@@ -37,203 +37,6 @@ By completing this module, you will be able to:
 
 ---
 
-## Part 0: RAG Question Taxonomy
-
-Before diving into embeddings and retrieval techniques, it's essential to understand that **not all questions are equal**. The complexity of a question determines which retrieval strategy you need.
-
-### The Question Complexity Spectrum
-
-```mermaid
-flowchart LR
-    subgraph L1[Level 1: Direct]
-        Q1[Single Chunk<br/>Answers It]
-    end
-    
-    subgraph L2[Level 2: Synthesis]
-        Q2A[Multi-Chunk<br/>Same Document]
-        Q2B[Multi-Chunk<br/>Cross-Document]
-    end
-    
-    subgraph L3[Level 3: Reasoning]
-        Q3A[Query Rewriting<br/>Required]
-        Q3B[Multi-Hop<br/>Retrieval]
-        Q3C[Answer Not in<br/>Chunks Directly]
-    end
-    
-    L1 --> L2 --> L3
-    
-    style L1 fill:#e8f5e9,stroke:#4caf50
-    style L2 fill:#fff3e0,stroke:#ff9800
-    style L3 fill:#ffebee,stroke:#f44336
-```
-
-**Figure 2: Question Complexity Spectrum** - Questions range from simple (one chunk has the answer) to complex (model must reason, rewrite queries, or derive answers that aren't stated explicitly).
-
-### Level 1: Direct Retrieval
-
-The simplest case—one chunk contains the complete answer.
-
-| Question | Chunk Content | Retrieval |
-|----------|---------------|-----------|
-| "What is Station 36's Hebrew name?" | "תחנה 36 - שדרות הציונות" | Single hybrid search |
-
-**Strategy**: Basic vector or hybrid search with `top_k=5`
-
-### Level 2: Multi-Chunk Synthesis
-
-The answer exists in the chunks, but spread across multiple pieces that must be combined.
-
-#### 2A: Same Document, Multiple Chunks
-
-```mermaid
-flowchart TB
-    Q[Question: Summarize Station 36<br/>accessibility features]
-    
-    subgraph DOC[metro.pdf]
-        C1[Chunk 12: Elevator locations...]
-        C2[Chunk 15: Ramp specifications...]
-        C3[Chunk 18: Tactile paving...]
-    end
-    
-    Q --> C1
-    Q --> C2
-    Q --> C3
-    
-    C1 --> COMBINE[LLM Combines]
-    C2 --> COMBINE
-    C3 --> COMBINE
-    
-    COMBINE --> ANS[Complete Answer]
-    
-    style Q fill:#e3f2fd,stroke:#1976d2
-    style ANS fill:#e8f5e9,stroke:#4caf50
-```
-
-**Strategy**: Increase `top_k`, use semantic reranking to surface all relevant chunks
-
-#### 2B: Cross-Document Synthesis
-
-```mermaid
-flowchart TB
-    Q[Question: Compare accessibility<br/>across all M1 stations]
-    
-    subgraph DOC1[station_36.pdf]
-        C1[Chunk: 36 has 3 elevators...]
-    end
-    
-    subgraph DOC2[station_34.pdf]
-        C2[Chunk: 34 has 2 elevators...]
-    end
-    
-    subgraph DOC3[station_38.pdf]
-        C3[Chunk: 38 has 4 elevators...]
-    end
-    
-    Q --> C1
-    Q --> C2
-    Q --> C3
-    
-    C1 --> COMBINE[LLM Synthesizes]
-    C2 --> COMBINE
-    C3 --> COMBINE
-    
-    COMBINE --> ANS[Comparison Table]
-    
-    style Q fill:#e3f2fd,stroke:#1976d2
-    style ANS fill:#e8f5e9,stroke:#4caf50
-```
-
-**Strategy**: **GraphRAG** (Module 6) builds entity relationships across documents
-
-### Level 3: Reasoning-Required Questions
-
-This is where it gets interesting. **The answer is NOT directly stated in any chunk.** The model must:
-- Rewrite the query after initial retrieval
-- Chain facts across multiple retrieval rounds (multi-hop)
-- Derive/calculate answers from raw data
-
-#### The Multi-Hop Problem
-
-```mermaid
-flowchart TB
-    Q[Question: What public transit connects<br/>to the station nearest Rabin Square?]
-    
-    subgraph HOP1[Hop 1: Location Lookup]
-        S1[Search: station near Rabin Square]
-        R1[Result: Station 34 is nearest]
-    end
-    
-    subgraph HOP2[Hop 2: Transit Lookup]
-        S2[Search: transit connections Station 34]
-        R2[Result: Bus lines 5, 24, 25]
-    end
-    
-    Q --> S1
-    S1 --> R1
-    R1 -->|Entity: Station 34| S2
-    S2 --> R2
-    R2 --> ANS[Answer: Bus lines 5, 24, 25<br/>connect to Station 34]
-    
-    style Q fill:#e3f2fd,stroke:#1976d2
-    style R1 fill:#fff3e0,stroke:#ff9800
-    style ANS fill:#e8f5e9,stroke:#4caf50
-```
-
-**Key Insight**: The original query can't be answered directly—the model must **discover** "Station 34" before it can search for transit connections.
-
-#### Advanced RAG Techniques for Level 3
-
-| Technique | Description | When to Use |
-|-----------|-------------|-------------|
-| **Query Decomposition** | Break complex query into sub-queries | Multi-part questions |
-| **Iterative Retrieval** | Multiple retrieval rounds, refining each time | Entity bridging (Module 7) |
-| **Self-RAG** | Model evaluates if retrieved context is sufficient, re-retrieves if not | Quality-critical applications |
-| **Corrective RAG (CRAG)** | Model detects retrieval errors and corrects strategy | High-stakes answers |
-| **Agentic RAG** | Agent orchestrates: retrieve → reason → rewrite → retrieve again | Complex research questions |
-
-### Mapping Questions to Strategies
-
-```mermaid
-flowchart TD
-    Q[User Question]
-    
-    Q --> CHECK1{Answer in<br/>single chunk?}
-    CHECK1 -->|Yes| HYBRID[Hybrid Search]
-    CHECK1 -->|No| CHECK2{Same document?}
-    
-    CHECK2 -->|Yes| CHECK3{Chunks connected<br/>by entity?}
-    CHECK3 -->|No| TOPK[Increase top_k<br/>+ Semantic Rank]
-    CHECK3 -->|Yes| ITER[Iterative Retrieval<br/>Module 7]
-    
-    CHECK2 -->|No| GRAPH[GraphRAG<br/>Module 6]
-    
-    Q --> CHECK4{Requires<br/>reasoning?}
-    CHECK4 -->|Yes| AGENT[Agentic Retrieval<br/>Part 6 below]
-    
-    style HYBRID fill:#e8f5e9,stroke:#4caf50
-    style TOPK fill:#fff3e0,stroke:#ff9800
-    style ITER fill:#ffebee,stroke:#f44336
-    style GRAPH fill:#f3e5f5,stroke:#9c27b0
-    style AGENT fill:#e3f2fd,stroke:#1976d2
-```
-
-**Figure 3: Question-to-Strategy Decision Tree** - Start by assessing question complexity, then select the appropriate retrieval technique.
-
-### Why This Matters
-
-Understanding the question taxonomy helps you:
-
-1. **Set realistic expectations** - Simple RAG won't answer Level 3 questions well
-2. **Choose the right technique** - Don't over-engineer simple questions
-3. **Debug retrieval failures** - "Why didn't it find the answer?" → Check if it's a Level 2/3 question
-4. **Design your pipeline** - Production systems need multiple retrieval strategies
-
-> **Module 7** implements **Iterative Entity-Aware Retrieval** to solve the Level 2A fragmentation problem.
-> **Module 6** implements **GraphRAG** to solve the Level 2B cross-document problem.
-> This module introduces **Agentic Retrieval** (Part 6) for Level 3 reasoning questions.
-
----
-
 ## Part 1: What are Embeddings?
 
 ### The Core Concept
@@ -279,7 +82,7 @@ flowchart TB
     style V4 fill:#f44336,stroke:#c62828,color:#fff
 ```
 
-**Figure 4: Embedding Generation Process** - Notice how the first three inputs (all related to Metro Station 36) produce similar vectors (green), while "pizza recipe" (red) produces a completely different vector. The model understands semantic relationships even across languages!
+**Figure 2: Embedding Generation Process** - Notice how the first three inputs (all related to Metro Station 36) produce similar vectors (green), while "pizza recipe" (red) produces a completely different vector. The model understands semantic relationships even across languages!
 
 ### Why This Matters for Our Metro Documents
 
@@ -304,7 +107,7 @@ flowchart LR
     style S10 fill:#4caf50,color:#fff
 ```
 
-**Figure 5: Cosine Similarity Scale** - In practice, scores above 0.8 indicate strong semantic similarity. When searching, we find chunks with the highest cosine similarity to the query embedding.
+**Figure 3: Cosine Similarity Scale** - In practice, scores above 0.8 indicate strong semantic similarity. When searching, we find chunks with the highest cosine similarity to the query embedding.
 
 **Practical example from our Metro documents:**
 - Query: "How many passengers at Station 36?" → embedding Q
@@ -341,7 +144,7 @@ flowchart TB
     style Idx fill:#e3f2fd,stroke:#1976d2
 ```
 
-**Figure 6: Azure AI Search Architecture** - The service contains one or more **indexes** (like database tables). Each index has a schema, stores documents, and supports both vector search (HNSW algorithm) and semantic reranking. We interact with it using two SDK clients.
+**Figure 4: Azure AI Search Architecture** - The service contains one or more **indexes** (like database tables). Each index has a schema, stores documents, and supports both vector search (HNSW algorithm) and semantic reranking. We interact with it using two SDK clients.
 
 **Key Components Explained:**
 
@@ -385,7 +188,7 @@ flowchart LR
     style TYPE fill:#ff9800,color:#fff
 ```
 
-**Figure 7: Index Schema Design** - Each field maps to a specific retrieval capability. The `embedding` field (blue) enables semantic search, while `content_type` (orange) allows filtering by chunk type (text, table, or figure).
+**Figure 5: Index Schema Design** - Each field maps to a specific retrieval capability. The `embedding` field (blue) enables semantic search, while `content_type` (orange) allows filtering by chunk type (text, table, or figure).
 
 **Why each field matters:**
 
@@ -415,7 +218,7 @@ flowchart LR
     style Pull fill:#fff3e0,stroke:#ff9800,stroke-width:2px
 ```
 
-**Figure 8: Ingestion Patterns** - Push (green) gives you full control—you compute embeddings yourself and upload documents. Pull (orange) uses Azure's built-in indexers to automatically fetch and process data from sources like Blob Storage.
+**Figure 6: Ingestion Patterns** - Push (green) gives you full control—you compute embeddings yourself and upload documents. Pull (orange) uses Azure's built-in indexers to automatically fetch and process data from sources like Blob Storage.
 
 | Model | When to Use | Pros | Cons |
 |-------|-------------|------|------|
@@ -448,7 +251,7 @@ flowchart TB
     style SEMANTIC fill:#f3e5f5,stroke:#9c27b0
 ```
 
-**Figure 9: Search Mode Comparison** - The same query can be processed four different ways. Text search (red) matches keywords. Vector search (blue) finds semantic matches. Hybrid (green) combines both. Semantic (purple) adds neural reranking.
+**Figure 7: Search Mode Comparison** - The same query can be processed four different ways. Text search (red) matches keywords. Vector search (blue) finds semantic matches. Hybrid (green) combines both. Semantic (purple) adds neural reranking.
 
 **Detailed Comparison:**
 
@@ -476,7 +279,7 @@ flowchart TB
     style RRF fill:#fff9c4,stroke:#f9a825
 ```
 
-**Figure 10: RRF Fusion Process** - Both BM25 and vector search produce ranked lists. RRF combines them by considering each document's rank in both lists, not just raw scores.
+**Figure 8: RRF Fusion Process** - Both BM25 and vector search produce ranked lists. RRF combines them by considering each document's rank in both lists, not just raw scores.
 
 **The RRF Formula:**
 ```
@@ -514,7 +317,7 @@ flowchart LR
     style Stage2 fill:#f3e5f5,stroke:#9c27b0
 ```
 
-**Figure 11: Two-Stage Retrieval** - Stage 1 (L1, blue) quickly retrieves 50 candidates using hybrid search. Stage 2 (L2, purple) uses a transformer neural network to carefully score each candidate and select the final top-K.
+**Figure 9: Two-Stage Retrieval** - Stage 1 (L1, blue) quickly retrieves 50 candidates using hybrid search. Stage 2 (L2, purple) uses a transformer neural network to carefully score each candidate and select the final top-K.
 
 **Why two stages?**
 - Running a transformer over millions of documents is too slow
@@ -537,7 +340,7 @@ flowchart LR
     style S4 fill:#4caf50,color:#fff
 ```
 
-**Figure 12: Reranker Score Scale** - The 0-4 scale indicates how well a document answers the query. Scores below 2 indicate weak relevance; scores above 3 indicate strong relevance.
+**Figure 10: Reranker Score Scale** - The 0-4 scale indicates how well a document answers the query. Scores below 2 indicate weak relevance; scores above 3 indicate strong relevance.
 
 **Practical Guidance:**
 
@@ -552,7 +355,123 @@ flowchart LR
 
 ---
 
-## Part 5: Retrieval Patterns for RAG
+## Part 5: RAG Question Taxonomy
+
+Now that you understand embeddings (Part 1), search architecture (Part 2), search modes (Part 3), and semantic ranking (Part 4), we need to discuss a critical concept: **not all questions are equal**. The complexity of a question determines which retrieval strategy you need.
+
+### The Question Complexity Spectrum
+
+Questions fall into three levels of complexity:
+
+| Level | Description | Example | Strategy |
+|-------|-------------|---------|----------|
+| **Level 1** | Single chunk answers it directly | "What is Station 36's address?" | Basic hybrid search |
+| **Level 2** | Multiple chunks must be combined | "Summarize all accessibility features" | Increase top_k + reranking |
+| **Level 3** | Answer requires reasoning/iteration | "Transit to station nearest Rabin Square?" | Multi-hop / Agentic |
+
+```mermaid
+flowchart LR
+    L1[Level 1<br/>Direct Answer<br/>in One Chunk] --> L2[Level 2<br/>Combine Multiple<br/>Chunks] --> L3[Level 3<br/>Reasoning and<br/>Query Rewriting]
+    
+    style L1 fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
+    style L2 fill:#fff3e0,stroke:#ff9800,stroke-width:2px
+    style L3 fill:#ffebee,stroke:#f44336,stroke-width:2px
+```
+
+**Figure 11: Question Complexity Levels** - As questions get more complex, you need more sophisticated retrieval strategies.
+
+### Level 1: Direct Retrieval
+
+The simplest case—one chunk contains the complete answer.
+
+| Question | What Happens |
+|----------|--------------|
+| "What is Station 36's Hebrew name?" | Search finds: "תחנה 36 - שדרות הציונות" |
+| "How deep is the platform?" | Search finds: "Platform depth: 18 meters" |
+
+**Strategy**: Basic vector or hybrid search with `top_k=5`
+
+### Level 2: Multi-Chunk Synthesis
+
+The answer exists in the chunks, but spread across multiple pieces.
+
+**2A: Same Document** - Chunks scattered across pages
+
+```
+Query: "Summarize Station 36 accessibility features"
+
+Chunk 12: "Three elevators connect platform to street level..."
+Chunk 15: "Ramp gradient: 1:12, width: 1.5 meters..."  
+Chunk 18: "Tactile paving installed at all entrances..."
+
+→ LLM must COMBINE all three chunks into one answer
+```
+
+**Strategy**: Increase `top_k` to 10-15, use semantic reranking
+
+**2B: Cross-Document** - Information in different documents
+
+```
+Query: "Compare accessibility across M1 stations"
+
+station_36.pdf: "3 elevators, 2 ramps..."
+station_34.pdf: "2 elevators, 3 ramps..."
+station_38.pdf: "4 elevators, 1 ramp..."
+
+→ LLM must SYNTHESIZE across documents
+```
+
+**Strategy**: **GraphRAG** (Module 6) builds entity relationships
+
+### Level 3: Reasoning-Required Questions
+
+**The answer is NOT directly stated in any chunk.** The model must reason, rewrite queries, or chain facts.
+
+**Example: Multi-Hop Question**
+
+```
+Query: "What public transit connects to the station nearest Rabin Square?"
+
+This can't be answered directly! The model must:
+
+Step 1: Search "station near Rabin Square"
+        → Finds: "Station 34 is 200m from Rabin Square"
+        → Extracts entity: Station 34
+
+Step 2: Search "transit connections Station 34"  ← Uses discovered entity!
+        → Finds: "Bus lines 5, 24, 25 connect to Station 34"
+
+Final Answer: "Bus lines 5, 24, 25 connect to Station 34, 
+              the nearest station to Rabin Square"
+```
+
+**Key Insight**: The original query can't be answered in one search—the model must **discover** "Station 34" first.
+
+### Advanced RAG Techniques for Level 3
+
+| Technique | What It Does | When to Use |
+|-----------|--------------|-------------|
+| **Query Decomposition** | Breaks "A and B and C?" into 3 separate queries | Multi-part questions |
+| **Iterative Retrieval** | Search → Extract entities → Search again | Entity bridging (Module 7) |
+| **Self-RAG** | Model asks "Do I have enough context?" | Quality-critical apps |
+| **Corrective RAG** | Model detects bad retrieval, tries different strategy | High-stakes answers |
+| **Agentic RAG** | Full agent loop: retrieve → reason → rewrite → retrieve | Research questions |
+
+### Choosing the Right Strategy
+
+| Question Characteristic | Recommended Approach |
+|------------------------|---------------------|
+| Simple factual question | Hybrid + Semantic (Parts 3-4) |
+| Needs multiple chunks from same doc | Increase top_k + reranking |
+| Needs data from multiple docs | GraphRAG (Module 6) |
+| Multi-part question | Agentic Retrieval (Part 7) |
+| Chunks don't contain entity IDs | Iterative Retrieval (Module 7) |
+
+> **Coming up:** Part 6 covers retrieval patterns for mixed content. Part 7 covers Agentic Retrieval for Level 3 questions.
+
+---
+
+## Part 6: Retrieval Patterns for RAG
 
 ### The Challenge: One Size Doesn't Fit All
 
@@ -568,37 +487,35 @@ A simple "retrieve top-5 chunks" approach often fails. We need **retrieval patte
 
 Here are the main patterns, organized by what problem they solve:
 
+| Problem | What Happens | Solution Pattern |
+|---------|--------------|------------------|
+| **Mixed Content** | Text chunks outrank tables and figures | **Multi-Retriever** |
+| **Complex Questions** | Single query misses aspects of the answer | **Agentic Retrieval** |
+| **Specific Content Need** | User explicitly wants "the table" or "the map" | **Intent-Based Filtering** |
+| **Simple Factual** | Direct question with clear answer | **Hybrid + Semantic** (baseline) |
+
 ```mermaid
-flowchart TB
-    subgraph Problem1[Problem: Mixed Content Types]
-        P1[Text drowns out tables and figures]
-        P1 --> S1[Multi-Retriever Pattern]
+flowchart LR
+    subgraph PATTERNS[Retrieval Patterns]
+        direction TB
+        P1[Hybrid + Semantic]
+        P2[Multi-Retriever]
+        P3[Intent Filtering]
+        P4[Agentic]
     end
     
-    subgraph Problem2[Problem: Complex Questions]
-        P2[Single query misses aspects]
-        P2 --> S2[Agentic Retrieval]
-        P2 --> S2b[Query Decomposition]
-    end
+    Q1[Simple Question] --> P1
+    Q2[Mixed Content Docs] --> P2
+    Q3[Show me the table] --> P3
+    Q4[Multi-part Question] --> P4
     
-    subgraph Problem3[Problem: Need Specific Content]
-        P3[User wants table or map specifically]
-        P3 --> S3[Intent-Based Filtering]
-    end
-    
-    subgraph Baseline[Baseline for Simple Queries]
-        B1[Factual single-topic questions]
-        B1 --> BS[Hybrid + Semantic Search]
-    end
-    
-    style S1 fill:#4caf50,color:#fff
-    style S2 fill:#9c27b0,color:#fff
-    style S2b fill:#ff9800,color:#fff
-    style S3 fill:#2196f3,color:#fff
-    style BS fill:#8bc34a,color:#fff
+    style P1 fill:#8bc34a,color:#fff
+    style P2 fill:#4caf50,color:#fff
+    style P3 fill:#2196f3,color:#fff
+    style P4 fill:#9c27b0,color:#fff
 ```
 
-**Figure 13: Retrieval Patterns by Problem** - Each pattern solves a specific problem. In practice, you often **combine** patterns. For example: Multi-Retriever (for mixed content) + Semantic Ranking (for quality).
+**Figure 12: Pattern Selection** - Match the retrieval pattern to your question type. In practice, combine patterns as needed.
 
 ### Pattern 1: Hybrid + Semantic (The Baseline)
 
@@ -648,7 +565,7 @@ flowchart TB
     style FINAL fill:#c8e6c9,stroke:#2e7d32
 ```
 
-**Figure 14: Multi-Retriever Pattern** - The query runs three times with different `content_type` filters. Each retriever returns its top results. The merge step combines them into diverse context.
+**Figure 13: Multi-Retriever Pattern** - The query runs three times with different `content_type` filters. Each retriever returns its top results. The merge step combines them into diverse context.
 
 **Concrete Example:**
 
@@ -692,7 +609,7 @@ flowchart LR
     style DETECT fill:#fff9c4,stroke:#f9a825
 ```
 
-**Figure 15: Intent-Based Filtering** - Keywords in the query trigger specific filters. Hebrew keywords work too: "טבלה" (table), "מפה" (map).
+**Figure 14: Intent-Based Filtering** - Keywords in the query trigger specific filters. Hebrew keywords work too: "טבלה" (table), "מפה" (map).
 
 **Intent Detection Keywords:**
 
@@ -727,7 +644,7 @@ flowchart TB
     style SEMANTIC fill:#f3e5f5,stroke:#9c27b0
 ```
 
-**Figure 16: Combined Retrieval Pipeline** - For Metro documents, we: (1) Check if user wants specific content type, (2) Use Multi-Retriever for general queries, (3) Apply semantic reranking, (4) Build context, (5) Generate answer.
+**Figure 15: Combined Retrieval Pipeline** - For Metro documents, we: (1) Check if user wants specific content type, (2) Use Multi-Retriever for general queries, (3) Apply semantic reranking, (4) Build context, (5) Generate answer.
 
 **Recommended Pipeline for Metro Documents:**
 
@@ -748,14 +665,14 @@ flowchart TB
 | Simple factual question, homogeneous docs | Hybrid + Semantic |
 | Documents have text, tables, AND figures | **Multi-Retriever** |
 | User explicitly asks for "table" or "map" | Intent-Based Filtering |
-| Multi-part question ("location AND capacity AND attractions") | Agentic Retrieval (Part 6) |
+| Multi-part question ("location AND capacity AND attractions") | Agentic Retrieval (Part 7) |
 | Need to compare multiple items | Query Decomposition |
 
 **For this workshop (Metro Station documents):** Use **Multi-Retriever + Semantic Reranking** as your default, with Intent-Based Filtering when users request specific content types.
 
 ---
 
-## Part 6: Agentic Retrieval (Preview)
+## Part 7: Agentic Retrieval (Preview)
 
 ### The Problem with Traditional RAG
 
@@ -769,7 +686,7 @@ flowchart LR
     style A1 fill:#ffcdd2,stroke:#e53935
 ```
 
-**Figure 17: Traditional RAG Limitation** - When a user asks "Tell me about Station 36: its location, passenger capacity, and nearby attractions," a single query might only retrieve location information, leading to an incomplete answer.
+**Figure 16: Traditional RAG Limitation** - When a user asks "Tell me about Station 36: its location, passenger capacity, and nearby attractions," a single query might only retrieve location information, leading to an incomplete answer.
 
 **Example failure:**
 - **User Question:** "What is Station 36's location, how many passengers does it handle, and what attractions are nearby?"
@@ -803,7 +720,7 @@ flowchart TB
     style FINAL fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
 ```
 
-**Figure 18: Agentic Retrieval Flow** - The LLM Query Planner (yellow) analyzes the question and generates focused subqueries (green). Each subquery retrieves specific content. The Semantic Reranker (purple) merges and deduplicates results for comprehensive coverage.
+**Figure 17: Agentic Retrieval Flow** - The LLM Query Planner (yellow) analyzes the question and generates focused subqueries (green). Each subquery retrieves specific content. The Semantic Reranker (purple) merges and deduplicates results for comprehensive coverage.
 
 **How it works step-by-step:**
 
@@ -847,7 +764,7 @@ flowchart LR
     style ANS fill:#e8f5e9,stroke:#4caf50
 ```
 
-**Figure 19: Complete RAG Pipeline** - From user question to final answer in 5 steps: (1) Embed the query, (2) Run hybrid search, (3) Rerank results, (4) Build prompt context, (5) Generate answer with LLM.
+**Figure 18: Complete RAG Pipeline** - From user question to final answer in 5 steps: (1) Embed the query, (2) Run hybrid search, (3) Rerank results, (4) Build prompt context, (5) Generate answer with LLM.
 
 **Detailed breakdown:**
 
