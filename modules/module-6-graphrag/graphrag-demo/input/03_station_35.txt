@@ -1,0 +1,43 @@
+
+# Station 35 (Kiryat Arie) Technical Specification
+
+## Overview
+
+Station 35 is an underground metro station serving the Kiryat Arie business district 
+in Petah Tikva. It is the northernmost station on the initial M1 segment.
+
+## Station Specifications
+
+- **Depth**: 22 meters below ground level
+- **Platform Length**: 150 meters
+- **Platform Width**: 10 meters
+- **Daily Passenger Capacity**: 35,000 passengers
+- **Peak Hour Capacity**: 6,500 passengers
+- **Entrances**: 2 (Business District and Residential)
+
+## Connected Systems
+
+Station 35 depends on the following infrastructure:
+- **Ventilation System A**: SHARED with Station 36 (critical dependency!)
+- **Central Power Grid**: Connected via Transformer 35A
+- **Fire Suppression System**: Connected to Station 36's system
+- **Signaling System**: Controlled by Central Traffic Control
+
+## Adjacent Stations
+
+- **South**: Station 36 (Shderot HaTzionut) - 1.2 km tunnel distance
+
+## Shared Infrastructure Warning
+
+⚠️ **CRITICAL**: Station 35 shares Ventilation System A with Station 36.
+If Ventilation System A fails:
+- Both Station 35 and Station 36 lose ventilation
+- Both stations may require evacuation
+- Passengers from both stations affected: ~80,000 daily
+
+## Construction Details
+
+- **Contractor**: Shapir Engineering (same contractor as Station 36)
+- **Construction Period**: 2019-2024
+- **Method**: Cut-and-cover 
+- **Project Manager**: Yossi Cohen (Shapir Engineering)

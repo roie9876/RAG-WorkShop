@@ -1,0 +1,45 @@
+
+# Station 36 (Shderot HaTzionut) Technical Specification
+
+## Overview
+
+Station 36 (שדרות הציונות) is a deep underground metro station located at the 
+intersection of Jabotinsky Street and Shderot HaTzionut in Petah Tikva. It serves 
+the Nachalat Yehuda neighborhood and surrounding residential areas.
+
+## Station Specifications
+
+- **Depth**: 25 meters below ground level
+- **Platform Length**: 150 meters
+- **Platform Width**: 12 meters  
+- **Daily Passenger Capacity**: 45,000 passengers
+- **Peak Hour Capacity**: 8,500 passengers
+- **Entrances**: 3 (North, South, and Central Plaza)
+
+## Connected Systems
+
+Station 36 depends on the following infrastructure:
+- **Ventilation System A**: Shared with Station 35 (critical system)
+- **Central Power Grid**: Connected via Transformer 36A
+- **Fire Suppression System**: Connected to Station 35's system
+- **Signaling System**: Controlled by Central Traffic Control
+
+## Adjacent Stations
+
+- **North**: Station 35 (Kiryat Arie) - 1.2 km tunnel distance
+- **South**: Station 37 (Central Hub) - 0.8 km tunnel distance
+
+## Failure Modes
+
+If Station 36 becomes unavailable:
+1. Passengers must use Station 35 or Station 37 as alternatives
+2. If Ventilation System A fails, Station 35 is also affected (shared system)
+3. Train service may continue through the station without stopping
+4. Emergency evacuation routes lead to both Station 35 and surface exits
+
+## Construction Details
+
+- **Contractor**: Shapir Engineering
+- **Construction Period**: 2019-2024
+- **Method**: Cut-and-cover with TBM tunnel connections
+- **Project Manager**: Yossi Cohen (Shapir Engineering)

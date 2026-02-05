@@ -1,0 +1,60 @@
+
+# Incident Report: Ventilation Failure - March 15, 2026
+
+## Incident Summary
+
+On March 15, 2026 at 08:47 local time, Ventilation System A experienced a complete 
+failure affecting both Station 35 and Station 36. Both stations were evacuated as 
+a precaution, disrupting morning rush hour service for approximately 2 hours.
+
+## Timeline
+
+- 08:47: Ventilation System A main fans shut down unexpectedly
+- 08:48: SCADA alerts triggered at NTA Control Center
+- 08:49: Station 35 air quality sensors detect reduced airflow
+- 08:50: Station 36 air quality sensors detect reduced airflow
+- 08:52: Emergency generators activate automatically
+- 08:55: Decision made to evacuate BOTH stations
+- 09:00: Station 35 evacuation begins (3,200 passengers)
+- 09:05: Station 36 evacuation begins (4,100 passengers)
+- 09:25: Both stations confirmed empty
+- 09:30: Climatec Systems technicians arrive on site
+- 10:15: Root cause identified - power supply unit failure
+- 10:45: Temporary repair completed, system restarted
+- 11:00: Station 35 reopened
+- 11:05: Station 36 reopened
+
+## Root Cause
+
+The main power supply unit for Ventilation System A failed due to capacitor 
+degradation. The unit was 18 months past its recommended replacement date.
+
+## Impact
+
+- **Duration**: 2 hours 13 minutes of service disruption
+- **Passengers evacuated**: 7,300 (3,200 from Station 35 + 4,100 from Station 36)
+- **Trains affected**: 12 trains rerouted or held
+- **Estimated economic impact**: ₪450,000
+
+## Key Finding: Shared System Cascade
+
+This incident demonstrates the cascade effect of shared infrastructure:
+1. Single failure point (Ventilation System A power supply)
+2. Affected TWO stations (Station 35 AND Station 36)
+3. Combined evacuation of 7,300+ passengers
+4. Lesson: Shared systems require redundant power supplies
+
+## Action Items
+
+1. [Climatec Systems] Replace all power supply units on ventilation systems
+2. [NTA] Add redundant power supply to Ventilation System A
+3. [NTA] Review all shared systems for single points of failure
+4. [Shapir Engineering] Update emergency procedures for multi-station events
+5. [Training] Conduct joint evacuation drill for Stations 35 and 36
+
+## Responsible Parties
+
+- **Station 35**: Shapir Engineering (Yossi Cohen)
+- **Station 36**: Shapir Engineering (Yossi Cohen)  
+- **Ventilation System A**: Climatec Systems (maintenance contractor)
+- **Overall Response**: NTA Control Center

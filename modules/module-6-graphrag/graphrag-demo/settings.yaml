@@ -1,12 +1,13 @@
 # GraphRAG Configuration for Azure OpenAI
 # For GraphRAG version 2.7.x
+# Customized for Israel M1 Metro Line documents
 
 models:
   default_chat_model:
     type: azure_openai_chat
     model: gpt-4.1
-    api_base: https://ai-ragworkv2-ixhnffsfsegns.cognitiveservices.azure.com/
-    api_version: "2024-08-01-preview"
+    api_base: https://ai-ragworkv2-vtgal6fjx3fcc.cognitiveservices.azure.com/
+    api_version: "2024-12-01-preview"
     deployment_name: gpt-4.1
     api_key: ${GRAPHRAG_API_KEY}
     auth_type: api_key
@@ -18,8 +19,8 @@ models:
   default_embedding_model:
     type: azure_openai_embedding
     model: text-embedding-3-large
-    api_base: https://ai-ragworkv2-ixhnffsfsegns.cognitiveservices.azure.com/
-    api_version: "2024-08-01-preview"
+    api_base: https://ai-ragworkv2-vtgal6fjx3fcc.cognitiveservices.azure.com/
+    api_version: "2024-12-01-preview"
     deployment_name: text-embedding-3-large
     api_key: ${GRAPHRAG_API_KEY}
     auth_type: api_key
@@ -38,10 +39,10 @@ chunking:
 
 extract_graph:
   entity_types:
-    - SERVICE
-    - TEAM
+    - STATION
+    - SYSTEM
+    - CONTRACTOR
     - PERSON
-    - TECHNOLOGY
     - INCIDENT
   max_gleanings: 1
 

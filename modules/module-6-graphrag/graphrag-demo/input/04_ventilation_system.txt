@@ -1,0 +1,56 @@
+
+# Ventilation System A - Technical Specification
+
+## Overview
+
+Ventilation System A is a critical shared infrastructure serving both Station 35 
+and Station 36 on the Israel M1 Metro Line. The system provides fresh air circulation, 
+smoke extraction during emergencies, and temperature control.
+
+## System Components
+
+- **Main Fan Units**: 4 x 500 kW axial fans
+- **Backup Fans**: 2 x 250 kW redundant fans
+- **Air Shafts**: 3 vertical shafts connecting to surface
+- **Control System**: Automated with manual override capability
+
+## Stations Served
+
+Ventilation System A serves the following stations:
+- **Station 35 (Kiryat Arie)**: Primary ventilation
+- **Station 36 (Shderot HaTzionut)**: Primary ventilation
+
+## Dependencies
+
+Ventilation System A depends on:
+- **Central Power Grid**: Primary power source
+- **Emergency Generators**: Backup power (30-minute capacity)
+- **SCADA Control System**: Remote monitoring and control
+- **Fire Detection System**: Triggers smoke extraction mode
+
+## Failure Modes and Impact
+
+### Single Fan Failure
+- Impact: Reduced capacity, system operates at 75%
+- Stations affected: Both Station 35 and Station 36
+- Action: Reduced train frequency until repair
+
+### Complete System Failure
+- Impact: CRITICAL - Both stations lose ventilation
+- Stations affected: Station 35 AND Station 36
+- Action: Immediate evacuation of both stations required
+- Estimated passengers affected: 80,000+ daily
+- Backup: Emergency generators provide 30 minutes for evacuation
+
+## Maintenance Schedule
+
+- **Weekly**: Filter inspection and cleaning
+- **Monthly**: Fan motor inspection
+- **Quarterly**: Full system test including emergency mode
+- **Annually**: Complete overhaul by Climatec Systems Ltd.
+
+## Emergency Contacts
+
+- **Climatec Systems**: 24/7 emergency line
+- **NTA Control Center**: Central monitoring
+- **Fire Department**: Automatic notification on smoke detection

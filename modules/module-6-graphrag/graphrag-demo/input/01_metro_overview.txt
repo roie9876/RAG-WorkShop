@@ -1,0 +1,35 @@
+
+# Israel M1 Metro Line - System Overview
+
+The M1 Metro Line is Israel's first underground metro system, serving the Tel Aviv 
+metropolitan area. The line runs from Petah Tikva in the east to Tel Aviv's central 
+business district, with planned extensions to Bat Yam in the south.
+
+## Stations on the Northern Segment
+
+The northern segment includes the following stations:
+
+1. **Station 35 (Kiryat Arie)**: Underground station serving the Kiryat Arie business 
+   district. Connects to Station 36 to the south. Shares Ventilation System A with 
+   Station 36 due to their proximity.
+
+2. **Station 36 (Shderot HaTzionut / שדרות הציונות)**: Deep underground station at 
+   the intersection of Jabotinsky and HaTzionut. This station connects to Station 35 
+   to the north and Station 37 to the south.
+
+3. **Station 37 (Central Hub)**: Major interchange station connecting M1 to future 
+   M2 and M3 lines. All northern stations feed passenger traffic into this hub.
+
+## System Dependencies
+
+Critical infrastructure relationships:
+- Stations 35 and 36 share Ventilation System A (if it fails, both stations affected)
+- All stations connect to Central Power Grid via the main transformer
+- The Signaling System controls train movements between all stations
+- Emergency systems are interconnected for coordinated evacuations
+
+## Construction Contractors
+
+- Shapir Engineering: Responsible for Station 35, Station 36, and tunneling
+- Solel Boneh: Responsible for Station 37 (Central Hub)
+- NTA Metropolitan Mass Transit: Overall project management
