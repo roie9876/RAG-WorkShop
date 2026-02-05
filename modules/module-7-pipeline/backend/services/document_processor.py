@@ -278,6 +278,269 @@ class DocumentProcessor:
         logger.info(f"✅ Document processing complete: {result}")
         return result
     
+    async def process_image(
+        self,
+        blob_path: str,
+        content: bytes,
+        filename: str,
+        export_to_graphrag: bool = True,
+        auto_index_graphrag: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """
+        Process an image file with OCR + GPT-4V Vision description.
+        
+        Pipeline:
+        1. Run OCR with Document Intelligence (prebuilt-read model)
+        2. Generate rich description with GPT-4V Vision
+        3. Upload image to Blob Storage
+        4. Create a single "figure" chunk with combined content
+        5. Generate embedding and index to Azure AI Search
+        6. Optionally export for GraphRAG
+        
+        This is ideal for:
+        - Metro maps, floor plans, diagrams
+        - Infographics with text labels
+        - Scanned documents as images
+        - Photos with visible text
+        
+        Args:
+            blob_path: Path where image is stored in blob
+            content: Image content as bytes
+            filename: Original filename
+            export_to_graphrag: If True, also export for GraphRAG indexing
+            auto_index_graphrag: If provided, overrides settings.graphrag_auto_index
+            
+        Returns:
+            Processing result with counts
+        """
+        self._auto_index_graphrag_override = auto_index_graphrag
+        
+        logger.info(f"Processing image with OCR + GPT-4V: {filename}")
+        
+        doc_id = filename.replace(".", "_").replace(" ", "_")[:50]
+        
+        # 1. Run OCR with Document Intelligence (prebuilt-read)
+        logger.info("Step 1: Running OCR with Document Intelligence...")
+        ocr_text = await self._extract_ocr_from_image(content, filename)
+        logger.info(f"   ✅ Extracted {len(ocr_text)} characters via OCR")
+        
+        # 2. Generate description with GPT-4V
+        logger.info("Step 2: Generating description with GPT-4V Vision...")
+        vision_description = await self._generate_image_description(content, filename, ocr_text)
+        logger.info(f"   ✅ Generated description: {vision_description[:100]}...")
+        
+        # 3. Upload image to Blob Storage
+        logger.info("Step 3: Uploading image to Blob Storage...")
+        figure_id = f"image_000"  # Single image = single figure
+        image_blob_path = await self.blob_service.upload_figure(content, doc_id, figure_id)
+        # Get SAS URL for the image
+        sas_result = await self.blob_service.generate_sas_url(image_blob_path)
+        image_url = sas_result.get("url", image_blob_path)
+        logger.info(f"   ✅ Uploaded to: {image_blob_path}")
+        
+        # 4. Create a single figure chunk with combined content
+        logger.info("Step 4: Creating figure chunk...")
+        
+        # Combine OCR text and vision description for rich searchability
+        combined_content = f"""Image: {filename}
+
+OCR Extracted Text:
+{ocr_text if ocr_text else "(No text detected)"}
+
+AI Visual Description:
+{vision_description}"""
+        
+        chunk = {
+            "id": f"{doc_id}_image_000",
+            "content": combined_content,
+            "content_type": "figure",
+            "source_document": filename,
+            "source_document_blob_path": blob_path,
+            "page_numbers": [1],
+            "section_header": f"Image: {filename}",
+            "doc_id": doc_id,
+            "image_blob_path": image_url,
+            "figure_caption": vision_description[:500] if len(vision_description) > 500 else vision_description,
+            # Store OCR and description separately for future use
+            "ocr_text": ocr_text,
+            "vision_description": vision_description
+        }
+        
+        chunks = [chunk]
+        logger.info(f"   ✅ Created 1 figure chunk")
+        
+        # 5. Generate embedding and index to Azure AI Search
+        logger.info("Step 5: Generating embedding and indexing to Azure AI Search...")
+        await self.search_service.index_chunks(chunks)
+        logger.info(f"   ✅ Indexed 1 chunk to Azure AI Search")
+        
+        result = {
+            "doc_id": doc_id,
+            "filename": filename,
+            "page_count": 1,
+            "chunks_created": 1,
+            "text_chunks": 0,
+            "table_chunks": 0,
+            "figure_chunks": 1,
+            "figures_processed": 1,
+            "figures_extracted": 1,
+            "ocr_characters": len(ocr_text),
+            "processing_mode": "image_ocr_gpt4v"
+        }
+        
+        # 6. Export for GraphRAG (DUAL-INDEX)
+        if export_to_graphrag and self.settings.graphrag_enabled:
+            logger.info("Step 6: Exporting for GraphRAG...")
+            try:
+                graphrag_result = await self._export_to_graphrag(chunks, filename)
+                result["graphrag_exported"] = True
+                result["graphrag_path"] = graphrag_result.get("path", "")
+                logger.info(f"   ✅ Exported to GraphRAG: {result['graphrag_path']}")
+            except Exception as e:
+                logger.warning(f"   ⚠️ GraphRAG export failed: {e}")
+                result["graphrag_exported"] = False
+                result["graphrag_error"] = str(e)
+        
+        logger.info(f"✅ Image processing complete: {result}")
+        return result
+    
+    async def _extract_ocr_from_image(self, content: bytes, filename: str) -> str:
+        """
+        Extract text from image using Document Intelligence OCR (prebuilt-read model).
+        
+        Args:
+            content: Image bytes
+            filename: Filename for content type detection
+            
+        Returns:
+            Extracted text as string
+        """
+        try:
+            # Determine content type from filename
+            ext = filename.lower().split('.')[-1] if '.' in filename else 'png'
+            content_type_map = {
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "png": "image/png",
+                "bmp": "image/bmp",
+                "tiff": "image/tiff",
+                "tif": "image/tiff",
+                "heif": "image/heif",
+            }
+            content_type = content_type_map.get(ext, "image/png")
+            
+            logger.info(f"Running DI OCR on image ({content_type})...")
+            
+            # Use prebuilt-read model for OCR
+            poller = self.di_client.begin_analyze_document(
+                model_id="prebuilt-read",
+                body=content,
+                content_type=content_type
+            )
+            
+            result = poller.result()
+            
+            # Extract all text content
+            text_parts = []
+            for page in result.pages:
+                for line in page.lines:
+                    text_parts.append(line.content)
+            
+            extracted_text = "\n".join(text_parts)
+            logger.info(f"OCR extracted {len(text_parts)} lines, {len(extracted_text)} characters")
+            
+            return extracted_text
+            
+        except Exception as e:
+            logger.warning(f"OCR extraction failed: {e}")
+            return ""
+    
+    async def _generate_image_description(
+        self, 
+        content: bytes, 
+        filename: str, 
+        ocr_text: str
+    ) -> str:
+        """
+        Generate a rich description of the image using GPT-4V Vision.
+        
+        Args:
+            content: Image bytes
+            filename: Filename for context
+            ocr_text: OCR-extracted text to help guide description
+            
+        Returns:
+            AI-generated description
+        """
+        if not self.openai_client:
+            logger.warning("OpenAI client not available for image description")
+            return f"Image file: {filename}"
+        
+        try:
+            # Convert image to base64
+            image_b64 = base64.b64encode(content).decode('utf-8')
+            
+            # Determine MIME type
+            ext = filename.lower().split('.')[-1] if '.' in filename else 'png'
+            mime_map = {
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg", 
+                "png": "image/png",
+                "bmp": "image/bmp",
+                "tiff": "image/tiff",
+                "tif": "image/tiff",
+            }
+            mime_type = mime_map.get(ext, "image/png")
+            
+            # Build comprehensive prompt
+            prompt = f"""Analyze this image in detail for search indexing and retrieval.
+
+Filename: {filename}
+
+{"OCR detected the following text in the image:" if ocr_text else "No text was detected by OCR."}
+{ocr_text[:2000] if ocr_text else ""}
+
+Provide a comprehensive description including:
+1. **Type of image**: Map, diagram, chart, photo, schematic, infographic, etc.
+2. **Main subject**: What is this image primarily about?
+3. **All visible elements**: List all labeled items, stations, routes, components, etc.
+4. **Text and numbers**: Confirm or expand on the OCR text - note any text that OCR might have missed
+5. **Relationships**: How are elements connected? What routes/paths exist?
+6. **Colors and symbols**: What do different colors or symbols represent?
+7. **Scale/dimensions**: If present, note any scale indicators or measurements
+
+Write your response in the SAME LANGUAGE as the text in the image.
+If the image contains Hebrew text, respond in Hebrew.
+Be thorough - this description will be used for semantic search."""
+
+            response = self.openai_client.chat.completions.create(
+                model=self.settings.azure_openai_deployment,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{image_b64}",
+                                    "detail": "high"  # Use high detail for maps/diagrams
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=2000  # Allow longer descriptions for complex images
+            )
+            
+            description = response.choices[0].message.content.strip()
+            logger.info(f"Generated image description ({len(description)} chars)")
+            return description
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate image description: {e}")
+            return f"Image file: {filename}. OCR text: {ocr_text[:500]}" if ocr_text else f"Image file: {filename}"
+
     async def _export_to_graphrag(self, chunks: List[Dict[str, Any]], filename: str) -> Dict[str, Any]:
         """
         Export enriched chunks for GraphRAG indexing.

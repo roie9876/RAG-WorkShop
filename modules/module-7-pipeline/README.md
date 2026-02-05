@@ -19,7 +19,8 @@ This module implements a **production-ready dual-index multimodal RAG pipeline**
 ```mermaid
 flowchart TB
     subgraph INPUT["📄 Document Input"]
-        PDF["PDF / Word / Excel"]
+        PDF["PDF / Word / Excel / PPT"]
+        IMG["🖼️ Images<br/>(JPG / PNG)"]
     end
 
     subgraph EXTRACTION["🔍 Document Intelligence Extraction"]
@@ -31,6 +32,15 @@ flowchart TB
         DI --> TEXT
         DI --> TABLES
         DI --> FIGURES
+    end
+
+    subgraph IMGPROC["🖼️ Image Processing"]
+        OCR["📝 OCR<br/>(prebuilt-read)"]
+        GPT4V["👁️ GPT-4V Vision<br/>(AI description)"]
+        IMGCHUNK["🖼️ Image Chunk<br/>(OCR + description)"]
+        
+        OCR --> IMGCHUNK
+        GPT4V --> IMGCHUNK
     end
 
     subgraph VISIONPROC["👁️ Vision Processing"]
@@ -49,6 +59,8 @@ flowchart TB
     end
 
     PDF --> DI
+    IMG --> OCR
+    IMG --> GPT4V
     FIGURES --> CROP
     TEXT --> TCHUNK
     TABLES --> TABCHUNK
@@ -74,6 +86,7 @@ flowchart TB
     TCHUNK --> DUAL
     TABCHUNK --> DUAL
     FIGCHUNK --> DUAL
+    IMGCHUNK --> DUAL
 
     subgraph QUERY["🔍 Query-Time Routing"]
         USERQ["User Query"]
@@ -105,6 +118,7 @@ flowchart TB
 
     style INPUT fill:#e1f5fe
     style EXTRACTION fill:#fff3e0
+    style IMGPROC fill:#e8eaf6
     style VISIONPROC fill:#f3e5f5
     style CHUNKING fill:#e8f5e9
     style VECTORPATH fill:#e3f2fd
@@ -254,6 +268,38 @@ This section explains **each step of the pipeline** in detail. Understanding the
 | Word | `.docx` | Preserves styles, headers, tables |
 | Excel | `.xlsx` | Extracts all sheets as tables |
 | PowerPoint | `.pptx` | Each slide processed separately |
+| **Images** | `.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`, `.tif`, `.heif` | **OCR + GPT-4V Vision description** |
+
+#### 🖼️ Image Processing Pipeline
+
+When you upload an image file (JPG, PNG, etc.), a specialized pipeline processes it:
+
+```mermaid
+flowchart LR
+    IMG["🖼️ Image File<br/>(JPG/PNG)"] --> OCR["📝 OCR<br/>(Document Intelligence<br/>prebuilt-read)"]
+    IMG --> VISION["👁️ GPT-4V Vision<br/>(Rich description)"]
+    OCR --> COMBINE["📦 Combined Chunk"]
+    VISION --> COMBINE
+    COMBINE --> EMBED["🧮 Embedding"]
+    EMBED --> INDEX["🔎 Azure AI Search"]
+    COMBINE --> GRAPHRAG["🕸️ GraphRAG"]
+```
+
+**Use cases for image upload:**
+- **Metro maps** – OCR extracts station names, GPT-4V describes routes and connections
+- **Floor plans** – OCR extracts labels, GPT-4V describes spatial layout
+- **Infographics** – OCR extracts text, GPT-4V describes visual relationships
+- **Scanned documents** – Full text extraction when PDF conversion isn't available
+
+**What happens when you upload an image:**
+1. **OCR Extraction** – Azure Document Intelligence (`prebuilt-read` model) extracts all visible text
+2. **Vision Description** – GPT-4V analyzes the image and generates a rich description including:
+   - Image type and purpose
+   - Visual elements (colors, shapes, layout)
+   - Relationships between elements
+   - Key information for semantic search
+3. **Combined Indexing** – Both OCR text and AI description are combined into a single searchable chunk
+4. **Dual Export** – Indexed to both Azure AI Search and GraphRAG
 
 **What happens:**
 1. Document (PDF, Word, Excel, or PowerPoint) is sent to Azure Document Intelligence using the `prebuilt-layout` model

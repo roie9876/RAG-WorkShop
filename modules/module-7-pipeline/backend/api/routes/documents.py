@@ -51,9 +51,20 @@ class BatchUploadResponse(BaseModel):
 
 def validate_file_extension(filename: str) -> tuple[bool, str]:
     """Validate file extension and return (is_valid, extension)."""
-    allowed_extensions = {".pdf", ".docx", ".xlsx", ".pptx"}
+    # Documents supported by Document Intelligence prebuilt-layout
+    document_extensions = {".pdf", ".docx", ".xlsx", ".pptx"}
+    # Images supported by DI prebuilt-read (OCR) + GPT-4V (description)
+    image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".heif"}
+    allowed_extensions = document_extensions | image_extensions
     file_ext = "." + filename.split(".")[-1].lower() if "." in filename else ""
     return file_ext in allowed_extensions, file_ext
+
+
+def is_image_file(filename: str) -> bool:
+    """Check if file is an image."""
+    image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".heif"}
+    file_ext = "." + filename.split(".")[-1].lower() if "." in filename else ""
+    return file_ext in image_extensions
 
 
 @router.post("/upload", response_model=DocumentStatus)
@@ -65,14 +76,20 @@ async def upload_document(
     """
     Upload a document for processing.
     
-    Supports: PDF, DOCX, XLSX, PPTX
+    Supports: PDF, DOCX, XLSX, PPTX, JPG, PNG, BMP, TIFF
     
-    The document will be:
+    Documents will be:
     1. Uploaded to Azure Blob Storage
     2. Processed with Document Intelligence (bounding boxes)
     3. Processed with Content Understanding (semantic descriptions)
     4. Chunked and indexed in Azure AI Search
     5. Optionally: GraphRAG indexing (if enable_graphrag_index=True)
+    
+    Images (JPG, PNG, etc.) will be:
+    1. Uploaded to Azure Blob Storage
+    2. OCR extracted with Document Intelligence (prebuilt-read)
+    3. Description generated with GPT-4.1 Vision
+    4. Indexed as a single "figure" chunk with OCR text + AI description
     
     Args:
         file: The document file to upload
@@ -84,7 +101,7 @@ async def upload_document(
     if not is_valid:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type: {file_ext}. Allowed: .pdf, .docx, .xlsx, .pptx"
+            detail=f"Unsupported file type: {file_ext}. Allowed: .pdf, .docx, .xlsx, .pptx, .jpg, .png, .bmp, .tiff"
         )
     
     logger.info(f"📤 Upload request received: {file.filename} ({file_ext})")
@@ -236,14 +253,24 @@ async def process_document_background(
             logger.info(f"🧹 Deleting existing chunks for doc_id={doc_id}")
             await search_service.delete_documents_by_doc_id(doc_id)
         
-        # 2. Process with DI + CU
-        logger.info(f"🔍 Processing with Document Intelligence + Content Understanding...")
-        result = await doc_processor.process_document(
-            blob_path=blob_path,
-            content=content,
-            filename=filename,
-            auto_index_graphrag=enable_graphrag_index
-        )
+        # 2. Process document or image
+        # Check if this is an image file
+        if is_image_file(filename):
+            logger.info(f"🖼️ Processing as image with OCR + GPT-4V Vision...")
+            result = await doc_processor.process_image(
+                blob_path=blob_path,
+                content=content,
+                filename=filename,
+                auto_index_graphrag=enable_graphrag_index
+            )
+        else:
+            logger.info(f"🔍 Processing with Document Intelligence + Content Understanding...")
+            result = await doc_processor.process_document(
+                blob_path=blob_path,
+                content=content,
+                filename=filename,
+                auto_index_graphrag=enable_graphrag_index
+            )
         logger.info(f"✅ Processing complete: {result}")
         
         # 3. Update status
