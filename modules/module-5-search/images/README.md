@@ -2,59 +2,50 @@
 
 This folder contains screenshots from Azure Portal to help workshop participants understand the Azure AI Search concepts visually.
 
-## Required Screenshots
+## Available Screenshots ✅
 
 ### Part 1: Embeddings
 
-| Filename | Description | How to Capture |
-|----------|-------------|----------------|
-| `openai-deployments.png` | Azure OpenAI model deployments showing text-embedding-3-large | Azure Portal → Azure OpenAI → Model deployments |
+| Filename | Description |
+|----------|-------------|
+| `openai-deployments.jpeg` | Azure OpenAI model deployments showing text-embedding-3-large |
 
 ### Part 2: Azure AI Search Index
 
-| Filename | Description | How to Capture |
-|----------|-------------|----------------|
-| `search-service-overview.png` | Azure AI Search service overview page | Azure Portal → AI Search → Overview |
-| `search-index-schema.png` | Index schema showing fields (id, content, embedding, etc.) | Azure Portal → AI Search → Indexes → module5-metro-index → Fields |
-| `search-index-documents.png` | Search Explorer showing indexed documents | Azure Portal → AI Search → Indexes → module5-metro-index → Search Explorer |
+| Filename | Description |
+|----------|-------------|
+| `search-service-overview.jpeg` | Azure AI Search service overview page |
+| `search-index-overview.jpeg` | Index overview showing document count and storage |
+| `search-index-schema.jpeg` | Index schema showing fields (id, content, embedding, etc.) |
+| `search-index-documents.jpeg` | Search Explorer showing indexed documents |
 
 ### Part 3: Search Modes
 
-| Filename | Description | How to Capture |
-|----------|-------------|----------------|
-| `semantic-config.png` | Semantic configuration in index settings | Azure Portal → AI Search → Indexes → Semantic configurations |
+| Filename | Description |
+|----------|-------------|
+| `semantic-config.jpeg` | Semantic configuration in index settings |
 
 ### Part 5: Agentic Retrieval (Preview)
 
-| Filename | Description | How to Capture |
-|----------|-------------|----------------|
-| `search-tier-upgrade.png` | Azure AI Search pricing tier selection (Standard) | Azure Portal → AI Search → Settings → Scale |
-| `search-managed-identity.png` | Managed Identity configuration (System Assigned = ON) | Azure Portal → AI Search → Identity |
-| `search-auth-options.png` | Authentication options (API keys and/or RBAC) | Azure Portal → AI Search → Settings → Keys |
-| `search-rbac-roles.png` | RBAC role assignments on Search service | Azure Portal → AI Search → Access control (IAM) → Role assignments |
-| `knowledge-sources.png` | Knowledge Sources in AI Search (preview) | Azure Portal → AI Search → Knowledge sources |
-| `knowledge-bases.png` | Knowledge Bases in AI Search (preview) | Azure Portal → AI Search → Knowledge bases |
+| Filename | Description |
+|----------|-------------|
+| `search-tier-upgrade.jpeg` | Azure AI Search pricing tier selection (Standard) |
+| `search-managed-identity.jpeg` | Managed Identity configuration (System Assigned = ON) |
+| `search-auth-options.jpeg` | Authentication options (API keys and/or RBAC) |
+| `search-rbac-roles.jpeg` | RBAC role assignments on Search service |
+| `knowledge-sources.jpeg` | Knowledge Sources list in AI Search (preview) |
+| `knowledge-sources-details.jpeg` | Knowledge Source details view |
+| `knowledge-bases.jpeg` | Knowledge Bases list in AI Search (preview) |
+| `knowledge-bases-details.jpeg` | Knowledge Base details view |
 
 ## Screenshot Guidelines
 
-1. **Resolution**: Capture at a reasonable resolution (1200-1600px wide)
-2. **Format**: PNG preferred for clarity
-3. **Sensitive Data**: Blur or hide API keys, subscription IDs if visible
-4. **Annotations**: Add red boxes/arrows to highlight important areas (optional)
-5. **File Size**: Keep images under 500KB if possible (compress if needed)
+1. **Format**: JPEG format used for all screenshots
+2. **Sensitive Data**: Blur or hide API keys, subscription IDs if visible
 
-## How to Add Screenshots to the Notebook
+## How Screenshots are Referenced in the Notebook
 
 Screenshots are referenced in markdown cells using:
 ```markdown
-![Description](images/filename.png)
-```
-
-Example:
-```markdown
-### 📷 What You'll See in Azure Portal
-
-After running this cell, your index will appear in Azure Portal:
-
-![Search Index List](images/search-indexes-list.png)
+![Description](images/filename.jpeg)
 ```
