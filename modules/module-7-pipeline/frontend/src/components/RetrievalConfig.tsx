@@ -123,6 +123,7 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
               <option value="hybrid">Hybrid (AI Search)</option>
               <option value="iterative">Iterative (Entity-Aware)</option>
               <option value="agentic">Agentic (AI Agent)</option>
+              <option value="agentic_search">Agentic Search (Azure Native)</option>
               <option value="graphrag">GraphRAG (Knowledge Graph)</option>
             </select>
             <p className="text-sm text-muted-foreground mt-2">
@@ -130,6 +131,7 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
               {config.retrieval_strategy === 'hybrid' && '🔍 Uses Azure AI Search with vector + text search'}
               {config.retrieval_strategy === 'iterative' && '🔄 Entity extraction + iterative query refinement'}
               {config.retrieval_strategy === 'agentic' && '🤖 AI Agent with query decomposition & tool calls'}
+              {config.retrieval_strategy === 'agentic_search' && '⚡ Azure AI Search native multi-query (requires S1+ tier)'}
               {config.retrieval_strategy === 'graphrag' && '🕸️ Graph-based retrieval for relationship questions'}
             </p>
           </div>

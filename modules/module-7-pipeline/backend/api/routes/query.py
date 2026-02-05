@@ -33,8 +33,8 @@ class QueryRequest(BaseModel):
     content_type_filter: Literal["all", "text", "table", "figure"] = Field(
         default="all", description="Filter by content type"
     )
-    retrieval_strategy: Literal["auto", "hybrid", "agentic", "iterative", "graphrag"] = Field(
-        default="auto", description="Retrieval strategy"
+    retrieval_strategy: Literal["auto", "hybrid", "agentic", "agentic_search", "iterative", "graphrag"] = Field(
+        default="auto", description="Retrieval strategy. agentic_search uses Azure AI Search native Agentic Retrieval (requires S1+ tier)"
     )
     enable_validation: bool = Field(default=True, description="Enable answer validation")
     

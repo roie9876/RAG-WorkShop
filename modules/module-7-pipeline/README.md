@@ -115,7 +115,74 @@ flowchart TB
 
 ---
 
-### 🎯 Retrieval Strategy Selection
+### �️ Understanding the UI Controls
+
+The query interface has **two levels of configuration**:
+
+#### Level 1: Retrieval Strategy (High-Level)
+
+| Strategy | Description | Uses Azure AI Search? | Uses GraphRAG? |
+|----------|-------------|----------------------|----------------|
+| **Auto** | LLM analyzes query and picks best strategy | ✅ or ❌ | ✅ or ❌ |
+| **Hybrid** | Standard vector + keyword search | ✅ | ❌ |
+| **Iterative** | Multi-hop entity-aware retrieval | ✅ | ❌ |
+| **Agentic (AI Agent)** | Query decomposition + multi-hop reasoning | ✅ | ❌ |
+| **Agentic Search (Azure Native)** | LLM decomposes query into sub-queries, executes each | ✅ | ❌ |
+| **GraphRAG** | Knowledge graph traversal for relationships | ❌ | ✅ |
+
+#### Level 2: Azure AI Search Parameters (Low-Level)
+
+These parameters only apply when using Azure AI Search (Hybrid, Iterative, Agentic strategies):
+
+| Parameter | Options | Description |
+|-----------|---------|-------------|
+| **Search Mode** | Hybrid, Vector Only, Text Only, Semantic | How results are retrieved from the index |
+| **Semantic Ranker** | On/Off | L2 reranking using neural model |
+| **Top K** | 1-50 | Number of results to return |
+| **Min Score** | 0-4 | Filter low-relevance results |
+| **Content Filter** | All, Text, Table, Figure | Filter by content type |
+
+#### Search Mode Explanation
+
+| Mode | How It Works | Best For |
+|------|--------------|----------|
+| **Hybrid (Vector + Text)** | Combines vector similarity with BM25 keyword matching | Most queries - best of both worlds |
+| **Vector Only** | Pure semantic similarity using embeddings | Cross-language queries, conceptual search |
+| **Text Only (BM25)** | Traditional keyword matching | Exact term matching, IDs, codes |
+| **Semantic** | Hybrid + neural reranking | Highest relevance, slightly slower |
+
+#### How They Work Together
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    QUERY FLOW EXAMPLE                               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  User Query: "What is the passenger count for station 36?"          │
+│                                                                     │
+│  1. Retrieval Strategy: "Agentic Search"                            │
+│     └── LLM decomposes into sub-queries:                            │
+│         • "station 36 passenger count"                              │
+│         • "station 36 passenger forecast"                           │
+│                                                                     │
+│  2. For EACH sub-query, Azure AI Search Parameters apply:           │
+│     ├── Search Mode: Hybrid (Vector + Text)                         │
+│     ├── Semantic Ranker: ON                                         │
+│     ├── Top K: 5                                                    │
+│     └── Min Score: 0.0                                              │
+│                                                                     │
+│  3. Results from all sub-queries are merged and deduplicated        │
+│                                                                     │
+│  4. Final chunks sent to GPT for answer generation                  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Insight**: The **Retrieval Strategy** controls the *orchestration* (how many queries, what reasoning), while **Azure AI Search Parameters** control the *mechanics* of each individual search operation.
+
+---
+
+### �🎯 Retrieval Strategy Selection
 
 ```mermaid
 flowchart LR

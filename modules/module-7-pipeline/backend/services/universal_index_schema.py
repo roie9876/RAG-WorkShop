@@ -3,8 +3,10 @@ Universal Index Schema for Multimodal RAG.
 
 This schema works for ANY document type - no domain assumptions.
 Supports text, tables, and figures as first-class searchable entities.
+Supports Agentic Retrieval with integrated vectorizer.
 """
 
+import os
 from typing import List, Dict, Any, Optional
 from azure.search.documents.indexes.models import (
     SearchIndex,
@@ -18,6 +20,8 @@ from azure.search.documents.indexes.models import (
     SemanticConfiguration,
     SemanticField,
     SemanticPrioritizedFields,
+    AzureOpenAIVectorizer,
+    AzureOpenAIVectorizerParameters,
     SemanticSearch,
 )
 
@@ -25,6 +29,8 @@ from azure.search.documents.indexes.models import (
 def create_universal_rag_index(
     index_name: str,
     vector_dimensions: int = 3072,  # text-embedding-3-large
+    azure_openai_endpoint: Optional[str] = None,
+    azure_openai_embedding_deployment: str = "text-embedding-3-large",
 ) -> SearchIndex:
     """
     Create Azure AI Search index for universal multimodal RAG.
@@ -35,14 +41,21 @@ def create_universal_rag_index(
     - Figure chunks (with contextual captions)
     - Hybrid search (vector + keyword)
     - Filtered retrieval by chunk_type, page, section
+    - **Agentic Retrieval** with integrated vectorizer (requires S1+ tier)
     
     Args:
         index_name: Name for the search index
         vector_dimensions: Embedding dimensions (3072 for text-embedding-3-large)
+        azure_openai_endpoint: Azure OpenAI endpoint for integrated vectorizer
+        azure_openai_embedding_deployment: Embedding model deployment name
         
     Returns:
         SearchIndex ready for creation
     """
+    
+    # Get Azure OpenAI endpoint from env if not provided
+    if azure_openai_endpoint is None:
+        azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
     
     fields = [
         # === Identity Fields ===
@@ -139,7 +152,19 @@ def create_universal_rag_index(
         ),
     ]
     
-    # Vector search configuration
+    # Vector search configuration with integrated vectorizer for Agentic Retrieval
+    # The vectorizer embeds queries server-side (required for agentic search)
+    vectorizer = None
+    if azure_openai_endpoint:
+        vectorizer = AzureOpenAIVectorizer(
+            vectorizer_name="aoai-vectorizer",
+            parameters=AzureOpenAIVectorizerParameters(
+                resource_url=azure_openai_endpoint,
+                deployment_name=azure_openai_embedding_deployment,
+                model_name="text-embedding-3-large",
+            )
+        )
+    
     vector_search = VectorSearch(
         algorithms=[
             HnswAlgorithmConfiguration(
@@ -156,8 +181,10 @@ def create_universal_rag_index(
             VectorSearchProfile(
                 name="vector-profile",
                 algorithm_configuration_name="hnsw-config",
+                vectorizer_name="aoai-vectorizer" if vectorizer else None,  # Link to vectorizer for agentic search
             ),
         ],
+        vectorizers=[vectorizer] if vectorizer else [],
     )
     
     # Semantic configuration for reranking
@@ -175,7 +202,10 @@ def create_universal_rag_index(
         ),
     )
     
-    semantic_search = SemanticSearch(configurations=[semantic_config])
+    semantic_search = SemanticSearch(
+        configurations=[semantic_config],
+        default_configuration_name="semantic-config",  # Required for Agentic Retrieval
+    )
     
     return SearchIndex(
         name=index_name,

@@ -195,7 +195,7 @@ class GraphRAGService:
         
         self._ensure_loaded()
         
-        logger.info(f"GraphRAG {mode} search: {query[:100]}...")
+        logger.info(f"GraphRAG {mode} search (community_level={community_level}, response_type={response_type}): {query[:100]}...")
         
         try:
             if mode == "local":

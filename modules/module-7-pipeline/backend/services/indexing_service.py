@@ -32,7 +32,7 @@ class IndexingService:
         self,
         endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
-        index_name: str = "rag-multimodal-index",
+        index_name: Optional[str] = None,
     ):
         """
         Initialize the indexing service.
@@ -44,7 +44,7 @@ class IndexingService:
         """
         self.endpoint = endpoint or os.getenv("AZURE_SEARCH_ENDPOINT")
         self.api_key = api_key or os.getenv("AZURE_SEARCH_API_KEY")
-        self.index_name = index_name
+        self.index_name = index_name or os.getenv("MODULE7_SEARCH_INDEX_NAME", "module7-rag-index")
         
         if not self.endpoint or not self.api_key:
             raise ValueError("Azure AI Search endpoint and API key are required")
@@ -68,6 +68,10 @@ class IndexingService:
         """
         Create the search index if it doesn't exist.
         
+        Creates an Agentic-ready index with:
+        - Integrated Azure OpenAI vectorizer for server-side query embedding
+        - Default semantic configuration for agentic retrieval
+        
         Args:
             vector_dimensions: Embedding dimensions (3072 for text-embedding-3-large)
             
@@ -82,14 +86,20 @@ class IndexingService:
                 logger.info(f"Index {self.index_name} already exists")
                 return False
             
-            # Create index
+            # Get Azure OpenAI settings for integrated vectorizer
+            azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+            azure_openai_embedding = os.getenv("AZURE_OPENAI_DEPLOYMENT_EMBEDDING", "text-embedding-3-large")
+            
+            # Create agentic-ready index with integrated vectorizer
             index = create_universal_rag_index(
                 index_name=self.index_name,
                 vector_dimensions=vector_dimensions,
+                azure_openai_endpoint=azure_openai_endpoint,
+                azure_openai_embedding_deployment=azure_openai_embedding,
             )
             
             self.index_client.create_index(index)
-            logger.info(f"Created index: {self.index_name}")
+            logger.info(f"Created agentic-ready index: {self.index_name} (vectorizer: {azure_openai_endpoint is not None})")
             return True
             
         except Exception as e:

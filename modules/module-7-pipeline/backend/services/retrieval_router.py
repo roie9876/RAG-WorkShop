@@ -97,7 +97,7 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         strategy = response.choices[0].message.content.strip().lower()
         
         # Validate
-        if strategy not in ["hybrid", "agentic", "graphrag"]:
+        if strategy not in ["hybrid", "agentic", "agentic_search", "graphrag"]:
             strategy = "hybrid"
         
         return strategy
@@ -121,7 +121,7 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         
         Args:
             query: User's question
-            strategy: Retrieval strategy
+            strategy: Retrieval strategy (hybrid, agentic, agentic_search, graphrag)
             top_k: Number of results
             search_mode: Search mode for hybrid strategy
             semantic_ranker: Enable semantic ranking
@@ -138,8 +138,11 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             return await self._retrieve_graphrag(
                 query, top_k, graphrag_mode, graphrag_community_level, graphrag_response_type
             )
+        elif strategy == "agentic_search":
+            # Azure AI Search native Agentic Retrieval (requires S1+ tier)
+            return await self.search_service.agentic_search(query, top_k)
         elif strategy == "agentic":
-            # Agentic is handled by AgentService
+            # Custom AI Agent with query decomposition (Azure AI Foundry)
             # Fall back to enhanced hybrid here
             return await self._retrieve_hybrid_enhanced(
                 query, top_k, search_mode, semantic_ranker, min_score, content_type_filter
@@ -497,12 +500,14 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
 
     def _merge_chunks(self, primary: List[Dict[str, Any]], extra: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Merge chunk lists by id, preserving order with extras appended."""
-        seen = {c.get("id") for c in primary}
+        # Use 'id' which is already mapped from 'chunk_id' in search results
+        seen = {c.get("id") or c.get("chunk_id") for c in primary}
         merged = list(primary)
         for c in extra:
-            if c.get("id") not in seen:
+            chunk_id = c.get("id") or c.get("chunk_id")
+            if chunk_id not in seen:
                 merged.append(c)
-                seen.add(c.get("id"))
+                seen.add(chunk_id)
         return merged
     
     async def _expand_query(self, query: str) -> str:

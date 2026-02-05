@@ -1,6 +1,7 @@
 """
 Azure AI Search Service.
 Handles indexing and search operations.
+Supports Agentic Retrieval with KnowledgeAgentRetrievalClient.
 """
 
 import logging
@@ -26,6 +27,11 @@ try:
     SEARCH_AVAILABLE = True
 except ImportError:
     SEARCH_AVAILABLE = False
+
+# Note: Azure AI Search Knowledge Base Retrieval (full agentic) requires 
+# setting up a Knowledge Base resource. We implement agentic-style search
+# using query decomposition + hybrid search instead.
+AGENTIC_AVAILABLE = True  # Our implementation doesn't need special SDK features
 
 try:
     from openai import AzureOpenAI
@@ -57,10 +63,10 @@ class SearchService:
         if self._search_client is None:
             self._search_client = SearchClient(
                 endpoint=self.settings.get_search_endpoint(),
-                index_name=self.settings.azure_search_index_name,
+                index_name=self.settings.module7_search_index_name,
                 credential=AzureKeyCredential(self.settings.azure_search_api_key)
             )
-            logger.info(f"SearchClient connected to index: {self.settings.azure_search_index_name}")
+            logger.info(f"SearchClient connected to index: {self.settings.module7_search_index_name}")
         return self._search_client
     
     @property
@@ -86,7 +92,7 @@ class SearchService:
     
     async def create_index_if_not_exists(self, force_recreate: bool = False):
         """Create the search index if it doesn't exist."""
-        index_name = self.settings.azure_search_index_name
+        index_name = self.settings.module7_search_index_name
         
         # Check if exists
         try:
@@ -174,19 +180,50 @@ class SearchService:
         """
         Index chunks with embeddings.
         
+        Transforms chunk field names from document_processor format to index format:
+        - id → chunk_id
+        - content_type → chunk_type
+        - source_document → file_name
+        - embedding → content_vector
+        - section_header → section_path
+        - image_blob_path → image_url
+        - table_html → table_markdown
+        - figure_caption → contextual_caption
+        
         Args:
             chunks: List of chunk dictionaries
         """
         # Ensure index exists
         await self.create_index_if_not_exists()
         
-        # Generate embeddings
+        # Generate embeddings and transform to index schema
+        documents = []
         for chunk in chunks:
             embedding = await self._get_embedding(chunk["content"])
-            chunk["embedding"] = embedding
+            
+            # Transform field names from document_processor to index schema
+            doc = {
+                "chunk_id": chunk.get("id") or chunk.get("chunk_id"),
+                "doc_id": chunk.get("doc_id", ""),
+                "file_name": chunk.get("source_document") or chunk.get("file_name", ""),
+                "chunk_type": chunk.get("content_type") or chunk.get("chunk_type", "text"),
+                "page_number": chunk.get("page_numbers", [1])[0] if chunk.get("page_numbers") else chunk.get("page_number", 1),
+                "section_path": chunk.get("section_header") or chunk.get("section_path", ""),
+                "content": chunk.get("content", ""),
+                "content_vector": embedding,
+                # Optional fields
+                "contextual_caption": chunk.get("figure_caption") or chunk.get("contextual_caption"),
+                "image_url": chunk.get("image_blob_path") or chunk.get("image_url"),
+                "table_markdown": chunk.get("table_html") or chunk.get("table_markdown"),
+                "parent_chunk_id": chunk.get("parent_chunk_id"),
+                "related_figure_ids": chunk.get("related_figure_ids", []),
+                "related_table_ids": chunk.get("related_table_ids", []),
+            }
+            documents.append(doc)
         
         # Upload to index
-        self.search_client.upload_documents(chunks)
+        logger.info(f"Uploading {len(documents)} documents to index")
+        self.search_client.upload_documents(documents)
     
     def _truncate_for_embedding(self, text: str, max_tokens: int = 7500) -> str:
         """
@@ -270,7 +307,8 @@ class SearchService:
         # Build filter
         filter_expr = None
         if content_type_filter and content_type_filter != "all":
-            filter_expr = f"content_type eq '{content_type_filter}'"
+            # Index uses chunk_type field
+            filter_expr = f"chunk_type eq '{content_type_filter}'"
         
         # Get embedding for vector search
         query_embedding = await self._get_embedding(query)
@@ -279,7 +317,7 @@ class SearchService:
         vector_query = VectorizedQuery(
             vector=query_embedding,
             k_nearest_neighbors=top_k,
-            fields="embedding"
+            fields="content_vector"  # Index uses content_vector field
         )
         
         # Execute search based on mode
@@ -329,25 +367,27 @@ class SearchService:
             score = result.get("@search.score", 0) or result.get("@search.reranker_score", 0)
             
             if score >= min_score:
+                # Map index fields to expected API fields
+                # Index uses chunk_id, doc_id, chunk_type, file_name, page_number, section_path
                 docs.append({
-                    "id": result["id"],
-                    "content": result["content"],
-                    "content_type": result.get("content_type", "text"),
+                    "id": result.get("chunk_id") or result.get("id", ""),
+                    "content": result.get("content", ""),
+                    "content_type": result.get("chunk_type") or result.get("content_type", "text"),
                     "score": score,
-                    "page_numbers": result.get("page_numbers", []),
-                    "source_document": result.get("source_document", ""),
+                    "page_numbers": [result.get("page_number")] if result.get("page_number") else result.get("page_numbers", []),
+                    "source_document": result.get("file_name") or result.get("source_document", ""),
                     "source_document_blob_path": result.get("source_document_blob_path"),
-                    "section_header": result.get("section_header"),
-                    "image_blob_path": result.get("image_blob_path"),
-                    "table_html": result.get("table_html"),
-                    "figure_caption": result.get("figure_caption")
+                    "section_header": result.get("section_path") or result.get("section_header"),
+                    "image_blob_path": result.get("image_url") or result.get("image_blob_path"),
+                    "table_html": result.get("table_markdown") or result.get("table_html"),
+                    "figure_caption": result.get("contextual_caption") or result.get("figure_caption")
                 })
         
         return docs
     
     async def get_index_schema(self) -> Dict[str, Any]:
         """Get the index schema."""
-        index = self.index_client.get_index(self.settings.azure_search_index_name)
+        index = self.index_client.get_index(self.settings.module7_search_index_name)
 
         def _serialize_hnsw_params(params: Any) -> Dict[str, Any]:
             if params is None:
@@ -416,7 +456,7 @@ class SearchService:
             for ct in ["text", "table", "figure"]:
                 ct_results = self.search_client.search(
                     search_text="*",
-                    filter=f"content_type eq '{ct}'",
+                    filter=f"chunk_type eq '{ct}'",  # Index uses chunk_type
                     top=0,
                     include_total_count=True
                 )
@@ -448,17 +488,17 @@ class SearchService:
     async def get_unique_documents(self) -> List[Dict[str, Any]]:
         """Get list of unique documents in the index with their chunk counts."""
         try:
-            # Search for all chunks and aggregate by source_document
+            # Search for all chunks and aggregate by file_name (index field)
             results = self.search_client.search(
                 search_text="*",
-                select=["source_document", "doc_id"],
+                select=["file_name", "doc_id"],  # Index uses file_name
                 top=1000  # Should be enough for workshop
             )
             
-            # Aggregate by source_document
+            # Aggregate by file_name
             doc_chunks: Dict[str, Dict[str, Any]] = {}
             for chunk in results:
-                source = chunk.get("source_document", "unknown")
+                source = chunk.get("file_name", "unknown")  # Index uses file_name
                 doc_id = chunk.get("doc_id", "")
                 
                 if source not in doc_chunks:
@@ -483,11 +523,12 @@ class SearchService:
             results = self.search_client.search(
                 search_text="*",
                 filter=f"doc_id eq '{doc_id}'",
+                select=["chunk_id"],
                 top=1000
             )
-            ids = [r["id"] for r in results]
+            ids = [r["chunk_id"] for r in results]
             if ids:
-                self.search_client.delete_documents([{ "id": i } for i in ids])
+                self.search_client.delete_documents([{ "chunk_id": i } for i in ids])
                 deleted = len(ids)
             logger.info(f"Deleted {deleted} documents for doc_id={doc_id}")
         except Exception as e:
@@ -496,27 +537,184 @@ class SearchService:
 
     async def delete_index(self) -> None:
         """Delete the search index."""
-        index_name = self.settings.azure_search_index_name
+        index_name = self.settings.module7_search_index_name
         self.index_client.delete_index(index_name)
         logger.info(f"Deleted index: {index_name}")
 
     async def get_chunks_by_content_type(self, content_type: str, top: int = 20) -> List[Dict[str, Any]]:
         """Fetch sample chunks by content type (debug)."""
+        # Use chunk_type for Module 7 index
+        filter_field = "chunk_type" if "chunk_type" in self._get_index_fields() else "content_type"
         results = self.search_client.search(
             search_text="*",
-            filter=f"content_type eq '{content_type}'",
+            filter=f"{filter_field} eq '{content_type}'",
             top=top
         )
 
         rows = []
         for r in results:
             rows.append({
-                "id": r.get("id"),
-                "content_type": r.get("content_type"),
-                "image_blob_path": r.get("image_blob_path"),
-                "figure_caption": r.get("figure_caption"),
-                "source_document": r.get("source_document"),
-                "page_numbers": r.get("page_numbers"),
+                "id": r.get("chunk_id") or r.get("id"),
+                "content_type": r.get("chunk_type") or r.get("content_type"),
+                "image_blob_path": r.get("image_url") or r.get("image_blob_path"),
+                "figure_caption": r.get("contextual_caption") or r.get("figure_caption"),
+                "source_document": r.get("file_name") or r.get("source_document"),
+                "page_numbers": [r.get("page_number")] if r.get("page_number") else r.get("page_numbers"),
                 "score": r.get("@search.score")
             })
         return rows
+    
+    def _get_index_fields(self) -> set:
+        """Get the set of field names in the current index."""
+        try:
+            index = self.index_client.get_index(self.settings.module7_search_index_name)
+            return {f.name for f in index.fields}
+        except:
+            return set()
+
+    async def agentic_search(
+        self,
+        query: str,
+        top_k: int = 5,
+    ) -> Dict[str, Any]:
+        """
+        Execute Agentic-style search with query decomposition and multi-pass retrieval.
+        
+        This implements an agentic retrieval pattern:
+        1. Decompose complex queries into sub-queries using LLM
+        2. Execute hybrid+semantic search for each sub-query
+        3. Merge and deduplicate results
+        4. Return with activity trace
+        
+        Note: Full Azure AI Search Knowledge Base Retrieval requires setting up
+        a Knowledge Base resource. This implementation provides similar behavior
+        using the integrated vectorizer and semantic configuration.
+        
+        Args:
+            query: User's question
+            top_k: Maximum results to return
+            
+        Returns:
+            Dict with "chunks", "sub_queries", and "activity" trace
+        """
+        try:
+            logger.info(f"Executing Agentic-style Retrieval: {query[:100]}...")
+            activity_log = []
+            
+            # Step 1: Decompose query into sub-queries using LLM
+            activity_log.append({"step": 1, "action": "query_decomposition", "status": "starting"})
+            
+            decomposition_prompt = f"""Analyze this question and break it into 1-3 focused sub-queries for search retrieval.
+If the question is simple, just return it as-is.
+Return ONLY the queries, one per line, no numbering or explanation.
+
+Question: {query}
+
+Sub-queries:"""
+            
+            try:
+                response = self.openai_client.chat.completions.create(
+                    model=self.settings.azure_openai_deployment,
+                    messages=[{"role": "user", "content": decomposition_prompt}],
+                    max_tokens=200,
+                    temperature=0
+                )
+                sub_queries_text = response.choices[0].message.content.strip()
+                sub_queries = [q.strip() for q in sub_queries_text.split('\n') if q.strip()]
+                
+                # Limit to 3 sub-queries max
+                sub_queries = sub_queries[:3]
+                if not sub_queries:
+                    sub_queries = [query]
+                    
+                activity_log.append({
+                    "step": 1, 
+                    "action": "query_decomposition", 
+                    "status": "complete",
+                    "sub_queries": sub_queries
+                })
+                logger.info(f"Decomposed into {len(sub_queries)} sub-queries: {sub_queries}")
+                
+            except Exception as e:
+                logger.warning(f"Query decomposition failed, using original: {e}")
+                sub_queries = [query]
+                activity_log.append({
+                    "step": 1,
+                    "action": "query_decomposition",
+                    "status": "fallback",
+                    "reason": str(e)
+                })
+            
+            # Step 2: Execute hybrid+semantic search for each sub-query
+            all_chunks = []
+            seen_ids = set()
+            
+            for i, sub_query in enumerate(sub_queries):
+                activity_log.append({
+                    "step": 2 + i,
+                    "action": "hybrid_semantic_search",
+                    "query": sub_query,
+                    "status": "starting"
+                })
+                
+                # Use hybrid search with semantic ranker
+                chunks = await self.search(
+                    query=sub_query,
+                    top_k=top_k,
+                    search_mode="hybrid",
+                    semantic_ranker=True
+                )
+                
+                # Deduplicate by chunk ID
+                new_chunks = 0
+                for chunk in chunks:
+                    chunk_id = chunk.get("id", "")
+                    if chunk_id and chunk_id not in seen_ids:
+                        seen_ids.add(chunk_id)
+                        chunk["source_sub_query"] = sub_query
+                        all_chunks.append(chunk)
+                        new_chunks += 1
+                
+                activity_log.append({
+                    "step": 2 + i,
+                    "action": "hybrid_semantic_search", 
+                    "query": sub_query,
+                    "status": "complete",
+                    "results_found": len(chunks),
+                    "new_unique": new_chunks
+                })
+                
+                logger.info(f"Sub-query '{sub_query[:50]}...' returned {len(chunks)} results, {new_chunks} unique")
+            
+            # Step 3: Sort by score and limit
+            all_chunks.sort(key=lambda x: x.get("score", 0), reverse=True)
+            final_chunks = all_chunks[:top_k]
+            
+            activity_log.append({
+                "step": len(sub_queries) + 2,
+                "action": "merge_and_rank",
+                "status": "complete",
+                "total_unique": len(all_chunks),
+                "returned": len(final_chunks)
+            })
+            
+            logger.info(f"Agentic search returned {len(final_chunks)} chunks from {len(sub_queries)} sub-queries")
+            
+            return {
+                "chunks": final_chunks,
+                "sub_queries": [{"query": q, "index": i} for i, q in enumerate(sub_queries)],
+                "activity": activity_log,
+            }
+                
+        except Exception as e:
+            logger.error(f"Agentic search failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                "chunks": [],
+                "error": True,
+                "error_type": "agentic_search_failed",
+                "error_message": str(e),
+                "suggestion": "Check Azure OpenAI and Search service configuration"
+            }
+

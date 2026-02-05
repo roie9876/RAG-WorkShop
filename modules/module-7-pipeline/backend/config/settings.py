@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     # Azure AI Search
     azure_search_endpoint: str = ""
     azure_search_api_key: str = ""
-    azure_search_index_name: str = "rag-workshop-index"
+    azure_search_index_name: str = "rag-workshop-index"  # Used by modules 0-6
+    
+    # Module 7 dedicated index (separate from other modules)
+    module7_search_index_name: str = "module7-rag-index"
     
     # Azure Blob Storage - can use connection string OR account name + key
     azure_storage_connection_string: str = ""

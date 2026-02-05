@@ -9,7 +9,7 @@ export interface QueryConfig {
   content_type_filter: 'all' | 'text' | 'table' | 'figure'
   
   // General Parameters
-  retrieval_strategy: 'auto' | 'hybrid' | 'agentic' | 'iterative' | 'graphrag'
+  retrieval_strategy: 'auto' | 'hybrid' | 'agentic' | 'agentic_search' | 'iterative' | 'graphrag'
   enable_validation?: boolean
   
   // GraphRAG Parameters
