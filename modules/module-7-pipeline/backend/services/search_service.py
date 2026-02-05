@@ -364,7 +364,16 @@ class SearchService:
         # Process results
         docs = []
         for result in results:
-            score = result.get("@search.score", 0) or result.get("@search.reranker_score", 0)
+            # When semantic ranker is used, prefer @search.reranker_score (0-4 scale)
+            # Otherwise use @search.score (vector: 0-1, BM25: variable)
+            reranker_score = result.get("@search.reranker_score")
+            base_score = result.get("@search.score", 0)
+            
+            # Use reranker score if available (semantic search), otherwise base score
+            if reranker_score is not None and (search_mode == "semantic" or (search_mode == "hybrid" and semantic_ranker)):
+                score = reranker_score
+            else:
+                score = base_score
             
             if score >= min_score:
                 # Map index fields to expected API fields
