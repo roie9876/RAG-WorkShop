@@ -1,13 +1,21 @@
 // API Response Types
 
 export interface QueryConfig {
+  // AI Search Parameters
   top_k: number
   search_mode: 'vector' | 'text' | 'hybrid' | 'semantic'
   semantic_ranker: boolean
   min_score: number
   content_type_filter: 'all' | 'text' | 'table' | 'figure'
+  
+  // General Parameters
   retrieval_strategy: 'auto' | 'hybrid' | 'agentic' | 'iterative' | 'graphrag'
   enable_validation?: boolean
+  
+  // GraphRAG Parameters
+  graphrag_mode: 'local' | 'global' | 'drift'
+  graphrag_community_level: number
+  graphrag_response_type: 'Multiple Paragraphs' | 'Single Paragraph' | 'Single Sentence' | 'List of 3-7 Points'
 }
 
 export interface SourceChunk {

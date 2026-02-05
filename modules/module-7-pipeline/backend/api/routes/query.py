@@ -37,6 +37,17 @@ class QueryRequest(BaseModel):
         default="auto", description="Retrieval strategy"
     )
     enable_validation: bool = Field(default=True, description="Enable answer validation")
+    
+    # GraphRAG parameters
+    graphrag_mode: Literal["local", "global", "drift"] = Field(
+        default="drift", description="GraphRAG search mode"
+    )
+    graphrag_community_level: int = Field(
+        default=2, ge=0, le=5, description="Community level for graph traversal (0=specific, 5=broad)"
+    )
+    graphrag_response_type: Literal["Multiple Paragraphs", "Single Paragraph", "Single Sentence", "List of 3-7 Points"] = Field(
+        default="Multiple Paragraphs", description="GraphRAG response format"
+    )
 
 
 class SourceChunk(BaseModel):
@@ -228,7 +239,11 @@ async def execute_query(request: QueryRequest):
                 search_mode=request.search_mode,
                 semantic_ranker=request.semantic_ranker,
                 min_score=request.min_score,
-                content_type_filter=request.content_type_filter
+                content_type_filter=request.content_type_filter,
+                # GraphRAG parameters
+                graphrag_mode=request.graphrag_mode,
+                graphrag_community_level=request.graphrag_community_level,
+                graphrag_response_type=request.graphrag_response_type
             )
         
         retrieval_time_ms = int((time.time() - start_time) * 1000)
@@ -499,7 +514,11 @@ async def execute_query_stream(request: QueryRequest):
                     search_mode=request.search_mode,
                     semantic_ranker=request.semantic_ranker,
                     min_score=request.min_score,
-                    content_type_filter=request.content_type_filter
+                    content_type_filter=request.content_type_filter,
+                    # GraphRAG parameters
+                    graphrag_mode=request.graphrag_mode,
+                    graphrag_community_level=request.graphrag_community_level,
+                    graphrag_response_type=request.graphrag_response_type
                 )
             
             retrieval_time_ms = int((time.time() - start_time) * 1000)

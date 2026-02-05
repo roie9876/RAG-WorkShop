@@ -110,7 +110,11 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         search_mode: str = "hybrid",
         semantic_ranker: bool = True,
         min_score: float = 0.0,
-        content_type_filter: str = "all"
+        content_type_filter: str = "all",
+        # GraphRAG parameters
+        graphrag_mode: str = "drift",
+        graphrag_community_level: int = 2,
+        graphrag_response_type: str = "Multiple Paragraphs"
     ) -> Dict[str, Any]:
         """
         Execute retrieval with the specified strategy.
@@ -123,12 +127,17 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             semantic_ranker: Enable semantic ranking
             min_score: Minimum relevance score
             content_type_filter: Filter by content type
+            graphrag_mode: GraphRAG search mode (local, global, drift)
+            graphrag_community_level: Community level for graph traversal
+            graphrag_response_type: Response format for GraphRAG
             
         Returns:
             Dict with "chunks" list and optional "agent_trace"
         """
         if strategy == "graphrag":
-            return await self._retrieve_graphrag(query, top_k)
+            return await self._retrieve_graphrag(
+                query, top_k, graphrag_mode, graphrag_community_level, graphrag_response_type
+            )
         elif strategy == "agentic":
             # Agentic is handled by AgentService
             # Fall back to enhanced hybrid here
@@ -263,12 +272,21 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         
         return {"chunks": chunks}
     
-    async def _retrieve_graphrag(self, query: str, top_k: int) -> Dict[str, Any]:
+    async def _retrieve_graphrag(
+        self, 
+        query: str, 
+        top_k: int,
+        mode: str = "drift",
+        community_level: int = 2,
+        response_type: str = "Multiple Paragraphs"
+    ) -> Dict[str, Any]:
         """
         GraphRAG retrieval using pre-built knowledge graph.
         
-        Uses DRIFT search which combines local (entity-centric) and 
-        global (community-based) search for best results.
+        Uses the specified search mode:
+        - local: Entity-centric search
+        - global: Community-based search  
+        - drift: Combines local + global for best results (default)
         
         Returns error info if GraphRAG not available (no silent fallback).
         """
@@ -308,13 +326,14 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             }
         
         try:
-            logger.info(f"Executing GraphRAG DRIFT search: {query[:100]}...")
+            logger.info(f"Executing GraphRAG {mode} search: {query[:100]}...")
             
-            # Execute DRIFT search (combines local + global)
+            # Execute search with user-specified mode
             result = await graphrag_service.search(
                 query=query,
-                mode="drift",  # Best of both local and global
-                community_level=2
+                mode=mode,
+                community_level=community_level,
+                response_type=response_type
             )
             
             # Convert to chunk format for UI consistency

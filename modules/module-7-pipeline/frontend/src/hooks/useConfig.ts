@@ -3,13 +3,19 @@ import { configApi } from '../services/api'
 import type { QueryConfig } from '../types'
 
 const DEFAULT_CONFIG: QueryConfig = {
+  // AI Search parameters
   top_k: 5,
   search_mode: 'hybrid',
   semantic_ranker: true,
   min_score: 2.0,
   content_type_filter: 'all',
+  // General settings
   retrieval_strategy: 'iterative',
   enable_validation: true,
+  // GraphRAG parameters
+  graphrag_mode: 'drift',
+  graphrag_community_level: 2,
+  graphrag_response_type: 'Multiple Paragraphs',
 }
 
 export function useConfig() {
