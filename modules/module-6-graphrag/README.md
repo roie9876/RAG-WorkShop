@@ -457,6 +457,27 @@ After this module, try:
 | **Part 7** | Hybrid | Build automatic query router |
 | **Part 8** | Summary | Key takeaways and recommendations |
 
+---
+
+## 🕸️ Knowledge Graph Visualization
+
+The lab includes an interactive knowledge graph visualization showing entities and their relationships:
+
+![GraphRAG Knowledge Graph Visualization](images/graphrag-visualization.jpeg)
+
+**Color Legend:**
+| Color | Entity Type | Examples |
+|-------|-------------|----------|
+| 🔵 Blue | STATION | Station 35, Station 36, Central Hub |
+| 🟢 Green | SYSTEM | Ventilation System A, Power Grid |
+| 🟠 Orange | CONTRACTOR | Shapir Engineering, Climatec Systems |
+| 🩷 Pink | PERSON | Yossi Cohen |
+| 🔴 Red | INCIDENT | March 15 ventilation failure |
+
+> 💡 **Tip**: Notice how Station 35 and Station 36 are both connected to Ventilation System A – this is the shared dependency that GraphRAG discovers!
+
+---
+
 ## Requirements
 - Python ≥3.11, <3.14
 - `graphrag>=2.7.0`
