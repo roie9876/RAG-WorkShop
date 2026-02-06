@@ -112,7 +112,7 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         min_score: float = 0.0,
         content_type_filter: str = "all",
         # GraphRAG parameters
-        graphrag_mode: str = "drift",
+        graphrag_mode: str = "local",
         graphrag_community_level: int = 2,
         graphrag_response_type: str = "Multiple Paragraphs"
     ) -> Dict[str, Any]:
@@ -279,7 +279,7 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         self, 
         query: str, 
         top_k: int,
-        mode: str = "drift",
+        mode: str = "local",
         community_level: int = 2,
         response_type: str = "Multiple Paragraphs"
     ) -> Dict[str, Any]:

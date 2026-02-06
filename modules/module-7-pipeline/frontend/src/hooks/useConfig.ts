@@ -13,7 +13,7 @@ const DEFAULT_CONFIG: QueryConfig = {
   retrieval_strategy: 'iterative',
   enable_validation: true,
   // GraphRAG parameters
-  graphrag_mode: 'drift',
+  graphrag_mode: 'local',
   graphrag_community_level: 2,
   graphrag_response_type: 'Multiple Paragraphs',
 }

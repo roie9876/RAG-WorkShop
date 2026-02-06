@@ -55,7 +55,7 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
       retrieval_strategy: 'iterative',
       enable_validation: true,
       // GraphRAG defaults
-      graphrag_mode: 'drift',
+      graphrag_mode: 'local',
       graphrag_community_level: 2,
       graphrag_response_type: 'Multiple Paragraphs',
     })
@@ -326,13 +326,13 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
               disabled={!isGraphRAGSelected}
               className="w-full p-3 rounded-lg border bg-background text-base disabled:opacity-50"
             >
-              <option value="drift">DRIFT (Best Quality)</option>
-              <option value="local">Local (Entity-Centric)</option>
+              <option value="local">Local (Fast, Recommended)</option>
+              <option value="drift">DRIFT (Deep Analysis, Slower)</option>
               <option value="global">Global (Community Summaries)</option>
             </select>
             <p className="text-sm text-muted-foreground mt-2">
-              {config.graphrag_mode === 'drift' && '🎯 Combines local + global for highest quality answers'}
-              {config.graphrag_mode === 'local' && '🔍 Finds entity → follows relationships → gathers context'}
+              {config.graphrag_mode === 'local' && '⚡ Fast: finds entity → follows relationships → gathers context (~1 LLM call)'}
+              {config.graphrag_mode === 'drift' && '🎯 Deep: combines local + global with iterative refinement (multiple LLM calls, slower)'}
               {config.graphrag_mode === 'global' && '🌍 Uses pre-computed community summaries for big-picture questions'}
             </p>
           </div>
