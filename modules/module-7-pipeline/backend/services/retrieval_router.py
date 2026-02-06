@@ -538,16 +538,33 @@ Return only the expanded query, no explanations."""
         for chunk in chunks:
             # Add SAS URL for figures
             if chunk.get("image_blob_path"):
-                # Normalize legacy paths for figures
-                if chunk.get("content_type") == "figure":
-                    image_path = chunk["image_blob_path"]
-                    if image_path.startswith("documents/"):
-                        chunk["image_blob_path"] = "figures/" + image_path[len("documents/"):]
-                    elif not image_path.startswith("figures/"):
-                        chunk["image_blob_path"] = "figures/" + image_path.lstrip("/")
+                image_path = chunk["image_blob_path"]
+
+                # Strip full URLs back to blob paths (fix stale index data)
+                if image_path.startswith("http"):
+                    # Extract blob path from full URL like:
+                    # https://account.blob.core.windows.net/figures/figures/doc/fig.png?sas
+                    try:
+                        from urllib.parse import urlparse
+                        parsed = urlparse(image_path)
+                        # Path is /container/blob_path, strip leading slash
+                        path_parts = parsed.path.lstrip("/").split("/", 1)
+                        if len(path_parts) == 2:
+                            image_path = path_parts[1]  # blob path without container
+                        else:
+                            image_path = path_parts[0]
+                    except Exception:
+                        pass
+
+                # Ensure path starts with figures/ for figure chunks
+                if chunk.get("content_type") == "figure" and not image_path.startswith("figures/"):
+                    image_path = "figures/" + image_path.lstrip("/")
+
+                chunk["image_blob_path"] = image_path
+
                 try:
                     sas_result = await self.blob_service.generate_sas_url(
-                        chunk["image_blob_path"],
+                        image_path,
                         permission="read",
                         duration_hours=1.0
                     )

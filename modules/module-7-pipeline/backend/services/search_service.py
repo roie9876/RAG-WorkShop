@@ -105,36 +105,36 @@ class SearchService:
         except Exception:
             pass  # Doesn't exist, create it
         
-        # Define fields - includes all fields for text, table, and figure chunks
+        # Define fields - Module 7 schema with transformed field names
+        # These match what index_chunks() transforms the document processor output to
         fields = [
-            SearchField(name="id", type=SearchFieldDataType.String, key=True),
+            SearchField(name="chunk_id", type=SearchFieldDataType.String, key=True),
+            SearchField(name="doc_id", type=SearchFieldDataType.String, filterable=True),
+            SearchField(name="file_name", type=SearchFieldDataType.String, filterable=True, searchable=True),
+            SearchField(name="chunk_type", type=SearchFieldDataType.String, filterable=True, facetable=True),
+            SearchField(name="page_number", type=SearchFieldDataType.Int32, filterable=True),
+            SearchField(name="section_path", type=SearchFieldDataType.String, searchable=True),
             SearchField(name="content", type=SearchFieldDataType.String, searchable=True),
-            SearchField(name="content_type", type=SearchFieldDataType.String, filterable=True, facetable=True),
             SearchField(
-                name="embedding",
+                name="content_vector",
                 type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
                 searchable=True,
                 vector_search_dimensions=3072,
                 vector_search_profile_name="hnsw-profile"
             ),
-            SearchField(name="source_document", type=SearchFieldDataType.String, filterable=True, searchable=True),
-            SearchField(name="source_document_blob_path", type=SearchFieldDataType.String),
-            SearchField(name="doc_id", type=SearchFieldDataType.String, filterable=True),
-            SearchField(
-                name="page_numbers",
-                type=SearchFieldDataType.Collection(SearchFieldDataType.Int32)
-            ),
-            SearchField(name="section_header", type=SearchFieldDataType.String, searchable=True),
-            
-            # Figure-specific fields
-            SearchField(name="image_blob_path", type=SearchFieldDataType.String),
-            SearchField(name="figure_caption", type=SearchFieldDataType.String, searchable=True),
-            SearchField(name="figure_description", type=SearchFieldDataType.String, searchable=True),
-            SearchField(name="surrounding_text", type=SearchFieldDataType.String, searchable=True),
-            
-            # Table-specific fields
-            SearchField(name="table_html", type=SearchFieldDataType.String),
+            # Optional fields for figures and tables
+            SearchField(name="contextual_caption", type=SearchFieldDataType.String, searchable=True),
+            SearchField(name="image_url", type=SearchFieldDataType.String),
             SearchField(name="table_markdown", type=SearchFieldDataType.String, searchable=True),
+            SearchField(name="parent_chunk_id", type=SearchFieldDataType.String),
+            SearchField(
+                name="related_figure_ids",
+                type=SearchFieldDataType.Collection(SearchFieldDataType.String)
+            ),
+            SearchField(
+                name="related_table_ids",
+                type=SearchFieldDataType.Collection(SearchFieldDataType.String)
+            ),
         ]
         
         # Vector search config
@@ -159,7 +159,7 @@ class SearchService:
         semantic_config = SemanticConfiguration(
             name="semantic-config",
             prioritized_fields=SemanticPrioritizedFields(
-                title_field=SemanticField(field_name="section_header"),
+                title_field=SemanticField(field_name="section_path"),
                 content_fields=[SemanticField(field_name="content")]
             )
         )

@@ -333,9 +333,7 @@ class DocumentProcessor:
         logger.info("Step 3: Uploading image to Blob Storage...")
         figure_id = f"image_000"  # Single image = single figure
         image_blob_path = await self.blob_service.upload_figure(content, doc_id, figure_id)
-        # Get SAS URL for the image
-        sas_result = await self.blob_service.generate_sas_url(image_blob_path)
-        image_url = sas_result.get("url", image_blob_path)
+        # Note: store only the blob path, not the SAS URL - SAS will be generated at query time
         logger.info(f"   ✅ Uploaded to: {image_blob_path}")
         
         # 4. Create a single figure chunk with combined content
@@ -359,7 +357,7 @@ AI Visual Description:
             "page_numbers": [1],
             "section_header": f"Image: {filename}",
             "doc_id": doc_id,
-            "image_blob_path": image_url,
+            "image_blob_path": image_blob_path,  # Store blob path, NOT the full URL
             "figure_caption": vision_description[:500] if len(vision_description) > 500 else vision_description,
             # Store OCR and description separately for future use
             "ocr_text": ocr_text,

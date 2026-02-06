@@ -240,6 +240,11 @@ export function DocumentUpload() {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+      'image/bmp': ['.bmp'],
+      'image/tiff': ['.tiff', '.tif'],
+      'image/heif': ['.heif'],
     },
     multiple: true,
   })
