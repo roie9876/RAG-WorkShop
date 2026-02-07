@@ -187,17 +187,17 @@ The same enriched chunks feed **both** indexes in parallel — the expensive ext
 
 ### Stage 5: Query-Time Retrieval
 
-Users choose a retrieval strategy (or let the system auto-select):
+Users choose a retrieval strategy (or let the system auto-select). Each strategy searches your documents differently — pick the one that matches your question type, or use **Auto** to let the system decide.
 
-| Strategy | When to Use | How It Works |
-|----------|-------------|--------------|
-| **Hybrid** | Simple factual questions | Vector + BM25 + optional semantic ranking |
-| **Iterative** | Entity lookups, fragmented context | Entity extraction → query rewriting loop |
-| **Agentic** | Complex multi-part questions | LLM decomposes query into sub-queries |
-| **Agentic Search** | Azure-native query decomposition | Azure AI Search handles sub-queries natively |
-| **GraphRAG** | Relationship and impact queries | Knowledge graph traversal (local/global/drift) |
-| **Combined** | Get the best of both worlds | Runs AI Search + GraphRAG in parallel, merges answers |
-| **Auto** | Let the system decide | LLM classifies query complexity and picks strategy |
+| Strategy | When to Use | How It Works | Example Question | Speed |
+|----------|-------------|--------------|------------------|-------|
+| **Hybrid** | Simple factual questions | Combines **keyword search** (BM25) with **vector similarity** — finds documents that match your words AND your meaning. Optional semantic reranking boosts the best results to the top. | _"What is the depth of Station 36?"_ | ⚡ Fast (~2–5s) |
+| **Iterative** | Entity lookups, fragmented context | Runs Hybrid search first, then **extracts entities** (names, places, numbers) from the results and **rewrites your query** to find related information that the first search missed. Repeats 2–3 times until context is complete. | _"How many passengers use Station 36?"_ (finds the station first, then the passenger data on the same page) | 🔄 Medium (~5–10s) |
+| **Agentic** | Complex multi-part questions | An **AI agent breaks your question** into smaller sub-questions, searches for each one independently, then combines all results into a single comprehensive context for the final answer. | _"Compare the entrance designs of stations 36 and 38"_ | 🐢 Slower (~10–20s) |
+| **Agentic Search** | Azure-native query decomposition | Same idea as Agentic, but **Azure AI Search handles the decomposition** natively on the server side. Requires S1+ tier index. Faster than custom Agentic because no extra LLM calls for decomposition. | _"What are the construction phases and timelines for stations 35–38?"_ | ⚡ Medium (~5–10s) |
+| **GraphRAG** | Relationship and impact questions | Searches a **knowledge graph** of entities and relationships (not document text). Traverses connections between stations, lines, organizations, and locations. Three modes: **Local** ⚡ (direct relationships), **Global** 🌍 (big-picture summaries), **DRIFT** 🎯 (deep iterative analysis, slow). | _"What services depend on Station 36?"_, _"How are the metro lines connected?"_ | 🕸️ Varies (5–60s) |
+| **Combined** | Get the best of both worlds | Runs **any AI Search strategy + GraphRAG in parallel**. Produces three answers: AI Search answer, GraphRAG answer, and an **LLM-merged** comprehensive answer. The UI shows all three in tabs so you can compare. | _"Tell me everything about Station 36 and its connections"_ | 🐢 Slowest (~15–40s) |
+| **Auto** | Not sure which to pick | An **LLM analyzes your question** and automatically picks the best strategy. Simple questions → Hybrid, complex → Agentic, relationships → GraphRAG. | Any question — the system decides for you | 🎯 Depends on pick |
 
 ### Stage 6: Validation & Generation
 
