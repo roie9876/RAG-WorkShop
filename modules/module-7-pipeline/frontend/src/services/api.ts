@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { QueryConfig, QueryResponse, DocumentStatus, IndexSchema, IndexStats } from '../types'
+import type { QueryConfig, QueryResponse, DocumentStatus, IndexSchema, IndexStats, IndexSummary, KGIndexStatus } from '../types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -147,17 +147,40 @@ export const graphragApi = {
     const response = await api.post('/graphrag/clear')
     return response.data
   },
+
+  // KG Search Index (fast GraphRAG via AI Search)
+  getKGStatus: async (): Promise<{ success: boolean; status: KGIndexStatus }> => {
+    const response = await api.get('/graphrag/kg-index/status')
+    return response.data
+  },
+
+  buildKGIndex: async (): Promise<{ success: boolean; result: unknown }> => {
+    const response = await api.post('/graphrag/kg-index/build?force_recreate=true')
+    return response.data
+  },
+
+  deleteKGIndex: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete('/graphrag/kg-index')
+    return response.data
+  },
 }
 
 // Index API
 export const indexApi = {
-  getSchema: async (): Promise<IndexSchema> => {
-    const response = await api.get('/index/schema')
+  listIndexes: async (): Promise<IndexSummary[]> => {
+    const response = await api.get('/index/list')
     return response.data
   },
 
-  getStats: async (): Promise<IndexStats> => {
-    const response = await api.get('/index/stats')
+  getSchema: async (indexName?: string): Promise<IndexSchema> => {
+    const params = indexName ? { index_name: indexName } : {}
+    const response = await api.get('/index/schema', { params })
+    return response.data
+  },
+
+  getStats: async (indexName?: string): Promise<IndexStats> => {
+    const params = indexName ? { index_name: indexName } : {}
+    const response = await api.get('/index/stats', { params })
     return response.data
   },
 

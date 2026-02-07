@@ -3,6 +3,8 @@ import { configApi } from '../services/api'
 import type { QueryConfig } from '../types'
 
 const DEFAULT_CONFIG: QueryConfig = {
+  // Target index (empty = server default)
+  index_name: '',
   // AI Search parameters
   top_k: 5,
   search_mode: 'hybrid',

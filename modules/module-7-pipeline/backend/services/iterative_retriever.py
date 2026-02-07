@@ -70,9 +70,9 @@ class IterativeRetriever:
     because it adapts queries based on what it discovers.
     """
     
-    def __init__(self):
+    def __init__(self, index_name: str = None):
         self.settings = get_settings()
-        self.search_service = SearchService()
+        self.search_service = SearchService(index_name=index_name)
         self.blob_service = BlobService()
         self._openai_client = None
         logger.info("IterativeRetriever initialized")

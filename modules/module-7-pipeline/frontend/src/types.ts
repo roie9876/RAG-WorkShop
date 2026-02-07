@@ -1,6 +1,9 @@
 // API Response Types
 
 export interface QueryConfig {
+  // Target Index
+  index_name?: string
+  
   // AI Search Parameters
   top_k: number
   search_mode: 'vector' | 'text' | 'hybrid' | 'semantic'
@@ -231,4 +234,19 @@ export interface IndexStats {
   storage_size_bytes: number
   last_updated?: string
   content_type_counts: Record<string, number>
+}
+
+export interface IndexSummary {
+  name: string
+  document_count: number
+  field_count: number
+  has_vector_search: boolean
+  has_semantic_search: boolean
+}
+
+export interface KGIndexStatus {
+  ready: boolean
+  total_documents: number
+  entity_profiles: number
+  community_summaries: number
 }

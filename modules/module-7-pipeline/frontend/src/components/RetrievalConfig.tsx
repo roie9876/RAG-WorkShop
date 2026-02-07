@@ -1,5 +1,7 @@
-import { Settings, RotateCcw, Shield, Search, Network, Sparkles } from 'lucide-react'
-import type { QueryConfig } from '../types'
+import { useState, useEffect } from 'react'
+import { Settings, RotateCcw, Shield, Search, Network, Sparkles, Database } from 'lucide-react'
+import type { QueryConfig, IndexSummary } from '../types'
+import { indexApi } from '../services/api'
 
 interface RetrievalConfigProps {
   config: QueryConfig
@@ -43,8 +45,15 @@ const getScoreStep = (searchMode: string, semanticRanker: boolean): number => {
 }
 
 export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
+  const [indexes, setIndexes] = useState<IndexSummary[]>([])
+
+  useEffect(() => {
+    indexApi.listIndexes().then(setIndexes).catch(() => setIndexes([]))
+  }, [])
   const handleReset = () => {
     onChange({
+      // Target index (empty = server default)
+      index_name: '',
       // AI Search defaults
       top_k: 5,
       search_mode: 'hybrid',
@@ -113,6 +122,29 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
           <div className="flex items-center gap-2 text-lg font-semibold border-b pb-2">
             <Sparkles className="h-5 w-5 text-purple-500" />
             <span>General Settings</span>
+          </div>
+
+          {/* Target Search Index */}
+          <div>
+            <label className="text-base font-medium mb-3 flex items-center gap-2">
+              <Database className="h-4 w-4 text-blue-500" />
+              Target Search Index
+            </label>
+            <select
+              value={config.index_name || ''}
+              onChange={(e) => onChange({ index_name: e.target.value || '' })}
+              className="w-full p-3 rounded-lg border bg-background text-base"
+            >
+              <option value="">Default (module7-rag-index)</option>
+              {indexes.map((idx) => (
+                <option key={idx.name} value={idx.name}>
+                  {idx.name} ({idx.document_count} docs)
+                </option>
+              ))}
+            </select>
+            <p className="text-sm text-muted-foreground mt-2">
+              📊 Select which Azure AI Search index your query will search against
+            </p>
           </div>
 
           {/* Retrieval Strategy */}

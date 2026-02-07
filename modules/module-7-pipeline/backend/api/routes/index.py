@@ -3,7 +3,7 @@ Index management routes.
 View schema, stats, and configuration.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional, Any
 from datetime import datetime
@@ -85,17 +85,75 @@ class FigureChunkSample(BaseModel):
     score: Optional[float] = None
 
 
+class IndexSummary(BaseModel):
+    """Summary of an Azure AI Search index."""
+    name: str
+    document_count: int
+    field_count: int
+    has_vector_search: bool
+    has_semantic_search: bool
+
+
+@router.get("/list", response_model=List[IndexSummary])
+async def list_indexes():
+    """
+    List all Azure AI Search indexes in the service.
+    
+    Returns a summary of each index including name, document count,
+    and whether it has vector/semantic search configured.
+    """
+    try:
+        search_service = SearchService()
+        indexes = []
+        
+        for index in search_service.index_client.list_indexes():
+            has_vector = bool(index.vector_search and index.vector_search.algorithms)
+            has_semantic = bool(index.semantic_search and index.semantic_search.configurations)
+            
+            # Get document count for this index
+            try:
+                from azure.core.credentials import AzureKeyCredential
+                from azure.search.documents import SearchClient
+                settings = search_service.settings
+                temp_client = SearchClient(
+                    endpoint=settings.get_search_endpoint(),
+                    index_name=index.name,
+                    credential=AzureKeyCredential(settings.azure_search_api_key)
+                )
+                results = temp_client.search(search_text="*", top=0, include_total_count=True)
+                doc_count = results.get_count() or 0
+            except Exception:
+                doc_count = 0
+            
+            indexes.append(IndexSummary(
+                name=index.name,
+                document_count=doc_count,
+                field_count=len(index.fields),
+                has_vector_search=has_vector,
+                has_semantic_search=has_semantic,
+            ))
+        
+        return indexes
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/schema", response_model=IndexSchema)
-async def get_index_schema():
+async def get_index_schema(index_name: Optional[str] = Query(None, description="Index name (defaults to main RAG index)")):
     """
     Get the current index schema.
     
     Returns all fields with their types and attributes,
     plus vector and semantic configuration.
+    
+    Args:
+        index_name: Optional index name. If not provided, uses the main RAG index.
     """
     try:
         search_service = SearchService()
-        schema = await search_service.get_index_schema()
+        target_index = index_name or search_service.settings.module7_search_index_name
+        schema = await search_service.get_index_schema(index_name=target_index)
         
         fields = [
             IndexField(
@@ -154,15 +212,19 @@ async def get_index_schema():
 
 
 @router.get("/stats", response_model=IndexStats)
-async def get_index_stats():
+async def get_index_stats(index_name: Optional[str] = Query(None, description="Index name (defaults to main RAG index)")):
     """
     Get index statistics.
     
     Returns chunk count, unique document count, document list, and content type distribution.
+    
+    Args:
+        index_name: Optional index name. If not provided, uses the main RAG index.
     """
     try:
         search_service = SearchService()
-        stats = await search_service.get_index_stats()
+        target_index = index_name or search_service.settings.module7_search_index_name
+        stats = await search_service.get_index_stats(index_name=target_index)
         
         # Convert indexed_documents to list of IndexedDocument objects
         indexed_docs = [

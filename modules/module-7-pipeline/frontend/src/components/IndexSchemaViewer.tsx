@@ -1,42 +1,66 @@
-import { useState, useEffect } from 'react'
-import { Database, ChevronDown, ChevronRight, RefreshCw, Trash2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Database, ChevronDown, ChevronRight, RefreshCw, Trash2, List } from 'lucide-react'
 import { indexApi } from '../services/api'
-import type { IndexSchema, IndexStats } from '../types'
+import type { IndexSchema, IndexStats, IndexSummary } from '../types'
 
 export function IndexSchemaViewer() {
+  const [indexes, setIndexes] = useState<IndexSummary[]>([])
+  const [selectedIndex, setSelectedIndex] = useState<string | null>(null)
   const [schema, setSchema] = useState<IndexSchema | null>(null)
   const [stats, setStats] = useState<IndexStats | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [showFullJson, setShowFullJson] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingList, setLoadingList] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchData = async () => {
+  const fetchIndexList = useCallback(async () => {
+    setLoadingList(true)
+    try {
+      const list = await indexApi.listIndexes()
+      setIndexes(list)
+      // Auto-select the first index if none selected
+      if (!selectedIndex && list.length > 0) {
+        setSelectedIndex(list[0].name)
+      }
+    } catch (err) {
+      console.error('Failed to load index list:', err)
+    } finally {
+      setLoadingList(false)
+    }
+  }, [selectedIndex])
+
+  const fetchIndexDetails = useCallback(async (indexName: string) => {
     setLoading(true)
     setError(null)
     try {
       const [schemaData, statsData] = await Promise.all([
-        indexApi.getSchema(),
-        indexApi.getStats(),
+        indexApi.getSchema(indexName),
+        indexApi.getStats(indexName),
       ])
       setSchema(schemaData)
       setStats(statsData)
     } catch (err) {
-      setError('Failed to load index info')
+      setError(`Failed to load index "${indexName}"`)
+      setSchema(null)
+      setStats(null)
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   const handleDeleteIndex = async () => {
-    if (!confirm('Delete the search index? This will remove all chunks.')) return
+    if (!selectedIndex) return
+    if (!confirm(`Delete index "${selectedIndex}"? This will remove all data.`)) return
     setLoading(true)
     setError(null)
     try {
       await indexApi.deleteIndex()
       setSchema(null)
       setStats(null)
+      // Refresh the list
+      await fetchIndexList()
     } catch (err) {
       setError('Failed to delete index')
       console.error(err)
@@ -45,35 +69,75 @@ export function IndexSchemaViewer() {
     }
   }
 
+  // Load index list on mount
   useEffect(() => {
-    fetchData()
+    fetchIndexList()
   }, [])
+
+  // Load details when selected index changes
+  useEffect(() => {
+    if (selectedIndex) {
+      fetchIndexDetails(selectedIndex)
+    }
+  }, [selectedIndex, fetchIndexDetails])
+
+  const handleRefresh = async () => {
+    await fetchIndexList()
+    if (selectedIndex) {
+      await fetchIndexDetails(selectedIndex)
+    }
+  }
 
   return (
     <div className="rounded-xl border bg-card p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold flex items-center gap-3">
           <Database className="h-6 w-6" />
-          Index Schema
+          Search Indexes
         </h2>
         <div className="flex items-center gap-2">
           <button
             onClick={handleDeleteIndex}
-            disabled={loading}
+            disabled={loading || !selectedIndex}
             className="p-2 hover:bg-muted rounded transition-colors disabled:opacity-50"
-            title="Delete index"
+            title="Delete selected index"
           >
             <Trash2 className="h-5 w-5" />
           </button>
           <button
-            onClick={fetchData}
-            disabled={loading}
+            onClick={handleRefresh}
+            disabled={loading || loadingList}
             className="p-2 hover:bg-muted rounded transition-colors disabled:opacity-50"
             title="Refresh"
           >
-            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-5 w-5 ${(loading || loadingList) ? 'animate-spin' : ''}`} />
           </button>
         </div>
+      </div>
+
+      {/* Index Selector */}
+      <div className="mb-4">
+        <label className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
+          <List className="h-4 w-4" />
+          Select Index ({indexes.length} available)
+        </label>
+        <select
+          value={selectedIndex || ''}
+          onChange={(e) => setSelectedIndex(e.target.value)}
+          disabled={loadingList || indexes.length === 0}
+          className="w-full p-3 rounded-lg border bg-background text-base disabled:opacity-50"
+        >
+          {indexes.length === 0 && (
+            <option value="">No indexes found</option>
+          )}
+          {indexes.map((idx) => (
+            <option key={idx.name} value={idx.name}>
+              {idx.name} ({idx.document_count} docs)
+              {idx.has_vector_search ? ' • vector' : ''}
+              {idx.has_semantic_search ? ' • semantic' : ''}
+            </option>
+          ))}
+        </select>
       </div>
 
       {error && (
@@ -81,7 +145,7 @@ export function IndexSchemaViewer() {
       )}
 
       {/* Stats Summary */}
-      {stats && (
+      {stats && selectedIndex && (
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="p-2 rounded bg-muted/50">
             <p className="text-xs text-muted-foreground">Documents</p>

@@ -1,8 +1,8 @@
 import { useCallback, useState, useEffect, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload, File, CheckCircle, XCircle, Loader2, RefreshCw, Database, Network, Trash2 } from 'lucide-react'
+import { Upload, File, CheckCircle, XCircle, Loader2, RefreshCw, Database, Network, Trash2, Zap } from 'lucide-react'
 import { documentsApi, graphragApi, indexApi, type GraphRAGStatus } from '../services/api'
-import type { DocumentStatus, IndexStats } from '../types'
+import type { DocumentStatus, IndexStats, KGIndexStatus } from '../types'
 
 export function DocumentUpload() {
   const [documents, setDocuments] = useState<DocumentStatus[]>([])
@@ -15,6 +15,12 @@ export function DocumentUpload() {
   const [isIndexing, setIsIndexing] = useState(false)
   const [indexStats, setIndexStats] = useState<IndexStats | null>(null)
   const [loadingIndexStats, setLoadingIndexStats] = useState(false)
+  
+  // KG Search Index state
+  const [kgStatus, setKGStatus] = useState<KGIndexStatus | null>(null)
+  const [loadingKGStatus, setLoadingKGStatus] = useState(false)
+  const [buildingKGIndex, setBuildingKGIndex] = useState(false)
+  const [deletingKGIndex, setDeletingKGIndex] = useState(false)
   
   // Use refs to track polling state without causing re-renders
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -57,11 +63,27 @@ export function DocumentUpload() {
     }
   }, [])
 
+  // Fetch KG Search Index status
+  const fetchKGStatus = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoadingKGStatus(true)
+    try {
+      const response = await graphragApi.getKGStatus()
+      if (response.status) {
+        setKGStatus(response.status)
+      }
+    } catch (error) {
+      console.error('Failed to fetch KG index status:', error)
+    } finally {
+      if (showLoading) setLoadingKGStatus(false)
+    }
+  }, [])
+
   // Set up polling with stable interval
   useEffect(() => {
     // Initial fetch
     fetchGraphragStatus(true)
     fetchIndexStats(true)
+    fetchKGStatus(true)
     
     // Start polling function
     const startPolling = () => {
@@ -77,6 +99,7 @@ export function DocumentUpload() {
       pollingRef.current = setInterval(() => {
         fetchGraphragStatus(false) // Don't show loading spinner during polling
         fetchIndexStats(false)
+        fetchKGStatus(false)
       }, pollInterval)
     }
     
@@ -103,6 +126,7 @@ export function DocumentUpload() {
     pollingRef.current = setInterval(() => {
       fetchGraphragStatus(false)
       fetchIndexStats(false)
+      fetchKGStatus(false)
     }, pollInterval)
     
     return () => {
@@ -232,6 +256,38 @@ export function DocumentUpload() {
   // Manual refresh handlers (show loading)
   const handleRefreshIndexStats = () => fetchIndexStats(true)
   const handleRefreshGraphragStatus = () => fetchGraphragStatus(true)
+  const handleRefreshKGStatus = () => fetchKGStatus(true)
+
+  const handleBuildKGIndex = async () => {
+    setBuildingKGIndex(true)
+    try {
+      await graphragApi.buildKGIndex()
+      // Refresh status after build
+      await fetchKGStatus(true)
+    } catch (error) {
+      console.error('KG index build failed:', error)
+      alert('KG index build failed: ' + (error as Error).message)
+    } finally {
+      setBuildingKGIndex(false)
+    }
+  }
+
+  const handleDeleteKGIndex = async () => {
+    if (!confirm('⚠️ Delete KG Search Index?\n\nThis will remove the fast vector search index for GraphRAG.\nGraphRAG queries will fall back to standard (slower) processing.')) {
+      return
+    }
+    setDeletingKGIndex(true)
+    try {
+      await graphragApi.deleteKGIndex()
+      setKGStatus(null)
+      await fetchKGStatus(true)
+    } catch (error) {
+      console.error('Failed to delete KG index:', error)
+      alert('Failed to delete KG index: ' + (error as Error).message)
+    } finally {
+      setDeletingKGIndex(false)
+    }
+  }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -270,7 +326,7 @@ export function DocumentUpload() {
       </h2>
 
       {/* Index Status Panels - LARGER */}
-      <div className="grid grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-3 gap-6 mb-8">
         {/* Azure AI Search Status */}
         <div className="p-6 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -493,6 +549,96 @@ export function DocumentUpload() {
               </div>
             )}
             <p className="text-sm text-purple-500 pt-3">Powered by Microsoft GraphRAG</p>
+          </div>
+        </div>
+
+        {/* KG Search Index Status */}
+        <div className="p-6 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 border-2 border-amber-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-200 rounded-lg">
+                <Zap className="h-7 w-7 text-amber-700" />
+              </div>
+              <span className="text-xl font-semibold text-amber-900">KG Search Index</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {loadingKGStatus ? (
+                <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+              ) : kgStatus?.ready ? (
+                <span className="px-4 py-1.5 bg-green-100 text-green-700 text-base font-medium rounded-full flex items-center gap-1">
+                  <CheckCircle className="h-5 w-5" /> Ready
+                </span>
+              ) : buildingKGIndex ? (
+                <span className="px-4 py-1.5 bg-orange-100 text-orange-700 text-base font-medium rounded-full flex items-center gap-1">
+                  <Loader2 className="h-5 w-5 animate-spin" /> Building...
+                </span>
+              ) : (
+                <span className="px-4 py-1.5 bg-yellow-100 text-yellow-700 text-base font-medium rounded-full flex items-center gap-1">
+                  <XCircle className="h-5 w-5" /> Not Built
+                </span>
+              )}
+              <button
+                onClick={handleRefreshKGStatus}
+                className="p-2 rounded-lg hover:bg-amber-200 transition-colors"
+                title="Refresh status"
+                disabled={loadingKGStatus}
+              >
+                <RefreshCw className={`h-4 w-4 text-amber-600 ${loadingKGStatus ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={handleDeleteKGIndex}
+                className="p-2 rounded-lg hover:bg-red-100 transition-colors"
+                title="Delete KG Search index"
+                disabled={deletingKGIndex || !kgStatus?.ready}
+              >
+                {deletingKGIndex ? (
+                  <Loader2 className="h-5 w-5 text-red-500 animate-spin" />
+                ) : (
+                  <Trash2 className="h-5 w-5 text-red-500" />
+                )}
+              </button>
+            </div>
+          </div>
+          
+          <div className="mt-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-amber-200">
+              <span className="text-base text-amber-600">Total Documents</span>
+              <span className="text-3xl font-bold text-amber-900">{kgStatus?.total_documents ?? 0}</span>
+            </div>
+            
+            {kgStatus?.ready ? (
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div className="text-center p-3 bg-white/50 rounded-lg">
+                  <div className="text-xl font-semibold text-amber-800">{kgStatus.entity_profiles ?? 0}</div>
+                  <div className="text-sm text-amber-600">🔗 Entity Profiles</div>
+                </div>
+                <div className="text-center p-3 bg-white/50 rounded-lg">
+                  <div className="text-xl font-semibold text-amber-800">{kgStatus.community_summaries ?? 0}</div>
+                  <div className="text-sm text-amber-600">🏘️ Communities</div>
+                </div>
+              </div>
+            ) : (
+              <div className="pt-2">
+                {graphragStatus?.ready && !kgStatus?.ready && !buildingKGIndex && (
+                  <button
+                    onClick={handleBuildKGIndex}
+                    className="w-full py-3 px-5 rounded-lg bg-amber-600 text-white text-lg font-medium hover:bg-amber-700 transition-colors"
+                  >
+                    ⚡ Build KG Search Index
+                  </button>
+                )}
+                {buildingKGIndex && (
+                  <div className="flex items-center justify-center gap-3 py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-amber-600" />
+                    <span className="text-amber-700 font-medium">Building index... (~2-5 min)</span>
+                  </div>
+                )}
+                {!graphragStatus?.ready && !buildingKGIndex && (
+                  <p className="text-base text-amber-500 text-center py-3">Build Knowledge Graph first</p>
+                )}
+              </div>
+            )}
+            <p className="text-sm text-amber-500 pt-2">⚡ Fast GraphRAG via AI Search (~0.3s vs ~40s)</p>
           </div>
         </div>
       </div>

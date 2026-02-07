@@ -47,12 +47,13 @@ logger = logging.getLogger(__name__)
 class SearchService:
     """Azure AI Search service for indexing and retrieval."""
     
-    def __init__(self):
+    def __init__(self, index_name: str = None):
         self.settings = get_settings()
+        self._index_name = index_name or self.settings.module7_search_index_name
         self._search_client = None
         self._index_client = None
         self._openai_client = None
-        logger.info(f"SearchService initialized (Search SDK: {SEARCH_AVAILABLE}, OpenAI SDK: {OPENAI_AVAILABLE})")
+        logger.info(f"SearchService initialized for index '{self._index_name}' (Search SDK: {SEARCH_AVAILABLE}, OpenAI SDK: {OPENAI_AVAILABLE})")
     
     @property
     def search_client(self):
@@ -63,10 +64,10 @@ class SearchService:
         if self._search_client is None:
             self._search_client = SearchClient(
                 endpoint=self.settings.get_search_endpoint(),
-                index_name=self.settings.module7_search_index_name,
+                index_name=self._index_name,
                 credential=AzureKeyCredential(self.settings.azure_search_api_key)
             )
-            logger.info(f"SearchClient connected to index: {self.settings.module7_search_index_name}")
+            logger.info(f"SearchClient connected to index: {self._index_name}")
         return self._search_client
     
     @property
@@ -394,9 +395,10 @@ class SearchService:
         
         return docs
     
-    async def get_index_schema(self) -> Dict[str, Any]:
+    async def get_index_schema(self, index_name: Optional[str] = None) -> Dict[str, Any]:
         """Get the index schema."""
-        index = self.index_client.get_index(self.settings.module7_search_index_name)
+        target_index = index_name or self.settings.module7_search_index_name
+        index = self.index_client.get_index(target_index)
 
         def _serialize_hnsw_params(params: Any) -> Dict[str, Any]:
             if params is None:
@@ -453,26 +455,88 @@ class SearchService:
             } if index.semantic_search else None
         }
     
-    async def get_index_stats(self) -> Dict[str, Any]:
+    async def get_index_stats(self, index_name: Optional[str] = None) -> Dict[str, Any]:
         """Get index statistics. Returns zeros if index doesn't exist."""
         try:
+            target_index = index_name or self.settings.module7_search_index_name
+            
+            # Use a dedicated search client for the target index
+            if target_index != self.settings.module7_search_index_name:
+                from azure.core.credentials import AzureKeyCredential
+                client = SearchClient(
+                    endpoint=self.settings.get_search_endpoint(),
+                    index_name=target_index,
+                    credential=AzureKeyCredential(self.settings.azure_search_api_key)
+                )
+            else:
+                client = self.search_client
+            
             # Get chunk count (total documents in index)
-            results = self.search_client.search(search_text="*", top=0, include_total_count=True)
+            results = client.search(search_text="*", top=0, include_total_count=True)
             chunk_count = results.get_count() or 0
             
-            # Get content type distribution
-            content_types = {}
-            for ct in ["text", "table", "figure"]:
-                ct_results = self.search_client.search(
-                    search_text="*",
-                    filter=f"chunk_type eq '{ct}'",  # Index uses chunk_type
-                    top=0,
-                    include_total_count=True
-                )
-                content_types[ct] = ct_results.get_count() or 0
+            # Detect the content type field name for this index
+            try:
+                idx = self.index_client.get_index(target_index)
+                field_names = [f.name for f in idx.fields]
+            except Exception:
+                field_names = []
             
-            # Get unique documents (by source_document field)
-            unique_docs = await self.get_unique_documents()
+            # Get content type distribution - adapt field name
+            content_types = {}
+            type_field = None
+            for candidate in ["chunk_type", "content_type", "doc_type"]:
+                if candidate in field_names:
+                    type_field = candidate
+                    break
+            
+            if type_field:
+                # Determine which values to look for
+                if type_field == "doc_type":
+                    type_values = ["entity_profile", "community_summary"]
+                else:
+                    type_values = ["text", "table", "figure"]
+                
+                for ct in type_values:
+                    ct_results = client.search(
+                        search_text="*",
+                        filter=f"{type_field} eq '{ct}'",
+                        top=0,
+                        include_total_count=True
+                    )
+                    content_types[ct] = ct_results.get_count() or 0
+            else:
+                content_types = {"text": 0, "table": 0, "figure": 0}
+            
+            # Get unique documents (by source_document or file_name field)
+            unique_docs = []
+            doc_field = None
+            for candidate in ["file_name", "source_document"]:
+                if candidate in field_names:
+                    doc_field = candidate
+                    break
+            
+            if doc_field:
+                try:
+                    id_field = "chunk_id" if "chunk_id" in field_names else "id"
+                    doc_results = client.search(
+                        search_text="*",
+                        select=[doc_field],
+                        top=1000
+                    )
+                    doc_chunks: Dict[str, Dict[str, Any]] = {}
+                    for chunk in doc_results:
+                        source = chunk.get(doc_field, "unknown")
+                        if source not in doc_chunks:
+                            doc_chunks[source] = {
+                                "filename": source,
+                                "doc_id": "",
+                                "chunk_count": 0
+                            }
+                        doc_chunks[source]["chunk_count"] += 1
+                    unique_docs = sorted(doc_chunks.values(), key=lambda x: x["filename"])
+                except Exception:
+                    pass
             
             return {
                 "document_count": chunk_count,  # Keep for backwards compatibility (chunk count)

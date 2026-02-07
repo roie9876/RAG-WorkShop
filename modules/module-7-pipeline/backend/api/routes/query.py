@@ -23,6 +23,9 @@ class QueryRequest(BaseModel):
     """Request model for RAG queries."""
     question: str = Field(..., description="The user's question")
     
+    # Target index (selectable in UI)
+    index_name: Optional[str] = Field(default=None, description="Azure AI Search index name to query (defaults to module7-rag-index)")
+    
     # Retrieval parameters (configurable in UI)
     top_k: int = Field(default=5, ge=1, le=50, description="Number of chunks to retrieve")
     search_mode: Literal["vector", "text", "hybrid", "semantic"] = Field(
@@ -212,11 +215,11 @@ async def execute_query(request: QueryRequest):
     start_time = time.time()
     
     try:
-        # Initialize services
-        retrieval_router = RetrievalRouter()
+        # Initialize services (with optional index override)
+        retrieval_router = RetrievalRouter(index_name=request.index_name)
         generation_service = GenerationService()
-        agent_service = AgentService()
-        iterative_retriever = IterativeRetriever()
+        agent_service = AgentService(index_name=request.index_name)
+        iterative_retriever = IterativeRetriever(index_name=request.index_name)
         validation_service = ValidationService()
         
         # Determine retrieval strategy
@@ -626,10 +629,10 @@ async def execute_query_stream(request: QueryRequest):
     """
     async def generate_stream():
         try:
-            # Initialize services
-            retrieval_router = RetrievalRouter()
+            # Initialize services (with optional index override)
+            retrieval_router = RetrievalRouter(index_name=request.index_name)
             generation_service = GenerationService()
-            agent_service = AgentService()
+            agent_service = AgentService(index_name=request.index_name)
             
             import time
             start_time = time.time()

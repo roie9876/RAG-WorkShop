@@ -33,9 +33,9 @@ class AgentService:
     - Synthesize answers from multiple retrievals
     """
     
-    def __init__(self):
+    def __init__(self, index_name: str = None):
         self.settings = get_settings()
-        self.search_service = SearchService()
+        self.search_service = SearchService(index_name=index_name)
         self.blob_service = BlobService()
         self._project_client = None
         self._agent = None
