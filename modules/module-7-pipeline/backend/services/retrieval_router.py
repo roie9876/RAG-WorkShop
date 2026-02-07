@@ -3,6 +3,7 @@ Retrieval Router Service.
 Routes queries to the optimal retrieval strategy.
 """
 
+import asyncio
 import logging
 from typing import Dict, Any, Optional, List
 from openai import AzureOpenAI
@@ -151,7 +152,89 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             return await self._retrieve_hybrid(
                 query, top_k, search_mode, semantic_ranker, min_score, content_type_filter
             )
-    
+
+    async def retrieve_combined(
+        self,
+        query: str,
+        base_strategy: str = "hybrid",
+        top_k: int = 5,
+        search_mode: str = "hybrid",
+        semantic_ranker: bool = True,
+        min_score: float = 0.0,
+        content_type_filter: str = "all",
+        graphrag_mode: str = "local",
+        graphrag_community_level: int = 2,
+        graphrag_response_type: str = "Multiple Paragraphs"
+    ) -> Dict[str, Any]:
+        """
+        Combined retrieval: runs AI Search and GraphRAG in parallel,
+        returns both individual results for the merge step.
+        """
+        import time
+
+        # Run both retrievals in parallel
+        async def run_search():
+            t0 = time.time()
+            result = await self.retrieve(
+                query=query,
+                strategy=base_strategy,
+                top_k=top_k,
+                search_mode=search_mode,
+                semantic_ranker=semantic_ranker,
+                min_score=min_score,
+                content_type_filter=content_type_filter
+            )
+            elapsed = int((time.time() - t0) * 1000)
+            return result, elapsed
+
+        async def run_graphrag():
+            t0 = time.time()
+            result = await self.retrieve(
+                query=query,
+                strategy="graphrag",
+                top_k=top_k,
+                graphrag_mode=graphrag_mode,
+                graphrag_community_level=graphrag_community_level,
+                graphrag_response_type=graphrag_response_type
+            )
+            elapsed = int((time.time() - t0) * 1000)
+            return result, elapsed
+
+        search_task = asyncio.create_task(run_search())
+        graphrag_task = asyncio.create_task(run_graphrag())
+
+        (search_result, search_time), (graphrag_result, graphrag_time) = await asyncio.gather(
+            search_task, graphrag_task
+        )
+
+        # Tag chunks with their origin for UI display
+        for chunk in search_result.get("chunks", []):
+            chunk["_origin"] = base_strategy
+        for chunk in graphrag_result.get("chunks", []):
+            chunk["_origin"] = "graphrag"
+
+        # Merge all chunks (deduplicated), search first then graphrag
+        all_chunks = self._merge_chunks(
+            search_result.get("chunks", []),
+            graphrag_result.get("chunks", [])
+        )
+
+        logger.info(
+            f"Combined retrieval: {base_strategy}={len(search_result.get('chunks', []))} chunks ({search_time}ms), "
+            f"graphrag={len(graphrag_result.get('chunks', []))} chunks ({graphrag_time}ms), "
+            f"merged={len(all_chunks)} chunks"
+        )
+
+        return {
+            "chunks": all_chunks,
+            "search_result": search_result,
+            "search_time_ms": search_time,
+            "graphrag_result": graphrag_result,
+            "graphrag_time_ms": graphrag_time,
+            "base_strategy": base_strategy,
+            "graphrag_metadata": graphrag_result.get("graphrag_metadata")
+        }
+
     async def _retrieve_hybrid(
         self,
         query: str,

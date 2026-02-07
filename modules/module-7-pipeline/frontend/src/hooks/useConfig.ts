@@ -12,6 +12,8 @@ const DEFAULT_CONFIG: QueryConfig = {
   // General settings
   retrieval_strategy: 'iterative',
   enable_validation: true,
+  // Combined strategy parameters
+  combined_base_strategy: 'hybrid',
   // GraphRAG parameters
   graphrag_mode: 'local',
   graphrag_community_level: 2,

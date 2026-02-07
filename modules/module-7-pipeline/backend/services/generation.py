@@ -162,3 +162,72 @@ class GenerationService:
             formatted.append(f"[Source {i}] ({source_line})\n{content_desc}")
         
         return "\n\n---\n\n".join(formatted)
+
+    async def generate_merged_answer(
+        self,
+        query: str,
+        search_answer: str,
+        graphrag_answer: str,
+        search_strategy: str = "hybrid",
+        graphrag_mode: str = "local"
+    ) -> Dict[str, Any]:
+        """
+        Merge two answers from AI Search and GraphRAG into a single comprehensive answer.
+        
+        Args:
+            query: Original user question
+            search_answer: Answer from AI Search strategy
+            graphrag_answer: Answer from GraphRAG
+            search_strategy: Name of the AI Search strategy used
+            graphrag_mode: GraphRAG mode used
+            
+        Returns:
+            Dict with merged answer, model, tokens_used
+        """
+        import asyncio
+
+        merge_prompt = f"""You are an expert at synthesizing information from multiple sources.
+You have received two answers to the same question, each from a different retrieval system:
+
+**Answer from AI Search ({search_strategy}):**
+{search_answer}
+
+**Answer from Knowledge Graph (GraphRAG {graphrag_mode}):**
+{graphrag_answer}
+
+Your job is to merge these into a single, comprehensive answer that:
+1. Combines unique information from BOTH answers
+2. Resolves any contradictions by noting both perspectives
+3. Preserves specific details, numbers, and entity names from both
+4. Uses clear structure (headings, bullet points) when helpful
+5. Notes which source contributed which information when relevant
+6. Maintains citation references from both answers where present
+
+If one answer has "not enough information" or is empty, use the other answer as the primary source.
+Produce a well-structured merged answer."""
+
+        def _sync_merge():
+            return self.client.chat.completions.create(
+                model=self.settings.azure_openai_deployment,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": merge_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": query
+                    }
+                ],
+                temperature=0.3,
+                max_tokens=2000
+            )
+
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, _sync_merge)
+
+        return {
+            "answer": response.choices[0].message.content,
+            "model": self.settings.azure_openai_deployment,
+            "tokens_used": response.usage.total_tokens if response.usage else 0
+        }

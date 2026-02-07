@@ -33,14 +33,19 @@ class QueryRequest(BaseModel):
     content_type_filter: Literal["all", "text", "table", "figure"] = Field(
         default="all", description="Filter by content type"
     )
-    retrieval_strategy: Literal["auto", "hybrid", "agentic", "agentic_search", "iterative", "graphrag"] = Field(
+    retrieval_strategy: Literal["auto", "hybrid", "agentic", "agentic_search", "iterative", "graphrag", "combined"] = Field(
         default="auto", description="Retrieval strategy. agentic_search uses Azure AI Search native Agentic Retrieval (requires S1+ tier)"
     )
     enable_validation: bool = Field(default=True, description="Enable answer validation")
     
+    # Combined strategy parameters
+    combined_base_strategy: Literal["hybrid", "agentic", "agentic_search", "iterative"] = Field(
+        default="hybrid", description="Base AI Search strategy to combine with GraphRAG"
+    )
+    
     # GraphRAG parameters
     graphrag_mode: Literal["local", "global", "drift"] = Field(
-        default="drift", description="GraphRAG search mode"
+        default="local", description="GraphRAG search mode"
     )
     graphrag_community_level: int = Field(
         default=2, ge=0, le=5, description="Community level for graph traversal (0=specific, 5=broad)"
@@ -165,6 +170,21 @@ class RetrievalMetadata(BaseModel):
     multi_hop_trace: Optional[List[MultiHopStep]] = None
     iterative_trace: Optional[IterativeTraceResponse] = None
     content_type_distribution: dict = {}
+    graphrag_metadata: Optional[dict] = None
+    combined_results: Optional[dict] = None  # For combined strategy: individual answers before merge
+
+
+class CombinedResults(BaseModel):
+    """Individual results before merging in combined strategy."""
+    search_answer: str = ""
+    search_strategy: str = ""
+    search_sources: List[SourceChunk] = []
+    search_time_ms: int = 0
+    graphrag_answer: str = ""
+    graphrag_mode: str = ""
+    graphrag_sources: List[SourceChunk] = []
+    graphrag_time_ms: int = 0
+    graphrag_metadata: Optional[dict] = None
 
 
 class QueryResponse(BaseModel):
@@ -174,6 +194,7 @@ class QueryResponse(BaseModel):
     retrieval_metadata: RetrievalMetadata
     generation_metadata: dict = {}
     validation_report: Optional[ValidationReportResponse] = None
+    combined_results: Optional[CombinedResults] = None  # Individual answers before merge
 
 
 @router.post("", response_model=QueryResponse)
@@ -207,9 +228,126 @@ async def execute_query(request: QueryRequest):
         # Track iterative trace separately
         iterative_trace_data = None
         validation_report_data = None
+        combined_results_data = None  # For combined strategy
         
         # Execute retrieval based on strategy
-        if strategy == "iterative":
+        if strategy == "combined":
+            # === COMBINED STRATEGY: AI Search + GraphRAG in parallel ===
+            retrieval_result = await retrieval_router.retrieve_combined(
+                query=request.question,
+                base_strategy=request.combined_base_strategy,
+                top_k=request.top_k,
+                search_mode=request.search_mode,
+                semantic_ranker=request.semantic_ranker,
+                min_score=request.min_score,
+                content_type_filter=request.content_type_filter,
+                graphrag_mode=request.graphrag_mode,
+                graphrag_community_level=request.graphrag_community_level,
+                graphrag_response_type=request.graphrag_response_type
+            )
+
+            retrieval_time_ms = int((time.time() - start_time) * 1000)
+
+            # Check for errors from either side
+            search_result = retrieval_result.get("search_result", {})
+            graphrag_result = retrieval_result.get("graphrag_result", {})
+            
+            if search_result.get("error") and graphrag_result.get("error"):
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "error_type": "combined_both_failed",
+                        "message": "Both AI Search and GraphRAG failed",
+                        "search_error": search_result.get("error_message", ""),
+                        "graphrag_error": graphrag_result.get("error_message", "")
+                    }
+                )
+
+            # Generate individual answers from each source (in parallel)
+            search_chunks = search_result.get("chunks", [])
+            graphrag_chunks = graphrag_result.get("chunks", [])
+
+            async def gen_search_answer():
+                if not search_chunks:
+                    return {"answer": "No results from AI Search.", "model": "", "tokens_used": 0}
+                return await generation_service.generate_answer(
+                    query=request.question,
+                    contexts=search_chunks
+                )
+
+            async def gen_graphrag_answer():
+                if not graphrag_chunks:
+                    return {"answer": "No results from GraphRAG.", "model": "", "tokens_used": 0}
+                return await generation_service.generate_answer(
+                    query=request.question,
+                    contexts=graphrag_chunks
+                )
+
+            import asyncio as _asyncio
+            search_gen, graphrag_gen = await _asyncio.gather(
+                gen_search_answer(), gen_graphrag_answer()
+            )
+
+            search_answer = search_gen["answer"]
+            graphrag_answer = graphrag_gen["answer"]
+
+            # Build source lists for individual results
+            search_sources = [
+                SourceChunk(
+                    id=c["id"],
+                    content=c["content"],
+                    content_type=c.get("content_type", "text"),
+                    relevance_score=c.get("score", 0.0),
+                    page_numbers=c.get("page_numbers", []),
+                    source_document=c.get("source_document", "unknown"),
+                    source_document_sas_url=c.get("source_document_sas_url"),
+                    section_header=c.get("section_header"),
+                    image_sas_url=c.get("image_sas_url")
+                )
+                for c in search_chunks
+            ]
+            graphrag_sources = [
+                SourceChunk(
+                    id=c["id"],
+                    content=c["content"],
+                    content_type=c.get("content_type", "text"),
+                    relevance_score=c.get("score", 0.0),
+                    page_numbers=c.get("page_numbers", []),
+                    source_document=c.get("source_document", "unknown"),
+                    source_document_sas_url=c.get("source_document_sas_url"),
+                    section_header=c.get("section_header"),
+                    image_sas_url=c.get("image_sas_url")
+                )
+                for c in graphrag_chunks
+            ]
+
+            combined_results_data = CombinedResults(
+                search_answer=search_answer,
+                search_strategy=request.combined_base_strategy,
+                search_sources=search_sources,
+                search_time_ms=retrieval_result.get("search_time_ms", 0),
+                graphrag_answer=graphrag_answer,
+                graphrag_mode=request.graphrag_mode,
+                graphrag_sources=graphrag_sources,
+                graphrag_time_ms=retrieval_result.get("graphrag_time_ms", 0),
+                graphrag_metadata=retrieval_result.get("graphrag_metadata")
+            )
+
+            # Merge the two answers into one
+            merge_result = await generation_service.generate_merged_answer(
+                query=request.question,
+                search_answer=search_answer,
+                graphrag_answer=graphrag_answer,
+                search_strategy=request.combined_base_strategy,
+                graphrag_mode=request.graphrag_mode
+            )
+
+            generation_result = merge_result
+
+            # Use all merged chunks for sources display
+            chunks_for_generation = retrieval_result["chunks"]
+
+        elif strategy == "iterative":
             # Use iterative entity-aware retrieval
             chunks, iter_trace = await iterative_retriever.retrieve(
                 query=request.question,
@@ -246,58 +384,60 @@ async def execute_query(request: QueryRequest):
                 graphrag_response_type=request.graphrag_response_type
             )
         
-        retrieval_time_ms = int((time.time() - start_time) * 1000)
-        
-        # Check if retrieval returned an error (e.g., GraphRAG not ready)
-        if retrieval_result.get("error"):
-            from fastapi import HTTPException
-            error_type = retrieval_result.get("error_type", "retrieval_error")
-            error_message = retrieval_result.get("error_message", "Retrieval failed")
-            suggestion = retrieval_result.get("suggestion", "")
-            status = retrieval_result.get("status", {})
+        # For non-combined strategies, calculate retrieval time and handle errors/generation
+        if strategy != "combined":
+            retrieval_time_ms = int((time.time() - start_time) * 1000)
             
-            raise HTTPException(
-                status_code=503,  # Service Unavailable
-                detail={
-                    "error_type": error_type,
-                    "message": error_message,
-                    "suggestion": suggestion,
-                    "status": status,
-                    "strategy_requested": strategy
-                }
-            )
-        
-        # Get initial chunks
-        chunks_for_generation = retrieval_result["chunks"]
-        
-        # === VALIDATION STAGE 1: Filter chunks before generation ===
-        if request.enable_validation:
-            chunks_for_generation, validation_report_data = await validation_service.validate_chunks(
-                query=request.question,
-                chunks=retrieval_result["chunks"]
-            )
-            
-            # If all chunks filtered, warn but continue with original
-            if not chunks_for_generation and retrieval_result["chunks"]:
-                validation_report_data.warnings.append(
-                    "All chunks were filtered as irrelevant. Using original chunks."
+            # Check if retrieval returned an error (e.g., GraphRAG not ready)
+            if retrieval_result.get("error"):
+                from fastapi import HTTPException
+                error_type = retrieval_result.get("error_type", "retrieval_error")
+                error_message = retrieval_result.get("error_message", "Retrieval failed")
+                suggestion = retrieval_result.get("suggestion", "")
+                status = retrieval_result.get("status", {})
+                
+                raise HTTPException(
+                    status_code=503,  # Service Unavailable
+                    detail={
+                        "error_type": error_type,
+                        "message": error_message,
+                        "suggestion": suggestion,
+                        "status": status,
+                        "strategy_requested": strategy
+                    }
                 )
-                chunks_for_generation = retrieval_result["chunks"]
-        
-        # Generate answer with citations (using filtered chunks)
-        generation_result = await generation_service.generate_answer(
-            query=request.question,
-            contexts=chunks_for_generation
-        )
-        
-        # === VALIDATION STAGE 2: Validate answer quality ===
-        if request.enable_validation and validation_report_data:
-            validation_report_data = await validation_service.validate_answer(
+            
+            # Get initial chunks
+            chunks_for_generation = retrieval_result["chunks"]
+            
+            # === VALIDATION STAGE 1: Filter chunks before generation ===
+            if request.enable_validation:
+                chunks_for_generation, validation_report_data = await validation_service.validate_chunks(
+                    query=request.question,
+                    chunks=retrieval_result["chunks"]
+                )
+                
+                # If all chunks filtered, warn but continue with original
+                if not chunks_for_generation and retrieval_result["chunks"]:
+                    validation_report_data.warnings.append(
+                        "All chunks were filtered as irrelevant. Using original chunks."
+                    )
+                    chunks_for_generation = retrieval_result["chunks"]
+            
+            # Generate answer with citations (using filtered chunks)
+            generation_result = await generation_service.generate_answer(
                 query=request.question,
-                answer=generation_result["answer"],
-                chunks=chunks_for_generation,
-                report=validation_report_data
+                contexts=chunks_for_generation
             )
+            
+            # === VALIDATION STAGE 2: Validate answer quality ===
+            if request.enable_validation and validation_report_data:
+                validation_report_data = await validation_service.validate_answer(
+                    query=request.question,
+                    answer=generation_result["answer"],
+                    chunks=chunks_for_generation,
+                    report=validation_report_data
+                )
         
         # Build response with full observability (use filtered chunks as sources)
         sources = [
@@ -394,7 +534,8 @@ async def execute_query(request: QueryRequest):
             activity_log=activity_log,
             multi_hop_trace=multi_hop_trace,
             iterative_trace=iterative_trace_response,
-            content_type_distribution=content_types
+            content_type_distribution=content_types,
+            graphrag_metadata=retrieval_result.get("graphrag_metadata")
         )
         
         # Build validation report response
@@ -465,7 +606,8 @@ async def execute_query(request: QueryRequest):
                 "model": generation_result.get("model", "gpt-4.1"),
                 "tokens_used": generation_result.get("tokens_used", 0)
             },
-            validation_report=validation_response
+            validation_report=validation_response,
+            combined_results=combined_results_data
         )
         
     except Exception as e:

@@ -54,6 +54,8 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
       // General defaults
       retrieval_strategy: 'iterative',
       enable_validation: true,
+      // Combined defaults
+      combined_base_strategy: 'hybrid',
       // GraphRAG defaults
       graphrag_mode: 'local',
       graphrag_community_level: 2,
@@ -83,8 +85,9 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
   const maxScore = getMaxScore(config.search_mode, config.semantic_ranker)
   const scoreStep = getScoreStep(config.search_mode, config.semantic_ranker)
   const isSemanticScoring = config.search_mode === 'semantic' || (config.search_mode === 'hybrid' && config.semantic_ranker)
-  const isGraphRAGSelected = config.retrieval_strategy === 'graphrag'
+  const isGraphRAGSelected = config.retrieval_strategy === 'graphrag' || config.retrieval_strategy === 'combined'
   const isAISearchSelected = config.retrieval_strategy !== 'graphrag'
+  const isCombinedSelected = config.retrieval_strategy === 'combined'
 
   return (
     <div className="rounded-xl border bg-card p-6">
@@ -126,6 +129,7 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
               <option value="agentic">Agentic (AI Agent)</option>
               <option value="agentic_search">Agentic Search (Azure Native)</option>
               <option value="graphrag">GraphRAG (Knowledge Graph)</option>
+              <option value="combined">Combined (AI Search + GraphRAG)</option>
             </select>
             <p className="text-sm text-muted-foreground mt-2">
               {config.retrieval_strategy === 'auto' && '🎯 System will choose the best strategy based on your question'}
@@ -134,8 +138,29 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
               {config.retrieval_strategy === 'agentic' && '🤖 AI Agent with query decomposition & tool calls'}
               {config.retrieval_strategy === 'agentic_search' && '⚡ Azure AI Search native multi-query (requires S1+ tier)'}
               {config.retrieval_strategy === 'graphrag' && '🕸️ Graph-based retrieval for relationship questions'}
+              {config.retrieval_strategy === 'combined' && '🔀 Runs AI Search + GraphRAG in parallel, merges answers'}
             </p>
           </div>
+
+          {/* Combined Base Strategy Picker */}
+          {isCombinedSelected && (
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <label className="text-base font-medium block mb-2">AI Search Strategy (to combine with GraphRAG)</label>
+              <select
+                value={config.combined_base_strategy}
+                onChange={(e) => onChange({ combined_base_strategy: e.target.value as QueryConfig['combined_base_strategy'] })}
+                className="w-full p-3 rounded-lg border bg-background text-base"
+              >
+                <option value="hybrid">Hybrid (Vector + Text)</option>
+                <option value="iterative">Iterative (Entity-Aware)</option>
+                <option value="agentic">Agentic (AI Agent)</option>
+                <option value="agentic_search">Agentic Search (Azure Native)</option>
+              </select>
+              <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+                🔀 This strategy will run in parallel with GraphRAG. Both answers shown before merge.
+              </p>
+            </div>
+          )}
 
           {/* Answer Validation */}
           <div className="flex items-center justify-between pt-2">
@@ -178,6 +203,11 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
             {!isAISearchSelected && (
               <span className="text-xs bg-muted px-2 py-1 rounded ml-auto">
                 Not used with GraphRAG
+              </span>
+            )}
+            {isCombinedSelected && (
+              <span className="text-xs bg-amber-500/20 text-amber-600 px-2 py-1 rounded ml-auto">
+                Combined mode
               </span>
             )}
           </div>
@@ -306,7 +336,12 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
             <span>GraphRAG Parameters</span>
             {!isGraphRAGSelected && (
               <span className="text-xs bg-muted px-2 py-1 rounded ml-auto">
-                Select GraphRAG strategy to enable
+                Select GraphRAG or Combined strategy to enable
+              </span>
+            )}
+            {isCombinedSelected && (
+              <span className="text-xs bg-amber-500/20 text-amber-600 px-2 py-1 rounded ml-auto">
+                Combined mode
               </span>
             )}
           </div>

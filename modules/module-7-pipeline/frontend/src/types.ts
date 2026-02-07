@@ -9,8 +9,11 @@ export interface QueryConfig {
   content_type_filter: 'all' | 'text' | 'table' | 'figure'
   
   // General Parameters
-  retrieval_strategy: 'auto' | 'hybrid' | 'agentic' | 'agentic_search' | 'iterative' | 'graphrag'
+  retrieval_strategy: 'auto' | 'hybrid' | 'agentic' | 'agentic_search' | 'iterative' | 'graphrag' | 'combined'
   enable_validation?: boolean
+  
+  // Combined Strategy Parameters
+  combined_base_strategy: 'hybrid' | 'agentic' | 'agentic_search' | 'iterative'
   
   // GraphRAG Parameters
   graphrag_mode: 'local' | 'global' | 'drift'
@@ -85,6 +88,31 @@ export interface RetrievalMetadata {
   multi_hop_trace?: MultiHopStep[]
   iterative_trace?: IterativeTrace
   content_type_distribution: Record<string, number>
+  graphrag_metadata?: {
+    mode: string
+    entities_found: number
+    relationships_found: number
+    communities_used: number
+    graphrag_response?: string
+  }
+}
+
+// Combined Strategy Types
+export interface CombinedResults {
+  search_answer: string
+  search_strategy: string
+  search_sources: SourceChunk[]
+  search_time_ms: number
+  graphrag_answer: string
+  graphrag_mode: string
+  graphrag_sources: SourceChunk[]
+  graphrag_time_ms: number
+  graphrag_metadata?: {
+    mode: string
+    entities_found: number
+    relationships_found: number
+    communities_used: number
+  }
 }
 
 // Validation Types
@@ -145,6 +173,7 @@ export interface QueryResponse {
     tokens_used: number
   }
   validation_report?: ValidationReport
+  combined_results?: CombinedResults
 }
 
 export interface DocumentStatus {

@@ -97,15 +97,19 @@ flowchart TB
         HYBRID["🔄 Hybrid<br/>(fast lookup)"]
         ITER["🔁 Iterative<br/>(multi-hop)"]
         GRAPH["🕸️ GraphRAG<br/>(relationships)"]
+        COMBINED["🔀 Combined<br/>(Search + GraphRAG)"]
         
         USERQ --> HYBRID
         USERQ --> ITER
         USERQ --> GRAPH
+        USERQ --> COMBINED
     end
 
     SEARCH --> HYBRID
     SEARCH --> ITER
+    SEARCH --> COMBINED
     PARQUET --> GRAPH
+    PARQUET --> COMBINED
 
     subgraph OUTPUT["✅ Validation & Generation"]
         VALID["Chunk Validation<br/>(entity filtering)"]
@@ -191,12 +195,75 @@ Users choose a retrieval strategy (or let the system auto-select):
 | **Iterative** | Entity lookups, fragmented context | Entity extraction → query rewriting loop |
 | **Agentic** | Complex multi-part questions | LLM decomposes query into sub-queries |
 | **Agentic Search** | Azure-native query decomposition | Azure AI Search handles sub-queries natively |
-| **GraphRAG** | Relationship and impact queries | Knowledge graph traversal (DRIFT search) |
+| **GraphRAG** | Relationship and impact queries | Knowledge graph traversal (local/global/drift) |
+| **Combined** | Get the best of both worlds | Runs AI Search + GraphRAG in parallel, merges answers |
 | **Auto** | Let the system decide | LLM classifies query complexity and picks strategy |
 
 ### Stage 6: Validation & Generation
 
 A two-stage quality control process ensures answer reliability:
+
+---
+
+## 🔍 Retrieval Strategies Explained
+
+The pipeline offers **7 retrieval strategies**. Each approaches your question differently — there is no single "best" strategy, the right choice depends on what you're asking.
+
+### 🔄 Hybrid (AI Search)
+
+**Best for:** Quick factual questions — _"What is Station 36?"_, _"Show me the specs for the entrance design."_
+
+Searches your documents using **both** keyword matching (like a search engine) and semantic similarity (understanding meaning). Fast and reliable for straightforward lookups. This is the workhorse strategy for most questions.
+
+### 🔁 Iterative (Entity-Aware)
+
+**Best for:** Questions where context is fragmented — _"How many passengers use Station 36?"_
+
+Standard search may find "Station 36 — Hazitonut Boulevard" but miss the passenger count on the same page because it doesn't mention "36". Iterative retrieval solves this: it **extracts entities** from initial results (e.g., the street name "Hazitonut"), then **rewrites the query** to find related chunks. Runs 2–3 search iterations automatically.
+
+### 🤖 Agentic (AI Agent)
+
+**Best for:** Complex multi-part questions — _"Compare the entrance designs of stations 36 and 38."_
+
+An AI agent **decomposes** your question into sub-questions, searches for each separately, and synthesizes the results. More thorough than single-shot search, but slower and uses more tokens.
+
+### ⚡ Agentic Search (Azure Native)
+
+**Best for:** Same as Agentic, but uses Azure AI Search's **built-in** query decomposition. Requires an S1+ tier search index. Faster than the custom Agentic strategy because the decomposition happens inside Azure.
+
+### 🕸️ GraphRAG (Knowledge Graph)
+
+**Best for:** Relationship questions — _"What services depend on Station 36?"_, _"How are the metro lines connected?"_
+
+Searches a **knowledge graph** of entities and relationships extracted from your documents. Instead of finding text chunks, it traverses connections between entities (stations, lines, organizations, locations). Three modes available:
+
+| Mode | Speed | Description |
+|------|-------|-------------|
+| **Local** ⚡ | ~5–10s | Finds the most relevant entities and follows their direct relationships. Fast and recommended for most questions. |
+| **Global** 🌍 | ~5–10s | Uses pre-computed community summaries for big-picture questions like "Summarize the entire metro plan." |
+| **DRIFT** 🎯 | ~30–60s | Combines local + global with iterative refinement. Deepest analysis but significantly slower. |
+
+### 🔀 Combined (AI Search + GraphRAG)
+
+**Best for:** Getting the most comprehensive answer — _"Tell me everything about Station 36 and its connections."_
+
+Runs **any AI Search strategy** (Hybrid, Iterative, Agentic, or Agentic Search) **in parallel** with GraphRAG. You get **three answers**:
+
+1. **AI Search answer** — from document chunks (text, tables, figures)
+2. **GraphRAG answer** — from the knowledge graph (entities, relationships)
+3. **Merged answer** — an LLM synthesizes both into one comprehensive response
+
+The UI shows all three in **tabs** so you can compare what each source contributed. Pick the base AI Search strategy in the config panel — the default is Hybrid.
+
+> 💡 **Tip:** Combined mode takes longer (both strategies run in parallel, plus a merge step) but gives the most complete answers because it draws from both document content and entity relationships.
+
+### 🎯 Auto
+
+**Best for:** When you're not sure which strategy to pick.
+
+An LLM analyzes your question and picks the best strategy automatically. Simple questions get Hybrid, complex ones get Agentic, relationship questions get GraphRAG.
+
+---
 
 **Pre-generation filtering** — extracts entities from the user's query (e.g., "Station: 36") and checks each retrieved chunk for conflicts. Chunks about Station 37 are filtered out before the LLM ever sees them.
 
@@ -280,7 +347,8 @@ cd modules/module-7-pipeline
 
 - **Document Upload** — drag & drop for PDF, Word, Excel, PowerPoint, and images
 - **Index Status Panels** — unique document count, total chunks by type, GraphRAG progress
-- **Retrieval Strategy Selector** — switch between Hybrid, Iterative, Agentic, GraphRAG
+- **Retrieval Strategy Selector** — switch between Hybrid, Iterative, Agentic, GraphRAG, Combined
+- **Combined Mode** — tabbed view showing AI Search answer, GraphRAG answer, and merged answer side by side
 - **Validation Reports** — confidence scores, entity conflict detection, grounding checks
 - **Delete Controls** — reset either index independently for testing
 
@@ -354,6 +422,7 @@ module-7-pipeline/
 | **Validation is essential** | Filter entity conflicts and validate grounding before answering |
 | **Iterate to complete** | Multiple retrieval passes find more than single-shot search |
 | **Right tool for the question** | Vector search for facts, GraphRAG for relationships |
+| **Combined for completeness** | Merging AI Search + GraphRAG gives the most comprehensive answers |
 
 ---
 
@@ -361,7 +430,7 @@ module-7-pipeline/
 
 - **LazyGraphRAG** — defers expensive LLM calls until query time for lower indexing cost
 - **Incremental GraphRAG** — update the knowledge graph without full re-indexing
-- **Hybrid auto-routing** — automatically combine vector and graph results for complex queries
+- **Auto-combined routing** — automatically trigger Combined mode when the question would benefit from both sources
 
 ---
 
