@@ -284,43 +284,43 @@ We ran **12 questions** across **6 strategies** (72 API calls) to measure which 
 
 ### 🏆 The Killer Example: Where GraphRAG Wins Big
 
-**Question:** _"אילו ארגונים מעורבים בתכנון תחנות המטרו ומה התפקיד של כל אחד?"_
+**Question:** <bdi dir="rtl">"אילו ארגונים מעורבים בתכנון תחנות המטרו ומה התפקיד של כל אחד?"</bdi><br/>
 _(Which organizations are involved in planning metro stations and what is each one's role?)_
 
 | Strategy | Score | Time | Key Difference |
 |----------|-------|------|----------------|
-| **GraphRAG Global** 🏆 | **1.00** | 128s | Found **נת"ע, מנספלד-קהת, MIS** — all 3 organizations with roles |
-| Iterative | 0.67 | 30s | Found נת"ע and architects, missed MIS |
+| **GraphRAG Global** 🏆 | **1.00** | 128s | Found **<bdi dir="rtl">נת"ע</bdi>, <bdi dir="rtl">מנספלד-קהת</bdi>, MIS** — all 3 organizations with roles |
+| Iterative | 0.67 | 30s | Found <bdi dir="rtl">נת"ע</bdi> and architects, missed MIS |
 | GraphRAG Local | 0.67 | 19s | Found 2 of 3 organizations |
-| **Hybrid** ❌ | **0.33** | 13s | Only found נת"ע — couldn't connect organizations across documents |
+| **Hybrid** ❌ | **0.33** | 13s | Only found <bdi dir="rtl">נת"ע</bdi> — couldn't connect organizations across documents |
 | **Agentic** ❌ | **0.33** | 13s | Same as Hybrid — sub-queries didn't help here |
 
 **Why?** AI Search finds text chunks containing organization names, but can't connect _which organization does what_. GraphRAG has explicit `ORGANIZATION → STATION` relationships in its knowledge graph, so it can enumerate all involved parties and their roles.
 
 ### 💪 Where Iterative Wins: Entity Bridging
 
-**Question:** _"מהם ייעודי הקרקע הקיימים בסביבת תחנת קפלן?"_
+**Question:** <bdi dir="rtl">"מהם ייעודי הקרקע הקיימים בסביבת תחנת קפלן?"</bdi><br/>
 _(What are the existing land use designations around Kaplan Station?)_
 
 | Strategy | Score | Time | Key Difference |
 |----------|-------|------|----------------|
-| **Iterative** 🏆 | **1.00** | 31s | Found "35" + "קפלן" + all land use data |
+| **Iterative** 🏆 | **1.00** | 31s | Found "35" + "<bdi dir="rtl">קפלן</bdi>" + all land use data |
 | Agentic | 1.00 | 29s | Also decomposed effectively |
-| **Hybrid** ❌ | **0.67** | 13s | Searched "קפלן" but missed chunks labeled "תחנה 35" |
+| **Hybrid** ❌ | **0.67** | 13s | Searched "<bdi dir="rtl">קפלן</bdi>" but missed chunks labeled "<bdi dir="rtl">תחנה</bdi> 35" |
 | GraphRAG Global ❌ | 0.67 | 114s | Slow + less specific land use details |
 
 **Why?** The question says "Kaplan Station" but the land use data is indexed under "Station 35". Hybrid can't bridge this gap. Iterative extracts `{station_number: 35}` from the first result and rewrites the query.
 
 ### ⚠️ Where Hybrid Fails: Multi-Station Comparisons
 
-**Question:** _"מה ההבדלים בתכניות הפיתוח בין תחנה 37 לתחנה 38?"_
+**Question:** <bdi dir="rtl">"מה ההבדלים בתכניות הפיתוח בין תחנה 37 לתחנה 38?"</bdi><br/>
 _(What are the development plan differences between Station 37 and 38?)_
 
 | Strategy | Score | Time | Answer Quality |
 |----------|-------|------|----------------|
 | **Iterative** 🏆 | **1.00** | 66s | Detailed comparison with specific numbers (1,500 units, areas) |
 | Combined | 1.00 | 21s | Most comprehensive (2,203 chars) combining both sources |
-| **Hybrid** ❌ | **0.75** | 13s | _"אין לי מספיק מידע"_ (I don't have enough info) for Station 37 |
+| **Hybrid** ❌ | **0.75** | 13s | _"<bdi dir="rtl">אין לי מספיק מידע</bdi>"_ (I don't have enough info) for Station 37 |
 
 **Why?** Hybrid retrieves 5 chunks in one pass — it found Station 38 data but not enough Station 37 context. Iterative runs multiple passes, and Agentic decomposes into separate per-station queries.
 
