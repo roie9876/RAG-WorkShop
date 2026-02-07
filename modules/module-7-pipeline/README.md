@@ -265,6 +265,78 @@ An LLM analyzes your question and picks the best strategy automatically. Simple 
 
 ---
 
+## 📊 Strategy Evaluation: Real Results
+
+We ran **12 questions** across **6 strategies** (72 API calls) to measure which strategy actually wins for each question type. Below are the real results with actual answers.
+
+> Run the full evaluation yourself: `python strategy_eval.py --quick`
+
+### Results Summary
+
+| Category | Best Strategy | Avg Score | Runner-Up | Key Finding |
+|----------|--------------|-----------|-----------|-------------|
+| 📋 Factual Lookup | **Combined** (1.00) | 0.85 | GraphRAG Global (0.90) | All strategies answer correctly, but Combined and GraphRAG provide richer context |
+| 🔗 Entity-Fragmented | **Iterative** (0.83) | 0.70 | Agentic (0.83) | Iterative bridges disconnected chunks via entity extraction |
+| ⚖️ Multi-Part Comparison | **Iterative** (1.00) | 0.93 | Agentic, GraphRAG, Combined (1.00) | Hybrid fails when it can't find both stations in one search (0.75) |
+| 🕸️ Relationship | **GraphRAG Global** (0.90) | 0.68 | Iterative, GraphRAG Local (0.73) | **Biggest gap!** GraphRAG finds organizations & roles that AI Search completely misses |
+| 🌍 Cross-Document | **Hybrid** (0.57) | 0.52 | Combined (0.57) | All strategies struggle — keyword scoring shows none covers all 7 stations in one answer |
+| 🔀 Comprehensive | **GraphRAG Global** (1.00) | 0.87 | Iterative, Agentic, GraphRAG Local (0.90) | GraphRAG adds organizational context that AI Search lacks |
+
+### 🏆 The Killer Example: Where GraphRAG Wins Big
+
+**Question:** _"אילו ארגונים מעורבים בתכנון תחנות המטרו ומה התפקיד של כל אחד?"_
+_(Which organizations are involved in planning metro stations and what is each one's role?)_
+
+| Strategy | Score | Time | Key Difference |
+|----------|-------|------|----------------|
+| **GraphRAG Global** 🏆 | **1.00** | 128s | Found **נת"ע, מנספלד-קהת, MIS** — all 3 organizations with roles |
+| Iterative | 0.67 | 30s | Found נת"ע and architects, missed MIS |
+| GraphRAG Local | 0.67 | 19s | Found 2 of 3 organizations |
+| **Hybrid** ❌ | **0.33** | 13s | Only found נת"ע — couldn't connect organizations across documents |
+| **Agentic** ❌ | **0.33** | 13s | Same as Hybrid — sub-queries didn't help here |
+
+**Why?** AI Search finds text chunks containing organization names, but can't connect _which organization does what_. GraphRAG has explicit `ORGANIZATION → STATION` relationships in its knowledge graph, so it can enumerate all involved parties and their roles.
+
+### 💪 Where Iterative Wins: Entity Bridging
+
+**Question:** _"מהם ייעודי הקרקע הקיימים בסביבת תחנת קפלן?"_
+_(What are the existing land use designations around Kaplan Station?)_
+
+| Strategy | Score | Time | Key Difference |
+|----------|-------|------|----------------|
+| **Iterative** 🏆 | **1.00** | 31s | Found "35" + "קפלן" + all land use data |
+| Agentic | 1.00 | 29s | Also decomposed effectively |
+| **Hybrid** ❌ | **0.67** | 13s | Searched "קפלן" but missed chunks labeled "תחנה 35" |
+| GraphRAG Global ❌ | 0.67 | 114s | Slow + less specific land use details |
+
+**Why?** The question says "Kaplan Station" but the land use data is indexed under "Station 35". Hybrid can't bridge this gap. Iterative extracts `{station_number: 35}` from the first result and rewrites the query.
+
+### ⚠️ Where Hybrid Fails: Multi-Station Comparisons
+
+**Question:** _"מה ההבדלים בתכניות הפיתוח בין תחנה 37 לתחנה 38?"_
+_(What are the development plan differences between Station 37 and 38?)_
+
+| Strategy | Score | Time | Answer Quality |
+|----------|-------|------|----------------|
+| **Iterative** 🏆 | **1.00** | 66s | Detailed comparison with specific numbers (1,500 units, areas) |
+| Combined | 1.00 | 21s | Most comprehensive (2,203 chars) combining both sources |
+| **Hybrid** ❌ | **0.75** | 13s | _"אין לי מספיק מידע"_ (I don't have enough info) for Station 37 |
+
+**Why?** Hybrid retrieves 5 chunks in one pass — it found Station 38 data but not enough Station 37 context. Iterative runs multiple passes, and Agentic decomposes into separate per-station queries.
+
+### ⏱️ Speed vs Quality Tradeoff
+
+| Strategy | Avg Time | Quality (Avg Score) | Best Use Case |
+|----------|----------|--------------------:|---------------|
+| **Hybrid** | **17s** ⚡ | 0.69 | Quick factual lookups — fastest and cheapest |
+| **Combined** | **28s** | 0.81 | Best overall quality — but costs 2 API calls |
+| **Agentic** | **34s** | 0.77 | Multi-part comparisons |
+| **Iterative** | **41s** | 0.79 | Entity bridging, fragmented context |
+| **GraphRAG Local** | **41s** | 0.78 | Specific relationship queries |
+| **GraphRAG Global** | **116s** 🐢 | 0.78 | Organization/summary questions — slowest but finds things others miss |
+
+---
+
 **Pre-generation filtering** — extracts entities from the user's query (e.g., "Station: 36") and checks each retrieved chunk for conflicts. Chunks about Station 37 are filtered out before the LLM ever sees them.
 
 **Post-generation validation** — checks whether the answer is grounded in the provided chunks, identifies which aspects were answered vs. missing, calculates a confidence score, and suggests a retry query if quality is low.
