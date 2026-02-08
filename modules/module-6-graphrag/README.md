@@ -112,6 +112,52 @@ flowchart TB
 
 ---
 
+## ⚠️ What GraphRAG Expects as Input (Common Pitfall!)
+
+> **🚨 GraphRAG cannot read PDFs, Word docs, Excel files, or any binary format.**
+> It expects **plain text files** (`.txt`) in an `input/` directory. If you drop a PDF into `input/` and run `graphrag index`, you'll get garbage — binary data, encoded streams, and meaningless entities.
+
+This means you need a **preprocessing step** before GraphRAG can do anything useful:
+
+```mermaid
+flowchart LR
+    PDF["📄 PDF / DOCX / XLSX / PPTX"] --> DI["🔧 Document Intelligence<br/>(Module 2-3)"]
+    DI --> TXT["📝 Plain Text Files (.txt)"]
+    TXT --> GR["🕸️ GraphRAG Indexing"]
+    
+    style PDF fill:#ffcdd2,stroke:#c62828
+    style DI fill:#e3f2fd,stroke:#1976d2
+    style TXT fill:#e8f5e9,stroke:#388e3c
+    style GR fill:#e8eaf6,stroke:#5c6bc0
+```
+
+### The Preparation Steps
+
+1. **Extract text** from your documents using Azure AI Document Intelligence (Modules 2-3)
+   - This handles structure, reading order, tables, and Hebrew/RTL content
+2. **Save as `.txt` files** in GraphRAG's `input/` directory — one file per document
+3. **Configure `settings.yaml`** — set chunk size, entity types, LLM endpoints
+4. **Run `graphrag index`** — GraphRAG takes over from here
+
+### Do I Need to Pre-Chunk My Documents?
+
+**No!** This is a key difference from the regular RAG pipeline:
+
+| | Regular RAG (Modules 4-5) | GraphRAG (Module 6) |
+|---|---|---|
+| **Input format** | Clean text from Document Intelligence | Clean text from Document Intelligence |
+| **Chunking** | **You** design the strategy (header-based, semantic, hybrid) | **GraphRAG** chunks internally (you only set `chunk_size` in `settings.yaml`) |
+| **What you provide** | Pre-chunked text + your own embeddings | Full text files — GraphRAG handles everything else |
+| **Embeddings** | You generate and store them | GraphRAG generates its own |
+
+GraphRAG does its own chunking because it needs overlapping context windows to extract entities and relationships that span chunk boundaries. Your job is just to give it clean, readable text.
+
+### What Happens in Module 7
+
+In the full pipeline (Module 7), this preprocessing is automated: when you upload a PDF, the backend runs Document Intelligence → saves extracted text to GraphRAG's `input/` folder → triggers `graphrag index`. But understanding this flow is critical if you ever want to run GraphRAG independently.
+
+---
+
 ## 📖 GraphRAG Concepts & Terminology
 
 Understanding GraphRAG requires learning a few key concepts. Let's break them down with Metro examples.
