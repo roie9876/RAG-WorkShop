@@ -226,107 +226,38 @@ Metro Example:
 
 ### 🔍 Local Search vs 🌍 Global Search vs 🌊 Drift Search
 
-GraphRAG has **three** query modes for different question types:
+Microsoft GraphRAG provides **three** query modes. These are **specific to Microsoft's GraphRAG implementation** — Local and Global were introduced in the [original GraphRAG paper](https://arxiv.org/abs/2404.16130) (2024), and Drift was added later as a hybrid mode. Other graph-based RAG tools (Neo4j GraphRAG, LlamaIndex Knowledge Graphs) have their own traversal strategies, but the local/global/drift terminology and architecture is unique to Microsoft GraphRAG.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    🔍 LOCAL SEARCH                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Best for: Questions about SPECIFIC entities                   │
-│                                                                 │
-│  Question: "What systems serve Station 36?"                    │
-│                                                                 │
-│  How it works:                                                 │
-│  1. Find entity "Station 36" in the graph                      │
-│  2. Follow edges: SERVED_BY, CONNECTS_TO, etc.                 │
-│  3. Gather connected entities and their descriptions           │
-│  4. Send context to LLM for final answer                       │
-│                                                                 │
-│  ✅ Fast (targeted search)                                     │
-│  ✅ Accurate for entity-specific questions                     │
-│  ❌ Can't answer big-picture questions                         │
-│                                                                 │
-│  Scope: Entity + immediate neighbors (1 hop)                   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+---
 
-┌─────────────────────────────────────────────────────────────────┐
-│                    🌍 GLOBAL SEARCH                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Best for: Questions requiring BROAD overview                  │
-│                                                                 │
-│  Question: "Summarize the entire M1 metro line"                │
-│                                                                 │
-│  How it works:                                                 │
-│  1. Retrieve all community summaries                           │
-│  2. Rank by relevance to the question                          │
-│  3. Combine top summaries as context                           │
-│  4. LLM synthesizes final comprehensive answer                 │
-│                                                                 │
-│  ✅ Can answer "summarize everything" questions                │
-│  ✅ Works across entire document set                           │
-│  ❌ Slower (processes more data)                               │
-│  ❌ More expensive (more tokens)                               │
-│                                                                 │
-│  Scope: All communities (entire corpus)                        │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+#### 🔍 Local Search
 
-┌─────────────────────────────────────────────────────────────────┐
-│                    🌊 DRIFT SEARCH                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Best for: Questions needing CONNECTED context across topics   │
-│                                                                 │
-│  Question: "How does the ventilation system at Station 36      │
-│            relate to the overall safety design?"               │
-│                                                                 │
-│  How it works:                                                 │
-│  1. Start like LOCAL: find relevant entities                   │
-│  2. "Drift" outward: follow relationships beyond 1 hop         │
-│  3. Expand progressively: collect context from increasingly    │
-│     distant parts of the graph                                 │
-│  4. Synthesize: LLM answers with both local detail and         │
-│     broader connected context                                  │
-│                                                                 │
-│  ✅ Combines local precision with broader context              │
-│  ✅ Discovers non-obvious connections                          │
-│  ✅ Best for "how does X relate to Y" questions                │
-│  ❌ Slower than local (explores more of the graph)             │
-│                                                                 │
-│  Scope: Entity neighborhood → expanding radius (multi-hop)     │
-│                                                                 │
-│  Think of it as: Local search that keeps walking outward       │
-│  until it has enough context to answer the question.           │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+- **How it works:** Starts from the entities most relevant to your query, then traverses their **immediate neighborhood** in the graph (relationships, connected entities, associated text chunks).
+- **Best for:** Specific, focused questions about particular topics, places, systems, or things.
+- **Example:** *"What are the underground passages at Station 35?"* → Finds the Station 35 entity, walks its relationships, and answers from that local context.
+- **Tradeoff:** Great precision, but may miss broader context that lives in distant parts of the graph.
 
-### 📊 Visual Comparison: Search Scope
+---
 
-```
-🔍 LOCAL SEARCH                    Entity + 1 hop
-    ┌─────────┐
-    │ ● ─ ● ─ ●│                   Small, focused
-    │   ↘ ●   │
-    └─────────┘
+#### 🌍 Global Search
 
-🌊 DRIFT SEARCH                    Entity → expanding radius
-    ┌───────────────┐
-    │ ● ─ ● ─ ● ─ ● │              Medium, connected
-    │   ↘ ● ─ ● ─ ● │
-    │     ↘ ●       │
-    └───────────────┘
+- **How it works:** Uses **community reports** — pre-generated summaries of clusters/communities of entities in the graph. It searches across all community summaries to synthesize a high-level answer.
+- **Best for:** Broad, thematic, or summary questions that span the entire corpus.
+- **Example:** *"What are the main safety features across all metro stations?"* → Aggregates insights from community summaries covering the whole document set.
+- **Tradeoff:** Great for big-picture answers, but less detail on specific entities. Relies on the quality of community detection and summarization.
 
-🌍 GLOBAL SEARCH                   All communities
-    ┌─────────────────────┐
-    │ ● ─ ● ─ ● ─ ● ─ ● ─ ● │     Entire corpus
-    │   ↘ ● ─ ● ─ ● ─ ● ─ ● │
-    │     ↘ ● ─ ● ─ ●       │
-    └─────────────────────┘
-```
+---
+
+#### 🌊 Drift Search
+
+- **How it works:** A hybrid approach — starts like **local search** (from relevant entities), but then **"drifts" outward** through the graph, following relationships further than local search would. It progressively expands the search radius, collecting context from increasingly distant parts of the graph.
+- **Best for:** Questions that need both specific detail AND broader context — especially when the answer requires connecting information across multiple related topics.
+- **Example:** *"How does the ventilation system at Station 35 relate to the overall safety design?"* → Starts at Station 35's ventilation, then drifts to safety entities, standards, and cross-station patterns.
+- **Tradeoff:** More comprehensive than local, more specific than global, but slower since it explores more of the graph.
+
+> 💡 **Think of it this way:** Local search looks at your entity's front yard. Drift search walks down the street and around the neighborhood. Global search flies over the whole city.
+
+---
 
 ### 📊 Query Mode Decision Guide
 
