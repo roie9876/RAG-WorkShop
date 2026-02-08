@@ -21,6 +21,7 @@ except ImportError:
 
 try:
     from azure.ai.documentintelligence import DocumentIntelligenceClient
+    from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
     from azure.core.credentials import AzureKeyCredential
     DI_AVAILABLE = True
 except ImportError:
@@ -647,21 +648,27 @@ Be thorough - this description will be used for semantic search."""
         - Tables with cell structure
         - Figures with bounding boxes
         """
-        # Determine content type
-        ext = filename.lower().split(".")[-1]
-        content_type_map = {
-            "pdf": "application/pdf",
-            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        }
+        # Validate file format: detect legacy Office formats disguised with modern extensions.
+        # OLE2 Compound Document (magic: D0CF11E0) = legacy .doc/.xls/.ppt (Word/Excel/PPT 97-2003).
+        # DI only supports modern Office Open XML formats (.docx/.xlsx/.pptx = ZIP-based, magic: 504B).
+        ext = filename.lower().rsplit(".", 1)[-1]
+        if content[:4] == b'\xd0\xcf\x11\xe0' and ext in ("docx", "xlsx", "pptx"):
+            legacy_ext = {"docx": ".doc", "xlsx": ".xls", "pptx": ".ppt"}[ext]
+            raise ValueError(
+                f"'{filename}' is a legacy Office file ({legacy_ext} format) renamed to .{ext}. "
+                f"Azure Document Intelligence only supports modern Office Open XML formats. "
+                f"Please re-save the file as .{ext} using File → Save As in Word/Excel/PowerPoint."
+            )
         
         # Analyze document - using prebuilt-layout which includes figures by default
+        # Use AnalyzeDocumentRequest with bytes_source so the SDK sends the request
+        # as JSON with base64 encoding. Passing raw bytes causes the SDK to force
+        # content_type="application/octet-stream", which fails for Office formats
+        # (.docx, .xlsx, .pptx) because DI cannot detect their type from raw bytes.
         logger.info(f"Analyzing document with DI: {filename}")
         poller = self.di_client.begin_analyze_document(
             "prebuilt-layout",
-            body=content,
-            content_type=content_type_map.get(ext, "application/pdf"),
+            body=AnalyzeDocumentRequest(bytes_source=content),
         )
         
         result = poller.result()

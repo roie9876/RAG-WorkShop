@@ -34,7 +34,7 @@ azure-ai-projects>=1.0.0
 azure-ai-agents>=1.1.0
 
 # GraphRAG - Knowledge Graph based RAG
-graphrag>=2.7.0
+graphrag==3.0.1
 pyarrow>=14.0.0  # Required for reading Parquet files
 
 # Image Processing

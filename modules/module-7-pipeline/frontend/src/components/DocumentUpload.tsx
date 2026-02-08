@@ -113,6 +113,7 @@ export function DocumentUpload() {
   }, [isIndexing, graphragStatus?.is_indexing, fetchGraphragStatus, fetchIndexStats])
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    console.log('onDrop triggered, files:', acceptedFiles.map(f => `${f.name} (${f.size} bytes)`))
     if (acceptedFiles.length === 0) return
     
     setUploading(true)
@@ -415,10 +416,23 @@ export function DocumentUpload() {
           </div>
           
           <div className="mt-5 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pb-3 border-b border-purple-200">
               <span className="text-base text-purple-600">Documents Ready</span>
               <span className="text-3xl font-bold text-purple-900">{graphragStatus?.input_documents ?? 0}</span>
             </div>
+            
+            {/* Document List */}
+            {graphragStatus?.input_document_names && graphragStatus.input_document_names.length > 0 && (
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {graphragStatus.input_document_names.map((name) => (
+                  <div key={name} className="flex items-center gap-2 px-3 py-2 bg-white/60 rounded-lg text-sm">
+                    <File className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                    <span className="truncate text-purple-800 font-medium">{name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            
             {graphragStatus?.ready ? (
               <div className="grid grid-cols-2 gap-3 pt-4 border-t border-purple-200">
                 <div className="text-center p-3 bg-white/50 rounded-lg">

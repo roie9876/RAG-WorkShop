@@ -196,6 +196,7 @@ class QueryResponse(BaseModel):
     sources: List[SourceChunk]
     retrieval_metadata: RetrievalMetadata
     generation_metadata: dict = {}
+    timing: dict = {}
     validation_report: Optional[ValidationReportResponse] = None
     combined_results: Optional[CombinedResults] = None  # Individual answers before merge
 
@@ -600,13 +601,23 @@ async def execute_query(request: QueryRequest):
                 warnings=validation_report_data.warnings
             )
         
+        total_time_ms = int((time.time() - start_time) * 1000)
+        generation_time_ms = total_time_ms - retrieval_time_ms
+
         return QueryResponse(
             answer=generation_result["answer"],
             sources=sources,
             retrieval_metadata=metadata,
             generation_metadata={
                 "model": generation_result.get("model", "gpt-4.1"),
-                "tokens_used": generation_result.get("tokens_used", 0)
+                "tokens_used": generation_result.get("tokens_used", 0),
+                "prompt_tokens": generation_result.get("prompt_tokens", 0),
+                "completion_tokens": generation_result.get("completion_tokens", 0),
+            },
+            timing={
+                "total_time_ms": total_time_ms,
+                "retrieval_time_ms": retrieval_time_ms,
+                "generation_time_ms": generation_time_ms,
             },
             validation_report=validation_response,
             combined_results=combined_results_data

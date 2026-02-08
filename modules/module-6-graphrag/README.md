@@ -546,7 +546,7 @@ The lab includes an interactive knowledge graph visualization showing entities a
 
 ## Requirements
 - Python ≥3.11, <3.14
-- `graphrag>=2.7.0`
+- **Microsoft GraphRAG `3.0.1`** (pinned in `requirements.txt`)
 - `pyvis` (for graph visualization)
 - Azure OpenAI with GPT-4.1 and text-embedding-3-large deployments
 

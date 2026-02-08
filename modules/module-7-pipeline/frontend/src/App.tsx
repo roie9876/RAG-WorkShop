@@ -87,7 +87,7 @@ function App() {
 
             {/* Retrieval Details (Observability) */}
             {queryResponse && (
-              <RetrievalDetails metadata={queryResponse.retrieval_metadata} />
+              <RetrievalDetails metadata={queryResponse.retrieval_metadata} response={queryResponse} />
             )}
           </div>
 

@@ -174,6 +174,13 @@ export interface QueryResponse {
   generation_metadata: {
     model: string
     tokens_used: number
+    prompt_tokens: number
+    completion_tokens: number
+  }
+  timing: {
+    total_time_ms: number
+    retrieval_time_ms: number
+    generation_time_ms: number
   }
   validation_report?: ValidationReport
   combined_results?: CombinedResults

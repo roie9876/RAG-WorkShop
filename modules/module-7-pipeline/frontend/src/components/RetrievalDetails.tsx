@@ -1,13 +1,23 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Activity, Zap, Clock, Target, GitBranch, Search, Tag } from 'lucide-react'
+import { ChevronDown, ChevronRight, Activity, Zap, Clock, Target, GitBranch, Search, Tag, Coins, Timer } from 'lucide-react'
 import { QueryFlowchart } from './QueryFlowchart'
-import type { RetrievalMetadata } from '../types'
+import type { RetrievalMetadata, QueryResponse } from '../types'
 
 interface RetrievalDetailsProps {
   metadata: RetrievalMetadata
+  response?: QueryResponse
 }
 
-export function RetrievalDetails({ metadata }: RetrievalDetailsProps) {
+function formatTime(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  const seconds = ms / 1000
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = (seconds % 60).toFixed(0)
+  return `${minutes}m ${remainingSeconds}s`
+}
+
+export function RetrievalDetails({ metadata, response }: RetrievalDetailsProps) {
   const [expanded, setExpanded] = useState(false)
   const [showFlowchart, setShowFlowchart] = useState(false)
   const [showActivityLog, setShowActivityLog] = useState(false)
@@ -71,6 +81,44 @@ export function RetrievalDetails({ metadata }: RetrievalDetailsProps) {
           </div>
         </div>
       </div>
+
+      {/* Tokens & Timing Summary */}
+      {response && (
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="flex items-center gap-2">
+            <Timer className="h-4 w-4 text-orange-500" />
+            <div>
+              <p className="text-xs text-muted-foreground">Total Time</p>
+              <p className="text-sm font-medium">{formatTime(response.timing?.total_time_ms ?? metadata.retrieval_time_ms)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-emerald-500" />
+            <div>
+              <p className="text-xs text-muted-foreground">Generation</p>
+              <p className="text-sm font-medium">{formatTime(response.timing?.generation_time_ms ?? 0)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Coins className="h-4 w-4 text-amber-500" />
+            <div>
+              <p className="text-xs text-muted-foreground">Tokens Used</p>
+              <p className="text-sm font-medium">{(response.generation_metadata?.tokens_used ?? 0).toLocaleString()}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Tag className="h-4 w-4 text-cyan-500" />
+            <div>
+              <p className="text-xs text-muted-foreground">Prompt / Completion</p>
+              <p className="text-sm font-medium">
+                {(response.generation_metadata?.prompt_tokens ?? 0).toLocaleString()}
+                {' / '}
+                {(response.generation_metadata?.completion_tokens ?? 0).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content Type Distribution */}
       <div className="mt-4 flex gap-2">

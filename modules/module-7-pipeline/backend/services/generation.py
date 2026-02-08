@@ -88,7 +88,9 @@ class GenerationService:
         return {
             "answer": response.choices[0].message.content,
             "model": self.settings.azure_openai_deployment,
-            "tokens_used": response.usage.total_tokens if response.usage else 0
+            "tokens_used": response.usage.total_tokens if response.usage else 0,
+            "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+            "completion_tokens": response.usage.completion_tokens if response.usage else 0,
         }
     
     async def generate_answer_stream(
@@ -229,5 +231,7 @@ Produce a well-structured merged answer."""
         return {
             "answer": response.choices[0].message.content,
             "model": self.settings.azure_openai_deployment,
-            "tokens_used": response.usage.total_tokens if response.usage else 0
+            "tokens_used": response.usage.total_tokens if response.usage else 0,
+            "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+            "completion_tokens": response.usage.completion_tokens if response.usage else 0,
         }

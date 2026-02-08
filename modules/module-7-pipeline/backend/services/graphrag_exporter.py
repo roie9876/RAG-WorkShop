@@ -588,9 +588,13 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
             # Parse detailed progress from log
             status["progress_detail"] = self._parse_indexing_progress()
         
-        # Count input documents
+        # Count input documents and collect names
         if self.input_dir.exists():
-            status["input_documents"] = len(list(self.input_dir.glob("*.txt")))
+            input_files = sorted(self.input_dir.glob("*.txt"))
+            status["input_documents"] = len(input_files)
+            status["input_document_names"] = [
+                f.stem for f in input_files  # filename without .txt extension
+            ]
         
         # Check output
         if self.output_dir.exists():

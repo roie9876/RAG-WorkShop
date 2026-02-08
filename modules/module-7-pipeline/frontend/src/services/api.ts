@@ -67,7 +67,7 @@ export const documentsApi = {
     formData.append('enable_graphrag_index', String(enableGraphragIndex))
 
     const response = await api.post('/documents/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': undefined },
     })
     return response.data
   },
@@ -80,7 +80,7 @@ export const documentsApi = {
     formData.append('enable_graphrag_index', String(enableGraphragIndex))
 
     const response = await api.post('/documents/upload/batch', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': undefined },
     })
     return response.data
   },
@@ -121,6 +121,7 @@ export interface GraphRAGStatus {
   status: {
     ready: boolean
     input_documents: number
+    input_document_names?: string[]
     output_exists: boolean
     entities_count: number
     relationships_count: number
