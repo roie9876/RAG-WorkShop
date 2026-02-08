@@ -160,5 +160,7 @@ AnalyzeResult
 
 ---
 
-**Previous Module**: [Module 1 – The Problem with Naive RAG](../module-1-naive-rag/README.md)  
-**Next Module**: [Module 3 – Content Understanding](../module-3-content-understanding/README.md)
+## Navigation
+
+**Previous**: [Module 1 – The Problem with Naive RAG](../module-1-naive-rag/README.md)  
+**Next**: [Module 3 – Content Understanding](../module-3-content-understanding/README.md)

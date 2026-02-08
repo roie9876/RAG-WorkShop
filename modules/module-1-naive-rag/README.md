@@ -184,4 +184,9 @@ After seeing naive RAG fail, you're ready to learn how to fix it!
 | Figures are lost | AI-powered descriptions | [Module 3](../module-3-content-understanding/README.md) |
 | Context gets split | Smart chunking | [Module 4](../module-4-chunking/README.md) |
 
+---
+
+## Navigation
+
+**Previous**: [Module 0 – Environment Setup](../module-0-setup/README.md)  
 **Next**: [Module 2 – Document Intelligence](../module-2-doc-intelligence/README.md)

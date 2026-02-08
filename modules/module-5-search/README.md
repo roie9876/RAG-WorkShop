@@ -806,11 +806,13 @@ flowchart LR
 | Section | Duration |
 |---------|----------|
 | Part 0: Setup and Load Chunks | 10 min |
-| Part 1: Embeddings | 25 min |
-| Part 2: Index Creation | 25 min |
-| Part 3: Search Modes | 35 min |
-| Part 4: Retrieval Patterns | 35 min |
-| Part 5: Agentic Retrieval | 30 min |
+| Part 1: Embeddings | 20 min |
+| Part 2: Index Creation | 20 min |
+| Part 3: Search Modes | 25 min |
+| Part 4: Semantic Ranking | 20 min |
+| Part 5: RAG Question Taxonomy | 15 min |
+| Part 6: Retrieval Patterns | 25 min |
+| Part 7: Agentic Retrieval | 25 min |
 | **Total** | **~2.5 hours** |
 
 ---
@@ -825,6 +827,8 @@ flowchart LR
 | `failure-examples/` | Common retrieval failures to learn from |
 
 ---
+
+## Navigation
 
 ## Navigation
 

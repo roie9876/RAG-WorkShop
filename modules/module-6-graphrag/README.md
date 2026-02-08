@@ -158,6 +158,99 @@ In the full pipeline (Module 7), this preprocessing is automated: when you uploa
 
 ---
 
+## ⚙️ Understanding `settings.yaml` — The GraphRAG Control Panel
+
+The `settings.yaml` file is where you configure **everything** about how GraphRAG processes your data. Getting these settings right directly affects the quality of your knowledge graph.
+
+> 📁 See the full file: [`graphrag-demo/settings.yaml`](graphrag-demo/settings.yaml)
+
+### Key Configuration Sections
+
+#### 1. Models — Which LLMs to Use
+
+```yaml
+models:
+  default_chat_model:
+    type: azure_openai_chat
+    model: gpt-4.1
+    deployment_name: gpt-4.1
+    # ... endpoint, API key, rate limits
+    
+  default_embedding_model:
+    type: azure_openai_embedding
+    model: text-embedding-3-large
+    deployment_name: text-embedding-3-large
+```
+
+GraphRAG uses the **chat model** for entity extraction, relationship extraction, and community summarization. It uses the **embedding model** for vectorizing entities and communities. The rate limits (`requests_per_minute`, `tokens_per_minute`) are important — set them too high and Azure will throttle you; too low and indexing takes forever.
+
+#### 2. Chunking — How GraphRAG Splits Your Text
+
+```yaml
+chunking:
+  type: tokens
+  size: 1200      # tokens per chunk
+  overlap: 100    # overlap between chunks
+```
+
+**This is not the same as your Module 4 chunking!** GraphRAG does its own internal chunking regardless of how you prepared the text. The key decisions:
+
+| Setting | Our Value | Why |
+|---------|-----------|-----|
+| `size: 1200` | 1200 tokens | Balances context for entity extraction vs. cost. Too small (300) → LLM misses relationships that span paragraphs. Too large (3000) → more tokens = higher cost, and the LLM may lose focus on individual entities. |
+| `overlap: 100` | 100 tokens | Ensures entities mentioned at chunk boundaries aren't lost. If Station 36 is mentioned at the end of one chunk and its ventilation system at the start of the next, the overlap catches the relationship. |
+
+> 💡 **Rule of thumb:** Start with 1200 tokens. If you're getting too few entities, try reducing to 800. If relationships are being missed, try increasing to 1500. Each change requires a full re-index.
+
+#### 3. Entity Types — What GraphRAG Looks For
+
+```yaml
+extract_graph:
+  entity_types:
+    - STATION
+    - SYSTEM
+    - CONTRACTOR
+    - PERSON
+    - INCIDENT
+  max_gleanings: 1
+```
+
+**Entity types are the most impactful setting.** They tell the LLM *what kinds of things* to extract from your text. If you don't include `SYSTEM`, GraphRAG won't extract ventilation systems, power grids, etc. — even if they're clearly mentioned in the text.
+
+- **Too few types** → Misses important entities and relationships
+- **Too many types** → Extracts noise, increases cost, dilutes the graph
+- **Wrong types** → The LLM extracts irrelevant things while missing what matters
+
+`max_gleanings: 1` means GraphRAG makes a second pass over each chunk to catch entities it missed on the first pass. Set to 0 to save cost (skip the second pass), or increase for higher recall.
+
+#### 4. Community Configuration
+
+```yaml
+cluster_graph:
+  max_cluster_size: 10    # Max entities per community
+
+community_reports:
+  max_length: 2000        # Max tokens per community summary
+  max_input_length: 8000  # Max context for summarization
+```
+
+These control how communities are formed and summarized:
+- `max_cluster_size: 10` — Keeps communities focused. Larger values create broader communities with more general summaries.
+- `max_length: 2000` — How detailed each community summary can be. Longer = more informative global search, but higher cost.
+
+### Settings Impact on Quality
+
+| If you change... | Effect on quality | Effect on cost |
+|-----------------|-------------------|----------------|
+| `chunk size` ↑ | Better relationship detection | 💰 More tokens per LLM call |
+| `chunk size` ↓ | More granular entities | 💰 More LLM calls (more chunks) |
+| `entity_types` + more | Broader knowledge graph | 💰 More extraction work |
+| `entity_types` − fewer | Focused, cleaner graph | 💰 Less extraction work |
+| `max_gleanings` 0→1 | Catches missed entities | 💰 ~2x extraction cost |
+| `max_cluster_size` ↑ | Broader community themes | 💰 Slightly more summarization |
+
+---
+
 ## 📖 GraphRAG Concepts & Terminology
 
 Understanding GraphRAG requires learning a few key concepts. Let's break them down with Metro examples.
@@ -477,5 +570,7 @@ The lab includes an interactive knowledge graph visualization showing entities a
 
 After completing this module, you will have built a complete **hybrid RAG + GraphRAG pipeline** that automatically routes questions to the best retrieval approach!
 
-**Previous Module**: [Module 5 – Azure AI Search & Retrieval](../module-5-search/README.md)  
-**Next Module**: [Module 7 – Full RAG Pipeline](../module-7-pipeline/README.md)
+## Navigation
+
+**Previous**: [Module 5 – Azure AI Search & Retrieval](../module-5-search/README.md)  
+**Next**: [Module 7 – Full RAG Pipeline](../module-7-pipeline/README.md)

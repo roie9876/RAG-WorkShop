@@ -506,5 +506,7 @@ module-7-pipeline/
 
 ---
 
-**Previous Module**: [Module 6 – GraphRAG](../module-6-graphrag/README.md)
+## Navigation
+
+**Previous**: [Module 6 – GraphRAG](../module-6-graphrag/README.md)  
 **🎓 Workshop Complete!**

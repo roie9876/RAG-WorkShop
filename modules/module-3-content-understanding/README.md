@@ -327,5 +327,7 @@ When a user asks "How much does a metro ticket cost?", semantic chunking ensures
 
 ---
 
-**Previous Module**: [Module 2 – Document Intelligence Fundamentals](../module-2-doc-intelligence/README.md)  
-**Next Module**: [Module 4 – Chunking Strategies](../module-4-chunking/README.md)
+## Navigation
+
+**Previous**: [Module 2 – Document Intelligence Fundamentals](../module-2-doc-intelligence/README.md)  
+**Next**: [Module 4 – Chunking Strategies](../module-4-chunking/README.md)

@@ -490,5 +490,7 @@ This enables queries like: *"What was the highest sales quarter?"* → `Q4: 225`
 
 ---
 
-**Previous Module**: [Module 3 – Content Understanding](../module-3-content-understanding/README.md)  
-**Next Module**: [Module 5 – Azure AI Search & Retrieval](../module-5-search/README.md)
+## Navigation
+
+**Previous**: [Module 3 – Content Understanding](../module-3-content-understanding/README.md)  
+**Next**: [Module 5 – Azure AI Search & Retrieval](../module-5-search/README.md)

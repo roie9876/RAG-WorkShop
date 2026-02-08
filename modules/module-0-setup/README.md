@@ -121,4 +121,7 @@ Common issues and solutions are documented in the notebooks.
 
 ---
 
-**Next Module**: [Module 1 – The Problem with Naive RAG](../module-1-naive-rag/README.md)
+## Navigation
+
+**Previous**: [Workshop Home](../../README.md)  
+**Next**: [Module 1 – The Problem with Naive RAG](../module-1-naive-rag/README.md)
