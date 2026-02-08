@@ -72,7 +72,7 @@ By the end of this module, participants will be able to:
 - ✅ **Identify** when classic RAG fails and GraphRAG is needed
 - ✅ **Explain** the GraphRAG architecture (entities, relationships, communities)
 - ✅ **Set up** Microsoft GraphRAG with Azure OpenAI
-- ✅ **Execute** local queries (entity-centric) and global queries (community-based)
+- ✅ **Execute** local, global, and drift queries and understand when to use each
 - ✅ **Build** a hybrid RAG + GraphRAG pipeline with automatic query routing
 - ✅ **Choose** the right approach based on question type and cost considerations
 
@@ -101,6 +101,7 @@ flowchart TB
         Q["❓ Question"] --> CLS["🎯 Classify"]
         CLS -->|Entity-specific| LOCAL["🔍 Local Search"]
         CLS -->|Big picture| GLOBAL["🌍 Global Search"]
+        CLS -->|Needs connected context| DRIFT["🌊 Drift Search"]
     end
     
     S1 --> QUERY
@@ -223,9 +224,9 @@ Metro Example:
 - The algorithm detected these clusters automatically!
 ```
 
-### 🔍 Local Search vs 🌍 Global Search
+### 🔍 Local Search vs 🌍 Global Search vs 🌊 Drift Search
 
-GraphRAG has two query modes for different question types:
+GraphRAG has **three** query modes for different question types:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -245,6 +246,8 @@ GraphRAG has two query modes for different question types:
 │  ✅ Fast (targeted search)                                     │
 │  ✅ Accurate for entity-specific questions                     │
 │  ❌ Can't answer big-picture questions                         │
+│                                                                 │
+│  Scope: Entity + immediate neighbors (1 hop)                   │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 
@@ -267,7 +270,62 @@ GraphRAG has two query modes for different question types:
 │  ❌ Slower (processes more data)                               │
 │  ❌ More expensive (more tokens)                               │
 │                                                                 │
+│  Scope: All communities (entire corpus)                        │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                    🌊 DRIFT SEARCH                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Best for: Questions needing CONNECTED context across topics   │
+│                                                                 │
+│  Question: "How does the ventilation system at Station 36      │
+│            relate to the overall safety design?"               │
+│                                                                 │
+│  How it works:                                                 │
+│  1. Start like LOCAL: find relevant entities                   │
+│  2. "Drift" outward: follow relationships beyond 1 hop         │
+│  3. Expand progressively: collect context from increasingly    │
+│     distant parts of the graph                                 │
+│  4. Synthesize: LLM answers with both local detail and         │
+│     broader connected context                                  │
+│                                                                 │
+│  ✅ Combines local precision with broader context              │
+│  ✅ Discovers non-obvious connections                          │
+│  ✅ Best for "how does X relate to Y" questions                │
+│  ❌ Slower than local (explores more of the graph)             │
+│                                                                 │
+│  Scope: Entity neighborhood → expanding radius (multi-hop)     │
+│                                                                 │
+│  Think of it as: Local search that keeps walking outward       │
+│  until it has enough context to answer the question.           │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 📊 Visual Comparison: Search Scope
+
+```
+🔍 LOCAL SEARCH                    Entity + 1 hop
+    ┌─────────┐
+    │ ● ─ ● ─ ●│                   Small, focused
+    │   ↘ ●   │
+    └─────────┘
+
+🌊 DRIFT SEARCH                    Entity → expanding radius
+    ┌───────────────┐
+    │ ● ─ ● ─ ● ─ ● │              Medium, connected
+    │   ↘ ● ─ ● ─ ● │
+    │     ↘ ●       │
+    └───────────────┘
+
+🌍 GLOBAL SEARCH                   All communities
+    ┌─────────────────────┐
+    │ ● ─ ● ─ ● ─ ● ─ ● ─ ● │     Entire corpus
+    │   ↘ ● ─ ● ─ ● ─ ● ─ ● │
+    │     ↘ ● ─ ● ─ ●       │
+    └─────────────────────┘
 ```
 
 ### 📊 Query Mode Decision Guide
@@ -276,20 +334,39 @@ GraphRAG has two query modes for different question types:
 flowchart TB
     Q["❓ User Question"] --> CHECK{"Does it mention<br/>a specific entity?"}
     
-    CHECK -->|"Yes: 'Station 36'"| LOCAL["🔍 Use LOCAL Search"]
+    CHECK -->|"Yes"| SPECIFIC{"Does it also need<br/>broader context?"}
     CHECK -->|"No: 'all stations'"| GLOBAL["🌍 Use GLOBAL Search"]
     
+    SPECIFIC -->|"No: just that entity"| LOCAL["🔍 Use LOCAL Search"]
+    SPECIFIC -->|"Yes: connects to other topics"| DRIFT["🌊 Use DRIFT Search"]
+    
     LOCAL --> L1["• What serves Station 36?"]
-    LOCAL --> L2["• What connects to Station 36?"]
+    LOCAL --> L2["• What is the depth of Station 36?"]
     LOCAL --> L3["• Who built Station 36?"]
+    
+    DRIFT --> D1["• How does Station 36 ventilation\nrelate to the safety design?"]
+    DRIFT --> D2["• What's the impact chain if\nStation 36 power fails?"]
+    DRIFT --> D3["• How are Station 35 and Station 37\nconnected through shared systems?"]
     
     GLOBAL --> G1["• Summarize the metro line"]
     GLOBAL --> G2["• List all contractors"]
-    GLOBAL --> G3["• Overview of all systems"]
+    GLOBAL --> G3["• What are the main safety\nfeatures across all stations?"]
     
     style LOCAL fill:#e3f2fd,stroke:#1976d2
+    style DRIFT fill:#e8eaf6,stroke:#5c6bc0
     style GLOBAL fill:#fff3e0,stroke:#ff9800
 ```
+
+### ⚡ Quick Comparison Table
+
+| | 🔍 **Local** | 🌊 **Drift** | 🌍 **Global** |
+|---|---|---|---|
+| **Scope** | Entity + neighbors | Expanding radius | Entire corpus |
+| **Speed** | ⚡ Fast | 🐢 Slower | 🐢 Medium-slow |
+| **Cost** | 💰 Low | 💰💰 Medium | 💰💰💰 High |
+| **Best for** | Specific facts | Connected reasoning | Summaries & themes |
+| **Data source** | Entities + relationships | Entities → graph walk | Community summaries |
+| **Metro example** | "What serves Station 36?" | "How does Station 36 relate to the safety plan?" | "Summarize all stations" |
 
 ### 🧮 What are Embeddings in GraphRAG?
 
@@ -363,6 +440,7 @@ If we built GraphRAG for the M1 Metro documents, we'd extract:
 3. **Query Patterns**
    - Local search (entity-centric)
    - Global search (community-based)
+   - Drift search (expanding-radius, multi-hop)
    - Hybrid (vector + graph)
 
 ### Entity and Relationship Extraction
