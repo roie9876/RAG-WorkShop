@@ -323,87 +323,14 @@ After indexing, GraphRAG creates several files:
 
 ---
 
-## Topics Covered
+## ✅ When to Use GraphRAG (and When Not To)
 
-### When Classic RAG Breaks on Metro Documents
-
-| Question Type | Classic RAG | GraphRAG | Metro Example |
-|---------------|-------------|----------|---------------|
-| "What depends on X?" | ❌ Poor | ✅ Good | "What systems depend on Station 36 power?" |
-| "Summarize all of Y" | ❌ Poor | ✅ Good | "Summarize all underground stations" |
-| "Compare A and B" | ⚠️ Partial | ✅ Good | "Compare Station 35 and Station 37 layouts" |
-| "Impact of changing X?" | ❌ Poor | ✅ Good | "Impact of closing Station 36 entrance?" |
-| "List all components that..." | ❌ Poor | ✅ Good | "List all stations with shared ventilation" |
-
-### Entity Types for Metro Documents
-
-If we built GraphRAG for the M1 Metro documents, we'd extract:
-
-| Entity Type | Examples |
-|-------------|----------|
-| **STATION** | Station 35, Station 36, Station 37 |
-| **SYSTEM** | Ventilation, Power, Signaling |
-| **CONTRACTOR** | Construction companies |
-| **TIMELINE** | Phase 1, Phase 2, Opening dates |
-| **PASSENGER_FLOW** | Peak hours, daily volume |
-
-### Relationships in Metro Documents
-
-```
-[Station 35] ──CONNECTS_TO──► [Station 36] ──CONNECTS_TO──► [Station 37]
-[Station 36] ──SERVED_BY──► [Ventilation System A]
-[Station 36] ──CONSTRUCTED_BY──► [Contractor X]
-[Station 36] ──FEEDS_INTO──► [Central Hub]
-```
-
-### GraphRAG Architecture
-1. **Indexing Pipeline**
-   - Entity extraction (LLM)
-   - Relationship extraction (LLM)
-   - Graph construction
-   - Community detection
-   - Community summarization
-2. **Key Components**
-   - Entities (nodes)
-   - Relationships (edges)
-   - Communities (clusters)
-   - Base chunks (grounding)
-3. **Query Patterns**
-   - Local search (entity-centric)
-   - Global search (community-based)
-   - Drift search (expanding-radius, multi-hop)
-   - Hybrid (vector + graph)
-
-### Entity and Relationship Extraction
-- Entity types for Metro docs (stations, systems, contractors, etc.)
-- Relationship types (CONNECTS_TO, SERVED_BY, CONSTRUCTED_BY, etc.)
-- Extraction prompt design
-
-### GraphRAG vs Classic RAG
-| Aspect | Classic RAG | GraphRAG |
-|--------|-------------|----------|
-| Query type | Specific facts | Relationships, summaries |
-| Indexing cost | Low | **High** (many LLM calls) |
-| Query latency | Fast (~1 sec) | Slower (~3-10 sec) |
-| Cross-doc reasoning | ❌ | ✅ |
-| Global summarization | ❌ | ✅ |
-
-### When to Use GraphRAG
-
-```
-✅ USE GRAPHRAG for Metro-style documents:
-├── Multi-station planning documents
-├── System dependency analysis ("what if power fails?")
-├── Cross-document reasoning (station ↔ contractor ↔ timeline)
-├── Impact analysis ("closing Station 36 affects...")
-└── Summarizing entire metro line
-
-❌ DON'T USE GRAPHRAG:
-├── Simple fact lookup ("Station 36 depth?")
-├── Single-document Q&A
-├── Real-time chatbots (too slow)
-└── Frequently updated content (reindex cost)
-```
+| Use GraphRAG ✅ | Stick with Classic RAG ❌ |
+|---|---|
+| Cross-document reasoning (*"which contractors work on multiple stations?"*) | Simple fact lookup (*"What is Station 36's depth?"*) |
+| Impact/dependency analysis (*"what if Station 36 power fails?"*) | Single-document Q&A |
+| Summarizing large document sets (*"summarize all underground stations"*) | Real-time chatbots (GraphRAG is too slow) |
+| Comparing entities (*"compare Station 35 and Station 37 layouts"*) | Frequently updated content (reindex cost is high) |
 
 ---
 
@@ -423,15 +350,13 @@ GraphRAG is **expensive** during indexing because it makes many LLM calls:
 
 ---
 
-## 📚 The Dataset Connection
+## 📚 The Dataset
 
-While the hands-on lab uses a fictional "Contoso Platform" dataset (for clearer relationship demonstrations), the concepts apply directly to the **Israel M1 Metro Line** documents from Modules 1-5.
-
-### How Metro Documents Would Map to GraphRAG
+The hands-on lab uses fictional sample documents for clearer relationship demonstrations. The concepts apply directly to any real-world dataset — in Module 7, you'll see GraphRAG applied to the **Israel M1 Metro Line** documents from Modules 1-5, where the knowledge graph captures stations, systems, contractors, and their relationships.
 
 ```mermaid
 flowchart TB
-    subgraph METRO["🚇 M1 Metro Knowledge Graph"]
+    subgraph METRO["🚇 M1 Metro Knowledge Graph (Module 7)"]
         S35["🔵 Station 35"] -->|CONNECTS_TO| S36["🔵 Station 36"]
         S36 -->|CONNECTS_TO| S37["🔵 Station 37"]
         S36 -->|SERVED_BY| VENT["🟣 Ventilation A"]
@@ -442,13 +367,6 @@ flowchart TB
     
     style S36 fill:#673ab7,stroke:#4527a0,color:#fff
 ```
-
-### Exercise: Apply GraphRAG to Metro
-
-After this module, try:
-1. Extract Metro PDF text using Document Intelligence (Module 2)
-2. Configure GraphRAG with Metro entity types (STATION, SYSTEM, CONTRACTOR)
-3. Compare answers between Module 5 RAG and GraphRAG
 
 ---
 
@@ -461,7 +379,7 @@ After this module, try:
 | **Part 2** | Configure | Set up entity types and settings.yaml |
 | **Part 3** | Index | Run the GraphRAG indexing pipeline |
 | **Part 4** | Explore | Visualize entities, relationships, and communities |
-| **Part 5** | Query | Execute local and global queries |
+| **Part 5** | Query | Execute local, global, and drift queries |
 | **Part 6** | Compare | Side-by-side Regular RAG vs GraphRAG |
 | **Part 7** | Hybrid | Build automatic query router |
 | **Part 8** | Summary | Key takeaways and recommendations |
@@ -514,4 +432,4 @@ The lab includes an interactive knowledge graph visualization showing entities a
 After completing this module, you will have built a complete **hybrid RAG + GraphRAG pipeline** that automatically routes questions to the best retrieval approach!
 
 **Previous Module**: [Module 5 – Azure AI Search & Retrieval](../module-5-search/README.md)  
-**Workshop Complete!** 🎉
+**Next Module**: [Module 7 – Full RAG Pipeline](../module-7-pipeline/README.md)
