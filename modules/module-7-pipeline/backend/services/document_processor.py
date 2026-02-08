@@ -10,6 +10,7 @@ Supports two modes controlled by settings.document_processing_mode:
 import io
 import logging
 import base64
+import re
 from typing import List, Dict, Any, Optional
 
 try:
@@ -86,6 +87,19 @@ class DocumentProcessor:
             )
         return self._di_client
     
+    @staticmethod
+    def _sanitize_doc_id(filename: str) -> str:
+        """Generate an Azure AI Search-safe document ID from a filename.
+        
+        Azure AI Search keys can only contain letters, digits,
+        underscore (_), dash (-), or equal sign (=).
+        """
+        # Remove extension, replace dots and spaces with underscores
+        doc_id = filename.replace(".", "_").replace(" ", "_")
+        # Strip any remaining invalid characters (e.g. parentheses, brackets, etc.)
+        doc_id = re.sub(r'[^a-zA-Z0-9_\-=]', '', doc_id)
+        return doc_id[:50]
+
     async def _generate_figure_description(
         self,
         image_bytes: bytes,
@@ -216,7 +230,7 @@ class DocumentProcessor:
         # Use DI + GPT-4V pipeline
         logger.info(f"Processing document with DI + GPT-4V pipeline: {filename}")
         
-        doc_id = filename.replace(".", "_").replace(" ", "_")[:50]
+        doc_id = self._sanitize_doc_id(filename)
         
         # 1. Analyze with Document Intelligence
         logger.info("Step 1: Analyzing with Document Intelligence...")
@@ -317,7 +331,7 @@ class DocumentProcessor:
         
         logger.info(f"Processing image with OCR + GPT-4V: {filename}")
         
-        doc_id = filename.replace(".", "_").replace(" ", "_")[:50]
+        doc_id = self._sanitize_doc_id(filename)
         
         # 1. Run OCR with Document Intelligence (prebuilt-read)
         logger.info("Step 1: Running OCR with Document Intelligence...")

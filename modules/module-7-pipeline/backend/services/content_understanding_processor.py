@@ -12,6 +12,7 @@ CU provides:
 import io
 import logging
 import base64
+import re
 import asyncio
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -141,8 +142,10 @@ class ContentUnderstandingProcessor:
         
         logger.info(f"Processing document: {filename} ({file_size_mb:.1f} MB)")
         
-        # Extract document ID from blob path
-        doc_id = blob_path.split("/")[1] if "/" in blob_path else blob_path
+        # Extract document ID from blob path and sanitize for Azure AI Search key requirements
+        # Keys can only contain letters, digits, underscore (_), dash (-), or equal sign (=)
+        raw_id = blob_path.split("/")[1] if "/" in blob_path else blob_path
+        doc_id = re.sub(r'[^a-zA-Z0-9_\-=]', '', raw_id.replace('.', '_').replace(' ', '_'))[:50]
         
         # Use prebuilt analyzer (no need to create custom)
         analyzer_id = self._analyzer_id
