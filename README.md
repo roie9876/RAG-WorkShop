@@ -210,10 +210,19 @@ flowchart LR
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Azure subscription (Owner or Contributor access)
-- Python 3.11+
-- VS Code with [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python) + [Jupyter](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter) extensions
-- Git
+
+| Requirement | Version | Needed For |
+|------------|---------|------------|
+| **Azure subscription** | Owner or Contributor access | All modules |
+| **Azure CLI** | Latest (`az --version`) | Module 0 resource deployment |
+| **Python** | ≥3.11, <3.14 | All modules (upper bound required by GraphRAG) |
+| **Node.js** | 18+ | Module 7 frontend only |
+| **Git** | Latest | Cloning the repo |
+| **VS Code** | Latest | Recommended IDE |
+
+**Recommended VS Code Extensions:**
+- [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
+- [Jupyter](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter)
 
 **Ready to begin?** Head to **[Module 0 - Setup](modules/module-0-setup/README.md)** for complete setup instructions.
 
@@ -248,7 +257,7 @@ Ready to begin? Start with **[Module 0: Setup](modules/module-0-setup/README.md)
 
 ---
 
-## � Credits
+## 🙏 Credits
 
 ### Created By
 
@@ -266,6 +275,6 @@ Special thanks to Maayan for her thorough technical review, valuable feedback, a
 
 ---
 
-## �📄 License
+## 📄 License
 
 MIT License
