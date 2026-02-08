@@ -16,6 +16,10 @@ Modules 1–6 taught individual techniques. Module 7 shows what happens when you
 | **Validation prevents errors** | Filtering entity conflicts and checking grounding catches hallucinations |
 | **Different questions need different tools** | Fact lookups → vector search; relationship queries → GraphRAG |
 
+### Application Screenshot
+
+![Module 7 RAG Pipeline UI](module7-pipline-screnshot.jpeg)
+
 ---
 
 ## 🏗️ Pipeline Architecture

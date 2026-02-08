@@ -182,6 +182,10 @@ flowchart TB
 | **Module 6** | [GraphRAG](modules/module-6-graphrag/README.md) | 🕸️ Cross-document reasoning |
 | **Module 7** | [Full Production Pipeline](modules/module-7-pipeline/README.md) | 🚀 End-to-end system with UI |
 
+### 🖼️ Module 7 – Full Pipeline UI
+
+![Module 7 RAG Pipeline](modules/module-7-pipeline/module7-pipline-screnshot.jpeg)
+
 ---
 
 ## ⏱️ Workshop Duration
