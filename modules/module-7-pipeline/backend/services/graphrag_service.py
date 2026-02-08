@@ -3,6 +3,7 @@ GraphRAG Service.
 
 Provides query interface to pre-built GraphRAG knowledge graph.
 Loads Parquet files and executes local, global, or DRIFT search.
+Tracks internal LLM token usage via litellm interception.
 """
 
 import logging
@@ -28,6 +29,100 @@ try:
 except ImportError:
     GRAPHRAG_AVAILABLE = False
     logger.warning("graphrag not available - install with: pip install graphrag>=2.7.0")
+
+
+class LiteLLMTokenTracker:
+    """
+    Context manager that patches litellm.acompletion to track token usage
+    across all LLM calls made by GraphRAG during a search operation.
+    
+    GraphRAG v3 uses litellm internally for all LLM calls. This tracker
+    intercepts every completion call and accumulates usage stats from
+    the response objects without affecting GraphRAG's behavior.
+    
+    Handles both streaming (where usage comes in the last chunk or must
+    be estimated) and non-streaming (where ModelResponse.usage is available).
+    """
+    
+    def __init__(self):
+        self.llm_calls = 0
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.total_tokens = 0
+        self._original_acompletion = None
+    
+    async def __aenter__(self):
+        """Patch litellm.acompletion to intercept token usage."""
+        try:
+            import litellm
+            from litellm import ModelResponse
+            self._original_acompletion = litellm.acompletion
+            tracker = self  # Capture reference for closure
+            
+            async def tracked_acompletion(*args, **kwargs):
+                is_streaming = kwargs.get("stream", False)
+                
+                # For streaming calls, request usage info in the final chunk
+                if is_streaming and "stream_options" not in kwargs:
+                    kwargs["stream_options"] = {"include_usage": True}
+                
+                response = await tracker._original_acompletion(*args, **kwargs)
+                tracker.llm_calls += 1
+                
+                if not is_streaming and isinstance(response, ModelResponse):
+                    # Non-streaming: usage is directly on the response
+                    if hasattr(response, 'usage') and response.usage is not None:
+                        tracker.prompt_tokens += getattr(response.usage, 'prompt_tokens', 0) or 0
+                        tracker.completion_tokens += getattr(response.usage, 'completion_tokens', 0) or 0
+                        tracker.total_tokens += getattr(response.usage, 'total_tokens', 0) or 0
+                elif is_streaming:
+                    # Streaming: wrap the iterator to capture usage from chunks
+                    original_iterator = response
+                    
+                    async def tracked_stream():
+                        async for chunk in original_iterator:
+                            # Some providers send usage in the last chunk
+                            if hasattr(chunk, 'usage') and chunk.usage is not None:
+                                tracker.prompt_tokens += getattr(chunk.usage, 'prompt_tokens', 0) or 0
+                                tracker.completion_tokens += getattr(chunk.usage, 'completion_tokens', 0) or 0
+                                tracker.total_tokens += getattr(chunk.usage, 'total_tokens', 0) or 0
+                            yield chunk
+                    
+                    return tracked_stream()
+                
+                return response
+            
+            litellm.acompletion = tracked_acompletion
+            logger.debug("LiteLLMTokenTracker: patched litellm.acompletion")
+        except ImportError:
+            logger.warning("LiteLLMTokenTracker: litellm not available, token tracking disabled")
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Restore original litellm.acompletion."""
+        if self._original_acompletion is not None:
+            try:
+                import litellm
+                litellm.acompletion = self._original_acompletion
+                logger.debug(
+                    f"LiteLLMTokenTracker: restored litellm.acompletion. "
+                    f"Tracked {self.llm_calls} calls, "
+                    f"{self.prompt_tokens} prompt tokens, "
+                    f"{self.completion_tokens} completion tokens"
+                )
+            except ImportError:
+                pass
+        return False  # Don't suppress exceptions
+    
+    @property
+    def usage(self) -> Dict[str, int]:
+        """Return accumulated token usage as a dict."""
+        return {
+            "llm_calls": self.llm_calls,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+        }
 
 
 class GraphRAGService:
@@ -198,45 +293,51 @@ class GraphRAGService:
         logger.info(f"GraphRAG {mode} search (community_level={community_level}, response_type={response_type}): {query[:100]}...")
         
         try:
-            if mode == "local":
-                response, context = await local_search(
-                    config=self._config,
-                    entities=self._entities,
-                    communities=self._communities,
-                    community_reports=self._community_reports,
-                    text_units=self._text_units,
-                    relationships=self._relationships,
-                    covariates=self._covariates,
-                    community_level=community_level,
-                    response_type=response_type,
-                    query=query
-                )
-            elif mode == "global":
-                response, context = await global_search(
-                    config=self._config,
-                    entities=self._entities,
-                    communities=self._communities,
-                    community_reports=self._community_reports,
-                    community_level=community_level,
-                    dynamic_community_selection=True,
-                    response_type=response_type,
-                    query=query
-                )
-            else:  # drift (default - combines local + global)
-                response, context = await drift_search(
-                    config=self._config,
-                    entities=self._entities,
-                    relationships=self._relationships,
-                    communities=self._communities,
-                    community_reports=self._community_reports,
-                    text_units=self._text_units,
-                    community_level=community_level,
-                    response_type=response_type,
-                    query=query
-                )
+            # Wrap GraphRAG search with token tracker to capture all internal LLM usage
+            async with LiteLLMTokenTracker() as token_tracker:
+                if mode == "local":
+                    response, context = await local_search(
+                        config=self._config,
+                        entities=self._entities,
+                        communities=self._communities,
+                        community_reports=self._community_reports,
+                        text_units=self._text_units,
+                        relationships=self._relationships,
+                        covariates=self._covariates,
+                        community_level=community_level,
+                        response_type=response_type,
+                        query=query
+                    )
+                elif mode == "global":
+                    response, context = await global_search(
+                        config=self._config,
+                        entities=self._entities,
+                        communities=self._communities,
+                        community_reports=self._community_reports,
+                        community_level=community_level,
+                        dynamic_community_selection=True,
+                        response_type=response_type,
+                        query=query
+                    )
+                else:  # drift (default - combines local + global)
+                    response, context = await drift_search(
+                        config=self._config,
+                        entities=self._entities,
+                        relationships=self._relationships,
+                        communities=self._communities,
+                        community_reports=self._community_reports,
+                        text_units=self._text_units,
+                        community_level=community_level,
+                        response_type=response_type,
+                        query=query
+                    )
+                
+                # Capture token usage from tracker
+                graphrag_token_usage = token_tracker.usage
             
             logger.info(f"GraphRAG search returned response type: {type(response)}")
             logger.info(f"GraphRAG search returned context type: {type(context)}")
+            logger.info(f"GraphRAG internal LLM usage: {graphrag_token_usage}")
             if isinstance(context, dict):
                 logger.info(f"Context keys: {context.keys()}")
             
@@ -264,7 +365,8 @@ class GraphRAGService:
                 "entities": entities,
                 "relationships": relationships,
                 "community_reports": reports,
-                "text_units": text_units
+                "text_units": text_units,
+                "token_usage": graphrag_token_usage
             }
             
             logger.info(f"GraphRAG search complete: {len(result['entities'])} entities, {len(result['relationships'])} relationships")

@@ -102,23 +102,57 @@ export function RetrievalDetails({ metadata, response }: RetrievalDetailsProps) 
           <div className="flex items-center gap-2">
             <Coins className="h-4 w-4 text-amber-500" />
             <div>
-              <p className="text-xs text-muted-foreground">Tokens Used</p>
+              <p className="text-xs text-muted-foreground">
+                {response.generation_metadata?.graphrag_tokens?.total_tokens ? 'Gen Tokens' : 'Tokens Used'}
+              </p>
               <p className="text-sm font-medium">{(response.generation_metadata?.tokens_used ?? 0).toLocaleString()}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Tag className="h-4 w-4 text-cyan-500" />
-            <div>
-              <p className="text-xs text-muted-foreground">Prompt / Completion</p>
-              <p className="text-sm font-medium">
-                {(response.generation_metadata?.prompt_tokens ?? 0).toLocaleString()}
-                {' / '}
-                {(response.generation_metadata?.completion_tokens ?? 0).toLocaleString()}
-              </p>
+          {response.generation_metadata?.graphrag_tokens?.total_tokens ? (
+            <div className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4 text-violet-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">GraphRAG Tokens</p>
+                <p className="text-sm font-medium">
+                  {response.generation_metadata.graphrag_tokens.total_tokens.toLocaleString()}
+                  <span className="text-xs text-muted-foreground ml-1">
+                    ({response.generation_metadata.graphrag_tokens.llm_calls} calls)
+                  </span>
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Tag className="h-4 w-4 text-cyan-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Prompt / Completion</p>
+                <p className="text-sm font-medium">
+                  {(response.generation_metadata?.prompt_tokens ?? 0).toLocaleString()}
+                  {' / '}
+                  {(response.generation_metadata?.completion_tokens ?? 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {/* GraphRAG Token Breakdown (shown when GraphRAG tokens exist) */}
+      {response?.generation_metadata?.graphrag_tokens?.total_tokens ? (
+        <div className="mt-2 flex gap-3 text-xs text-muted-foreground pl-1">
+          <span>
+            Gen: {(response.generation_metadata.prompt_tokens ?? 0).toLocaleString()}↑ / {(response.generation_metadata.completion_tokens ?? 0).toLocaleString()}↓
+          </span>
+          <span className="text-border">|</span>
+          <span>
+            GraphRAG: {response.generation_metadata.graphrag_tokens.prompt_tokens.toLocaleString()}↑ / {response.generation_metadata.graphrag_tokens.completion_tokens.toLocaleString()}↓
+          </span>
+          <span className="text-border">|</span>
+          <span className="font-medium text-foreground">
+            Total: {((response.generation_metadata?.tokens_used ?? 0) + response.generation_metadata.graphrag_tokens.total_tokens).toLocaleString()}
+          </span>
+        </div>
+      ) : null}
 
       {/* Content Type Distribution */}
       <div className="mt-4 flex gap-2">

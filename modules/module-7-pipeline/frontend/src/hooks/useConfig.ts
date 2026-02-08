@@ -6,16 +6,16 @@ const DEFAULT_CONFIG: QueryConfig = {
   // Target index (empty = server default)
   index_name: '',
   // AI Search parameters
-  top_k: 5,
-  search_mode: 'hybrid',
+  top_k: 25,
+  search_mode: 'semantic',
   semantic_ranker: true,
-  min_score: 2.0,
+  min_score: 0.0,
   content_type_filter: 'all',
   // General settings
-  retrieval_strategy: 'iterative',
+  retrieval_strategy: 'combined',
   enable_validation: true,
   // Combined strategy parameters
-  combined_base_strategy: 'hybrid',
+  combined_base_strategy: 'iterative',
   // GraphRAG parameters
   graphrag_mode: 'local',
   graphrag_community_level: 2,

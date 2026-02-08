@@ -97,6 +97,12 @@ export interface RetrievalMetadata {
     relationships_found: number
     communities_used: number
     graphrag_response?: string
+    token_usage?: {
+      llm_calls: number
+      prompt_tokens: number
+      completion_tokens: number
+      total_tokens: number
+    }
   }
 }
 
@@ -176,6 +182,12 @@ export interface QueryResponse {
     tokens_used: number
     prompt_tokens: number
     completion_tokens: number
+    graphrag_tokens?: {
+      llm_calls: number
+      prompt_tokens: number
+      completion_tokens: number
+      total_tokens: number
+    }
   }
   timing: {
     total_time_ms: number

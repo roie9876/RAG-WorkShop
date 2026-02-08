@@ -474,7 +474,8 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
                     "entities_found": len(result.get("entities", [])),
                     "relationships_found": len(result.get("relationships", [])),
                     "communities_used": len(result.get("community_reports", [])),
-                    "graphrag_response": result.get("response", "")  # Include raw response
+                    "graphrag_response": result.get("response", ""),  # Include raw response
+                    "token_usage": result.get("token_usage", {})  # GraphRAG internal LLM token usage
                 }
             }
             

@@ -27,9 +27,9 @@ class QueryRequest(BaseModel):
     index_name: Optional[str] = Field(default=None, description="Azure AI Search index name to query (defaults to module7-rag-index)")
     
     # Retrieval parameters (configurable in UI)
-    top_k: int = Field(default=5, ge=1, le=50, description="Number of chunks to retrieve")
+    top_k: int = Field(default=25, ge=1, le=50, description="Number of chunks to retrieve")
     search_mode: Literal["vector", "text", "hybrid", "semantic"] = Field(
-        default="hybrid", description="Search mode"
+        default="semantic", description="Search mode"
     )
     semantic_ranker: bool = Field(default=True, description="Enable semantic ranking")
     min_score: float = Field(default=0.0, ge=0, le=4, description="Minimum relevance score (0-1 for vector, 0-4 for semantic)")
@@ -37,13 +37,13 @@ class QueryRequest(BaseModel):
         default="all", description="Filter by content type"
     )
     retrieval_strategy: Literal["auto", "hybrid", "agentic", "agentic_search", "iterative", "graphrag", "combined"] = Field(
-        default="auto", description="Retrieval strategy. agentic_search uses Azure AI Search native Agentic Retrieval (requires S1+ tier)"
+        default="combined", description="Retrieval strategy. agentic_search uses Azure AI Search native Agentic Retrieval (requires S1+ tier)"
     )
     enable_validation: bool = Field(default=True, description="Enable answer validation")
     
     # Combined strategy parameters
     combined_base_strategy: Literal["hybrid", "agentic", "agentic_search", "iterative"] = Field(
-        default="hybrid", description="Base AI Search strategy to combine with GraphRAG"
+        default="iterative", description="Base AI Search strategy to combine with GraphRAG"
     )
     
     # GraphRAG parameters
@@ -604,6 +604,17 @@ async def execute_query(request: QueryRequest):
         total_time_ms = int((time.time() - start_time) * 1000)
         generation_time_ms = total_time_ms - retrieval_time_ms
 
+        # Extract GraphRAG internal token usage if available
+        graphrag_token_usage = {}
+        graphrag_meta = retrieval_result.get("graphrag_metadata") or {}
+        if graphrag_meta.get("token_usage"):
+            graphrag_token_usage = graphrag_meta["token_usage"]
+        # Also check combined_results for GraphRAG token usage
+        if combined_results_data and combined_results_data.graphrag_metadata:
+            gu = combined_results_data.graphrag_metadata.get("token_usage", {})
+            if gu:
+                graphrag_token_usage = gu
+
         return QueryResponse(
             answer=generation_result["answer"],
             sources=sources,
@@ -613,6 +624,7 @@ async def execute_query(request: QueryRequest):
                 "tokens_used": generation_result.get("tokens_used", 0),
                 "prompt_tokens": generation_result.get("prompt_tokens", 0),
                 "completion_tokens": generation_result.get("completion_tokens", 0),
+                "graphrag_tokens": graphrag_token_usage,
             },
             timing={
                 "total_time_ms": total_time_ms,
