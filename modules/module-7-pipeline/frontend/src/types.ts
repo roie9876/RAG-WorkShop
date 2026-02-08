@@ -244,9 +244,4 @@ export interface IndexSummary {
   has_semantic_search: boolean
 }
 
-export interface KGIndexStatus {
-  ready: boolean
-  total_documents: number
-  entity_profiles: number
-  community_summaries: number
-}
+

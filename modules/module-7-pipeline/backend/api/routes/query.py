@@ -297,28 +297,28 @@ async def execute_query(request: QueryRequest):
             # Build source lists for individual results
             search_sources = [
                 SourceChunk(
-                    id=c["id"],
+                    id=c.get("id") or c.get("chunk_id", ""),
                     content=c["content"],
                     content_type=c.get("content_type", "text"),
-                    relevance_score=c.get("score", 0.0),
+                    relevance_score=c.get("score") or c.get("search_score", 0.0),
                     page_numbers=c.get("page_numbers", []),
-                    source_document=c.get("source_document", "unknown"),
+                    source_document=c.get("source_document") or c.get("file_name", "unknown"),
                     source_document_sas_url=c.get("source_document_sas_url"),
-                    section_header=c.get("section_header"),
+                    section_header=c.get("section_header") or c.get("section_path"),
                     image_sas_url=c.get("image_sas_url")
                 )
                 for c in search_chunks
             ]
             graphrag_sources = [
                 SourceChunk(
-                    id=c["id"],
+                    id=c.get("id") or c.get("chunk_id", ""),
                     content=c["content"],
                     content_type=c.get("content_type", "text"),
-                    relevance_score=c.get("score", 0.0),
+                    relevance_score=c.get("score") or c.get("search_score", 0.0),
                     page_numbers=c.get("page_numbers", []),
-                    source_document=c.get("source_document", "unknown"),
+                    source_document=c.get("source_document") or c.get("file_name", "unknown"),
                     source_document_sas_url=c.get("source_document_sas_url"),
-                    section_header=c.get("section_header"),
+                    section_header=c.get("section_header") or c.get("section_path"),
                     image_sas_url=c.get("image_sas_url")
                 )
                 for c in graphrag_chunks
@@ -393,7 +393,6 @@ async def execute_query(request: QueryRequest):
             
             # Check if retrieval returned an error (e.g., GraphRAG not ready)
             if retrieval_result.get("error"):
-                from fastapi import HTTPException
                 error_type = retrieval_result.get("error_type", "retrieval_error")
                 error_message = retrieval_result.get("error_message", "Retrieval failed")
                 suggestion = retrieval_result.get("suggestion", "")
@@ -445,14 +444,14 @@ async def execute_query(request: QueryRequest):
         # Build response with full observability (use filtered chunks as sources)
         sources = [
             SourceChunk(
-                id=chunk["id"],
+                id=chunk.get("id") or chunk.get("chunk_id", ""),
                 content=chunk["content"],
                 content_type=chunk.get("content_type", "text"),
-                relevance_score=chunk.get("score", 0.0),
+                relevance_score=chunk.get("score") or chunk.get("search_score", 0.0),
                 page_numbers=chunk.get("page_numbers", []),
-                source_document=chunk.get("source_document", "unknown"),
+                source_document=chunk.get("source_document") or chunk.get("file_name", "unknown"),
                 source_document_sas_url=chunk.get("source_document_sas_url"),
-                section_header=chunk.get("section_header"),
+                section_header=chunk.get("section_header") or chunk.get("section_path"),
                 image_sas_url=chunk.get("image_sas_url")
             )
             for chunk in chunks_for_generation
@@ -681,11 +680,11 @@ async def execute_query_stream(request: QueryRequest):
             # Send sources at the end
             sources = [
                 {
-                    "id": c["id"],
+                    "id": c.get("id") or c.get("chunk_id", ""),
                     "content": c["content"][:200] + "..." if len(c["content"]) > 200 else c["content"],
                     "content_type": c.get("content_type", "text"),
-                    "score": c.get("score", 0.0),
-                    "source_document": c.get("source_document", ""),
+                    "score": c.get("score") or c.get("search_score", 0.0),
+                    "source_document": c.get("source_document") or c.get("file_name", ""),
                     "image_sas_url": c.get("image_sas_url")
                 }
                 for c in retrieval_result["chunks"]

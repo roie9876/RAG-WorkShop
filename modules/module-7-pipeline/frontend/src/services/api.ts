@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { QueryConfig, QueryResponse, DocumentStatus, IndexSchema, IndexStats, IndexSummary, KGIndexStatus } from '../types'
+import type { QueryConfig, QueryResponse, DocumentStatus, IndexSchema, IndexStats, IndexSummary } from '../types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -145,22 +145,6 @@ export const graphragApi = {
 
   clearIndex: async (): Promise<{ success: boolean; message: string }> => {
     const response = await api.post('/graphrag/clear')
-    return response.data
-  },
-
-  // KG Search Index (fast GraphRAG via AI Search)
-  getKGStatus: async (): Promise<{ success: boolean; status: KGIndexStatus }> => {
-    const response = await api.get('/graphrag/kg-index/status')
-    return response.data
-  },
-
-  buildKGIndex: async (): Promise<{ success: boolean; result: unknown }> => {
-    const response = await api.post('/graphrag/kg-index/build?force_recreate=true')
-    return response.data
-  },
-
-  deleteKGIndex: async (): Promise<{ success: boolean; message: string }> => {
-    const response = await api.delete('/graphrag/kg-index')
     return response.data
   },
 }

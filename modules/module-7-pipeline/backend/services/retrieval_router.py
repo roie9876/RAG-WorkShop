@@ -32,7 +32,6 @@ class RetrievalRouter:
         self.blob_service = BlobService()
         self._openai_client = None
         self._graphrag_service = None  # Lazy load
-        self._kg_search_service = None  # Lazy load - fast KG search via AI Search index
     
     @property
     def openai_client(self) -> AzureOpenAI:
@@ -58,29 +57,6 @@ class RetrievalRouter:
                 self._graphrag_service = None
         return self._graphrag_service
     
-    def _get_kg_search_service(self):
-        """Lazy load KG Search service (fast GraphRAG via AI Search index)."""
-        if self._kg_search_service is None:
-            try:
-                from services.kg_search_service import KGSearchIndexService
-                graphrag_root = self.settings.graphrag_index_path or "./graphrag-index"
-                service = KGSearchIndexService(graphrag_root)
-                status = service.get_status()
-                if status.get("ready"):
-                    self._kg_search_service = service
-                    logger.info(f"KG Search index ready: {status['total_documents']} docs")
-                else:
-                    logger.info("KG Search index not built yet, will use standard GraphRAG")
-                    self._kg_search_service = False  # Mark as checked but not available
-            except Exception as e:
-                logger.debug(f"KG Search service not available: {e}")
-                self._kg_search_service = False
-        return self._kg_search_service if self._kg_search_service is not False else None
-
-    def invalidate_kg_search_cache(self):
-        """Reset KG Search service cache (call after building/deleting KG index)."""
-        self._kg_search_service = None
-
     async def classify_query(self, query: str) -> str:
         """
         Classify query to determine best retrieval strategy.
@@ -404,45 +380,6 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         
         Returns error info if GraphRAG not available (no silent fallback).
         """
-        # ── Fast path: KG Search index (vector search, ~2-5s) ──
-        if mode in ("local", "global"):
-            kg_service = self._get_kg_search_service()
-            if kg_service is not None:
-                try:
-                    logger.info(f"⚡ Using fast KG Search index ({mode}): {query[:80]}...")
-                    result = await kg_service.search(
-                        query=query,
-                        mode=mode,
-                        top_k=top_k,
-                    )
-                    
-                    chunks = result.get("chunks", [])
-                    
-                    # Add SAS URLs
-                    chunks = await self._enrich_with_sas_urls(chunks)
-                    
-                    # Augment with figures if needed
-                    if self._should_boost_figures(query):
-                        try:
-                            figures = await self.search_service.search(
-                                query=query, top_k=10,
-                                search_mode="hybrid", semantic_ranker=True,
-                                content_type_filter="figure"
-                            )
-                            if figures:
-                                figures = await self._enrich_with_sas_urls(figures)
-                                chunks = self._merge_chunks(chunks, figures)
-                        except Exception as fig_err:
-                            logger.warning(f"Failed to fetch figures for KG Search: {fig_err}")
-                    
-                    result["chunks"] = chunks
-                    logger.info(f"⚡ KG Search returned {len(chunks)} chunks")
-                    return result
-                    
-                except Exception as e:
-                    logger.warning(f"KG Search failed, falling back to standard GraphRAG: {e}")
-        
-        # ── Standard path: GraphRAG library (LLM calls, ~40-120s) ──
         graphrag_service = self._get_graphrag_service()
         
         if graphrag_service is None:

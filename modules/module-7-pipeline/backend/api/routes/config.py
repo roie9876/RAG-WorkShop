@@ -12,17 +12,31 @@ router = APIRouter()
 
 class QueryConfig(BaseModel):
     """Query-time configuration (user adjustable)."""
+    index_name: str = Field(default="", description="Target Azure AI Search index name (empty = default)")
     top_k: int = Field(default=5, ge=1, le=50, description="Number of chunks to retrieve")
     search_mode: Literal["vector", "text", "hybrid", "semantic"] = Field(
         default="hybrid", description="Search mode"
     )
     semantic_ranker: bool = Field(default=True, description="Enable semantic ranking")
-    min_score: float = Field(default=0.0, ge=0, le=1, description="Minimum relevance score")
+    min_score: float = Field(default=0.0, ge=0, le=4, description="Minimum relevance score")
     content_type_filter: Literal["all", "text", "table", "figure"] = Field(
         default="all", description="Filter by content type"
     )
-    retrieval_strategy: Literal["auto", "hybrid", "agentic", "graphrag"] = Field(
+    retrieval_strategy: Literal["auto", "hybrid", "agentic", "agentic_search", "iterative", "graphrag", "combined"] = Field(
         default="auto", description="Retrieval strategy"
+    )
+    enable_validation: bool = Field(default=True, description="Enable answer validation")
+    combined_base_strategy: Literal["hybrid", "agentic", "agentic_search", "iterative"] = Field(
+        default="hybrid", description="Base AI Search strategy to combine with GraphRAG"
+    )
+    graphrag_mode: Literal["local", "global", "drift"] = Field(
+        default="local", description="GraphRAG search mode"
+    )
+    graphrag_community_level: int = Field(
+        default=2, ge=0, le=5, description="Community level for graph traversal"
+    )
+    graphrag_response_type: Literal["Multiple Paragraphs", "Single Paragraph", "Single Sentence", "List of 3-7 Points"] = Field(
+        default="Multiple Paragraphs", description="GraphRAG response format"
     )
 
 

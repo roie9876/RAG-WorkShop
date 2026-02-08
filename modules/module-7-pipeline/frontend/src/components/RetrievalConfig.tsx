@@ -46,9 +46,19 @@ const getScoreStep = (searchMode: string, semanticRanker: boolean): number => {
 
 export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
   const [indexes, setIndexes] = useState<IndexSummary[]>([])
+  const [indexError, setIndexError] = useState<string | null>(null)
 
   useEffect(() => {
-    indexApi.listIndexes().then(setIndexes).catch(() => setIndexes([]))
+    indexApi.listIndexes()
+      .then((data) => {
+        setIndexes(data)
+        setIndexError(null)
+      })
+      .catch((err) => {
+        console.error('Failed to fetch indexes:', err)
+        setIndexError('Failed to load indexes')
+        setIndexes([])
+      })
   }, [])
   const handleReset = () => {
     onChange({
@@ -129,22 +139,74 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
             <label className="text-base font-medium mb-3 flex items-center gap-2">
               <Database className="h-4 w-4 text-blue-500" />
               Target Search Index
+              {indexes.length > 0 && (
+                <span className="text-xs text-muted-foreground font-normal">
+                  ({indexes.length} available)
+                </span>
+              )}
             </label>
-            <select
-              value={config.index_name || ''}
-              onChange={(e) => onChange({ index_name: e.target.value || '' })}
-              className="w-full p-3 rounded-lg border bg-background text-base"
-            >
-              <option value="">Default (module7-rag-index)</option>
-              {indexes.map((idx) => (
-                <option key={idx.name} value={idx.name}>
-                  {idx.name} ({idx.document_count} docs)
-                </option>
-              ))}
-            </select>
-            <p className="text-sm text-muted-foreground mt-2">
-              📊 Select which Azure AI Search index your query will search against
-            </p>
+            {indexError && (
+              <p className="text-sm text-red-500 mb-2">⚠️ {indexError}</p>
+            )}
+            {indexes.length === 0 && !indexError && (
+              <p className="text-sm text-yellow-500 mb-2">⏳ Loading indexes...</p>
+            )}
+            <div className="space-y-1.5 max-h-52 overflow-y-auto rounded-lg border p-2">
+              {/* Default option */}
+              <label
+                className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${
+                  !config.index_name
+                    ? 'bg-blue-500/15 border border-blue-500/40'
+                    : 'hover:bg-muted border border-transparent'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="target_index"
+                  value=""
+                  checked={!config.index_name}
+                  onChange={() => onChange({ index_name: '' })}
+                  className="accent-blue-500"
+                />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium">module7-rag-index</span>
+                  <span className="text-xs text-muted-foreground ml-2">(default)</span>
+                </div>
+              </label>
+              {/* Dynamic indexes */}
+              {indexes
+                .filter((idx) => idx.name !== 'module7-rag-index')
+                .map((idx) => (
+                  <label
+                    key={idx.name}
+                    className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${
+                      config.index_name === idx.name
+                        ? 'bg-blue-500/15 border border-blue-500/40'
+                        : 'hover:bg-muted border border-transparent'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="target_index"
+                      value={idx.name}
+                      checked={config.index_name === idx.name}
+                      onChange={() => onChange({ index_name: idx.name })}
+                      className="accent-blue-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium truncate">{idx.name}</span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {idx.document_count} docs
+                      </span>
+                    </div>
+                  </label>
+                ))}
+            </div>
+            {config.index_name && (
+              <p className="text-sm text-blue-500 mt-2">
+                🎯 Queries will target: <strong>{config.index_name}</strong>
+              </p>
+            )}
           </div>
 
           {/* Retrieval Strategy */}
