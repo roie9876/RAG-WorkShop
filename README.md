@@ -49,7 +49,7 @@ Instead of hoping the LLM knows the answer, we:
 4. **💬 Generate** an answer based on YOUR data
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph WITHOUT["❌ Without RAG"]
         Q1["Question"] --> LLM1["LLM"]
         LLM1 --> A1["Guesses ❌"]
@@ -123,7 +123,7 @@ flowchart TB
 This workshop teaches you to build RAG systems step by step. Each module covers one part of the pipeline:
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph M0["Module 0"]
         S0["⚙️ Setup<br/>Azure Resources"]
     end
