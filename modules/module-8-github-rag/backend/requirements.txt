@@ -1,0 +1,31 @@
+# Module 8 - GitHub Repository RAG Backend
+# FastAPI + Azure AI Search + GraphRAG
+#
+# ⚠️  IMPORTANT: Python 3.11+ required for GraphRAG support
+#     GraphRAG 3.x requires Python >=3.11, <3.14
+
+# Core Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.10.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# Azure Core
+azure-core>=1.30.0
+
+# Azure AI Search
+azure-search-documents==11.7.0b2
+
+# Azure OpenAI
+openai>=2.0.0
+
+# GraphRAG - Knowledge Graph RAG
+graphrag>=3.0.1
+pyarrow>=14.0.0
+
+# HTTP Client (for GitHub API)
+httpx>=0.26.0
+
+# Utilities
+pandas>=2.0.0

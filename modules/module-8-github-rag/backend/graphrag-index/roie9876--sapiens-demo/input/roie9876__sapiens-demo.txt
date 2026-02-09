@@ -1,0 +1,1507 @@
+# Repository: roie9876/sapiens-demo
+# Exported: 2026-02-09T14:30:05.851849
+# Total chunks: 70
+
+---
+
+## File: .gitignore
+Language: unknown
+Type: config
+
+# Environment / secrets
+.env
+
+# Output results
+output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+---
+
+## File: README.md
+Language: markdown
+Type: docs
+
+### Section Sapiens Demo — Azure Content Understanding PDF Extraction
+
+# Sapiens Demo — Azure Content Understanding PDF Extraction
+
+Extract layout and structured fields from customer card PDFs using **Azure AI Content Understanding** with a pre-created analyzer (`sapiensanalyzer`).
+
+---
+
+### Section Prerequisites
+
+## Prerequisites
+
+- Python 3.9+
+- Azure CLI (`az`) or Azure Developer CLI (`azd`) installed and logged in
+- An Azure AI Foundry resource with Content Understanding enabled
+
+---
+
+### Section Azure RBAC Roles Required
+
+## Azure RBAC Roles Required
+
+Your resource has **local authentication (API keys) disabled** (`disableLocalAuth=true`), so all access uses **Azure AD (Entra ID) token authentication**. You must assign the correct RBAC roles to any user or service principal that needs to call the API.
+
+### Section Required Roles
+
+### Required Roles
+
+| Role | Scope | Why it's needed |
+|------|-------|-----------------|
+| **Cognitive Services User** | AI Foundry resource | **Required.** Allows calling Content Understanding APIs (analyze documents, manage analyzers, configure model deployments). Without this role, API calls will return `403 Forbidden`. |
+
+### Section Optional / Additional Roles
+
+### Optional / Additional Roles
+
+| Role | Scope | Why it's needed |
+|------|-------|-----------------|
+| **Cognitive Services Contributor** | AI Foundry resource | Allows managing the Cognitive Services resource itself (create/delete resources, manage keys). Only needed for admins. |
+| **Reader** | Resource Group | Allows viewing the resource in Azure Portal and listing resource properties. |
+| **Owner** / **Contributor** | Resource Group | Full management of resources. Typically for infrastructure admins only. |
+
+> ⚠️ **Important:** Even if you are the **Owner** of the resource, you still need the **Cognitive Services User** role explicitly assigned to call the Content Understanding API.
+
+### Section How to Assign the Role
+
+### How to Assign the Role
+
+### Section Option 1: Azure Portal
+
+#### Option 1: Azure Portal
+
+1. Go to [Azure Portal](https://portal.azure.com/)
+2. Navigate to your AI Foundry resource (`content-understand-rg-resource-5428`)
+3. Click **Access Control (IAM)** in the left menu
+4. Click **Add** → **Add role assignment**
+5. Select **Cognitive Services User**
+6. Under **Members**, select your user account or service principal
+7. Click **Review + assign**
+
+### Section Option 2: Azure CLI
+
+#### Option 2: Azure CLI
+
+```bash
+
+### Section Get your user object ID
+
+# Get your user object ID
+USER_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv)
+
+### Section Assign Cognitive Services User role on the resource
+
+# Assign Cognitive Services User role on the resource
+az role assignment create \
+  --assignee "$USER_OBJECT_ID" \
+  --role "Cognitive Services User" \
+  --scope "/subscriptions/<subscription-id>/resourceGroups/content-understand-rg/providers/Microsoft.CognitiveServices/accounts/content-understand-rg-resource-5428"
+```
+
+Replace `<subscription-id>` with your actual Azure subscription ID.
+
+---
+
+### Section Authentication
+
+## Authentication
+
+Since API keys are disabled on this resource, the code uses **`DefaultAzureCredential`** from the Azure Identity SDK. It automatically picks up credentials from (in order):
+
+1. Environment variables
+2. Azure CLI (`az login`)
+3. Azure Developer CLI (`azd auth login`)
+4. Managed Identity (when running in Azure)
+5. Visual Studio Code Azure Account extension
+
+**Before running the script, make sure you are logged in:**
+
+```bash
+
+### Section Option A: Azure CLI
+
+# Option A: Azure CLI
+az login
+
+### Section Option B: Azure Developer CLI
+
+# Option B: Azure Developer CLI
+azd auth login
+```
+
+---
+
+### Section Creating the Analyzer in Azure Content Understanding UI
+
+## Creating the Analyzer in Azure Content Understanding UI
+
+Before running the Python script, we created a custom analyzer called **`sapiensanalyzer`** in the [Azure Content Understanding Studio](https://contentunderstanding.ai.azure.com/). This UI-based process defines what fields to extract from your documents.
+
+### Section Step 1: Create a New Analyzer
+
+### Step 1: Create a New Analyzer
+
+Navigate to the Content Understanding Studio and create a new custom analyzer. Select **Document** as the content type since we are processing PDF files. Give it the name `sapiensanalyzer`.
+
+The analyzer setup screen lets you configure the base analyzer type, description, and processing options such as OCR and layout extraction.
+
+![Step 1 — Create Analyzer](docs/images/01-create-analyzer.jpeg)
+
+### Section Step 2: Define the Field Schema
+
+### Step 2: Define the Field Schema
+
+Next, define the fields you want to extract from the customer card PDFs. For each field, specify:
+
+- **Field name** — The key used in the output (e.g., `CustomerId`, `Company`, `Email`)
+- **Type** — The data type: `string`, `number`, `date`, `boolean`, `array`, or `object`
+- **Method** — How the field is extracted:
+  - **`extract`** — Extracts the value as-is from the document (literal text extraction)
+  - **`generate`** — Uses AI to generate/infer the value based on content understanding
+  - **`classify`** — Classifies the value against predefined categories
+- **Description** — A clear explanation of the field, which acts as a prompt to guide extraction accuracy
+
+For the Sapiens customer cards, we defined fields such as `CustomerId`, `Company`, `PrimaryContactName`, `Email`, `Phone`, `Industry`, `Region`, `Status`, `Tier`, `HqLocation`, `AccountManager`, `ContractStartDate`, `ContractEndDate`, `RenewalReviewDate`, and `Currency`.
+
+![Step 2 — Define Field Schema](docs/images/02-define-field-schema.jpeg)
+
+### Section Step 3: Test the Analyzer
+
+### Step 3: Test the Analyzer
+
+Upload a sample PDF to test the analyzer directly in the UI. The studio shows the extracted fields alongside the original document, including confidence scores and bounding boxes for each extracted value.
+
+This lets you validate and iterate on your field schema before using it programmatically. Once the results look correct, the analyzer is ready to be called from Python code.
+
+![Step 3 — Test Analyzer](docs/images/03-test-analyzer.jpeg)
+
+> 💡 **Tip:** You can always go back and modify the field schema in the UI. The analyzer ID (`sapiensanalyzer`) stays the same — the Python script will automatically pick up the updated schema on the next run.
+
+---
+
+### Section Setup
+
+## Setup
+
+1. **Install dependencies:**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Verify `.env` configuration:**
+
+   The endpoint is already configured in `.env`:
+   ```
+   AZURE_AI_ENDPOINT=https://content-understand-rg-resource-5428.services.ai.azure.com/
+   ```
+
+---
+
+### Section Usage
+
+## Usage
+
+```bash
+
+### Section Process all 10 customer card PDFs
+
+# Process all 10 customer card PDFs
+python extract_pdf_layout.py
+
+### Section Process a single file
+
+# Process a single file
+python extract_pdf_layout.py sample-demo-files/CUST-20260001_customer_card.pdf
+```
+
+Results are saved as JSON in the `output/` folder.
+
+---
+
+### Section Project Structure
+
+## Project Structure
+
+```
+sapiens-demo/
+├── .env                              # Azure endpoint configuration
+├── README.md                         # This file
+├── requirements.txt                  # Python dependencies
+├── content_understanding_client.py   # Lightweight SDK client for Content Understanding API
+├── extract_pdf_layout.py             # Main script — analyzes PDFs and extracts fields
+├── docs/
+│   └── images/
+│       ├── 01-create-analyzer.jpeg       # Screenshot: create analyzer in UI
+│       ├── 02-define-field-schema.jpeg   # Screenshot: define field schema
+│       └── 03-test-analyzer.jpeg         # Screenshot: test analyzer with sample PDF
+├── sample-demo-files/                # Sample customer card PDFs
+│   ├── CUST-20260001_customer_card.pdf
+│   ├── CUST-20260002_customer_card.pdf
+│   └── ... (10 files)
+└── output/                           # Analysis results (JSON)
+```
+
+---
+
+### Section Troubleshooting
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `403 Forbidden` | Missing RBAC role | Assign **Cognitive Services User** role (see above) |
+| `401 Unauthorized` | Not logged in or token expired | Run `az login` or `azd auth login` |
+| `Failed to list key. disableLocalAuth is set to be true` | API keys are disabled on the resource | This is expected — use token auth (already configured) |
+| `Operation timed out` | Large PDF or service busy | Increase `POLL_TIMEOUT_SECONDS` in `content_understanding_client.py` |
+
+---
+
+## File: content_understanding_client.py
+Language: python
+Type: code
+
+"""
+Azure Content Understanding Client - Lightweight SDK
+Based on: https://github.com/Azure-Samples/azure-ai-content-understanding-python
+API Version: 2025-11-01 (GA)
+"""
+
+import json
+import logging
+import time
+import requests
+
+from pathlib import Path
+from requests.models import Response
+from typing import Any, Dict, Optional
+
+POLL_TIMEOUT_SECONDS = 180
+
+### Class AzureContentUnderstandingClient
+
+class AzureContentUnderstandingClient:
+
+### Method in AzureContentUnderstandingClient __init__
+
+    def __init__(
+        self,
+        endpoint: str,
+        api_version: str,
+        subscription_key: str = None,
+        token_provider: callable = None,
+    ):
+        if not subscription_key and not token_provider:
+            raise ValueError("Either subscription key or token provider must be provided.")
+        if not api_version:
+            raise ValueError("API version must be provided.")
+        if not endpoint:
+            raise ValueError("Endpoint must be provided.")
+
+        self._endpoint = endpoint.rstrip("/")
+        self._api_version = api_version
+        self._logger = logging.getLogger(__name__)
+
+        token = token_provider() if token_provider else None
+        self._headers = self._get_headers(subscription_key, token)
+
+    # ── URL builders ──────────────────────────────────────────────────────
+
+### Method in AzureContentUnderstandingClient _get_analyzer_url
+
+    def _get_analyzer_url(self, endpoint: str, api_version: str, analyzer_id: str) -> str:
+        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={api_version}"
+
+### Method in AzureContentUnderstandingClient _get_analyze_binary_url
+
+    def _get_analyze_binary_url(self, endpoint: str, api_version: str, analyzer_id: str) -> str:
+        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyzeBinary?api-version={api_version}"
+
+    # ── Headers ───────────────────────────────────────────────────────────
+
+    @staticmethod
+
+### Method in AzureContentUnderstandingClient _get_headers
+
+    def _get_headers(subscription_key: str, api_token: str) -> Dict[str, str]:
+        headers = (
+            {"Ocp-Apim-Subscription-Key": subscription_key}
+            if subscription_key
+            else {"Authorization": f"Bearer {api_token}"}
+        )
+        return headers
+
+    # ── Error handling ────────────────────────────────────────────────────
+
+### Method in AzureContentUnderstandingClient _raise_for_status_with_detail
+
+    def _raise_for_status_with_detail(self, response: Response) -> None:
+        if response.ok:
+            return
+        try:
+            error_detail = ""
+            try:
+                error_json = response.json()
+                if "error" in error_json:
+                    error_info = error_json["error"]
+                    error_code = error_info.get("code", "Unknown")
+                    error_message = error_info.get("message", "No message provided")
+                    error_detail = f"\n  Error Code: {error_code}\n  Error Message: {error_message}"
+                    if "details" in error_info:
+                        error_detail += f"\n  Details: {error_info['details']}"
+                    if "innererror" in error_info:
+                        error_detail += f"\n  Inner Error: {error_info['innererror']}"
+                else:
+                    error_detail = f"\n  Response Body: {json.dumps(error_json, indent=2)}"
+            except (ValueError, json.JSONDecodeError):
+                if response.text:
+                    error_detail = f"\n  Response Text: {response.text[:500]}"
+        except Exception:
+            error_detail = ""
+
+        error_msg = f"{response.status_code} {response.reason} for url: {response.url}{error_detail}"
+        raise requests.exceptions.HTTPError(error_msg, response=response)
+
+    # ── Analyze ───────────────────────────────────────────────────────────
+
+### Method in AzureContentUnderstandingClient begin_analyze_binary
+
+    def begin_analyze_binary(self, analyzer_id: str, file_location: str) -> Response:
+        """
+        Begins the analysis of a single binary file using the specified analyzer.
+        Uses the :analyzeBinary endpoint required by GA API 2025-11-01.
+        """
+        file_path = Path(file_location)
+        if not file_path.exists() or not file_path.is_file():
+            raise ValueError(f"File location must be a valid file path: {file_location}")
+
+        with open(file_location, "rb") as file:
+            file_bytes = file.read()
+
+        headers = {"Content-Type": "application/octet-stream"}
+        headers.update(self._headers)
+
+        response = requests.post(
+            url=self._get_analyze_binary_url(self._endpoint, self._api_version, analyzer_id),
+            headers=headers,
+            data=file_bytes,
+        )
+
+        self._raise_for_status_with_detail(response)
+        self._logger.info(f"Analyzing binary file {file_location} with analyzer: {analyzer_id}")
+        return response
+
+    # ── Polling ───────────────────────────────────────────────────────────
+
+### Method in AzureContentUnderstandingClient poll_result
+
+    def poll_result(
+        self,
+        response: Response,
+        timeout_seconds: int = POLL_TIMEOUT_SECONDS,
+        polling_interval_seconds: int = 2,
+    ) -> Dict[str, Any]:
+        """
+        Polls the result of an asynchronous operation until it completes or times out.
+        """
+        operation_location = response.headers.get("operation-location", "")
+        if not operation_location:
+            raise ValueError("Operation location not found in response headers.")
+
+        headers = {"Content-Type": "application/json"}
+        headers.update(self._headers)
+
+        start_time = time.time()
+        while True:
+            elapsed_time = time.time() - start_time
+            if elapsed_time > timeout_seconds:
+                raise TimeoutError(f"Operation timed out after {timeout_seconds:.2f} seconds.")
+
+            response = requests.get(operation_location, headers=self._headers)
+            self._raise_for_status_with_detail(response)
+            status = response.json().get("status", "").lower()
+
+            if status == "succeeded":
+                self._logger.info(f"Request result is ready after {elapsed_time:.2f} seconds.")
+                return response.json()
+            elif status == "failed":
+                self._logger.error(f"Request failed. Reason: {response.json()}")
+                raise RuntimeError("Request failed.")
+            else:
+                self._logger.info(f"Request in progress ... ({elapsed_time:.1f}s elapsed)")
+                time.sleep(polling_interval_seconds)
+
+    # ── Analyzer management ───────────────────────────────────────────────
+
+### Method in AzureContentUnderstandingClient get_analyzer_detail
+
+    def get_analyzer_detail(self, analyzer_id: str) -> Dict[str, Any]:
+        """Retrieves details for a specific analyzer."""
+        response = requests.get(
+            url=self._get_analyzer_url(self._endpoint, self._api_version, analyzer_id),
+            headers=self._headers,
+        )
+        self._raise_for_status_with_detail(response)
+        return response.json()
+
+---
+
+## File: extract_pdf_layout.py
+Language: python
+Type: code
+
+"""
+Sapiens Demo - Extract Customer Data from PDF using Azure Content Understanding
+================================================================================
+Uses the pre-created analyzer "sapiensanalyzer" to process PDF files
+from the sample-demo-files/ folder and extract ONLY the fields defined
+in the analyzer schema.
+
+The Markdown output is built from extracted fields only — NOT from the
+raw document layout. This means sensitive data (e.g. pricing, discounts)
+that is NOT in the schema will never appear in the output.
+
+The generated Markdown is designed to be ingested into an LLM for RAG.
+
+Usage:
+    python extract_pdf_layout.py                          # Process all PDFs
+    python extract_pdf_layout.py sample-demo-files/CUST-20260001_customer_card.pdf  # Single file
+"""
+
+import json
+import logging
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+
+from azure.identity import DefaultAzureCredential
+from dotenv import find_dotenv, load_dotenv
+from content_understanding_client import AzureContentUnderstandingClient
+
+# ── Configuration ──────────────────────────────────────────────────────────
+
+load_dotenv(find_dotenv())
+logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
+
+AZURE_AI_ENDPOINT = os.getenv("AZURE_AI_ENDPOINT")
+API_VERSION = "2025-11-01"
+
+ANALYZER_ID = "sapiensanalyzer"            # Your pre-created analyzer
+PDF_FOLDER = "sample-demo-files"           # Folder with sample PDFs
+OUTPUT_FOLDER = "output"                   # Where results are saved
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────
+
+### Function validate_env
+
+def validate_env():
+    """Make sure required env vars are set."""
+    if not AZURE_AI_ENDPOINT:
+        print("❌ Missing required environment variable: AZURE_AI_ENDPOINT")
+        print("   Please fill in the .env file and try again.")
+        sys.exit(1)
+
+### Function get_token_provider
+
+def get_token_provider():
+    """Create a token provider using Azure AD (DefaultAzureCredential)."""
+    credential = DefaultAzureCredential()
+    def _provider():
+        token = credential.get_token("https://cognitiveservices.azure.com/.default")
+        return token.token
+    return _provider
+
+### Function create_client
+
+def create_client() -> AzureContentUnderstandingClient:
+    """Create and return the Azure Content Understanding client."""
+    client = AzureContentUnderstandingClient(
+        endpoint=AZURE_AI_ENDPOINT,
+        api_version=API_VERSION,
+        token_provider=get_token_provider(),
+    )
+    print(f"✅ Client created successfully (Azure AD token auth)")
+    print(f"   Endpoint:  {AZURE_AI_ENDPOINT}")
+    print(f"   Analyzer:  {ANALYZER_ID}")
+    print(f"   API:       {API_VERSION}")
+    return client
+
+### Function get_field_value
+
+def get_field_value(field_value: dict) -> str:
+    """Extract the display value from a field based on its type."""
+    field_type = field_value.get("type", "")
+    if field_type == "string":
+        return field_value.get("valueString", "")
+    elif field_type == "number":
+        return str(field_value.get("valueNumber", ""))
+    elif field_type == "date":
+        return field_value.get("valueDate", "")
+    elif field_type == "boolean":
+        return str(field_value.get("valueBoolean", ""))
+    return ""
+
+### Function build_markdown_from_fields
+
+def build_markdown_from_fields(result: dict, pdf_name: str) -> str:
+    """
+    Build a clean Markdown document from the extracted fields ONLY.
+
+    This ensures that only data defined in the analyzer schema appears
+    in the output — sensitive data not in the schema is excluded.
+    Ready for LLM / RAG ingestion.
+    """
+    if not result or "result" not in result:
+        return ""
+
+    contents = result["result"].get("contents", [])
+    if not contents:
+        return ""
+
+    first_content = contents[0]
+    fields = first_content.get("fields", {})
+    if not fields:
+        return ""
+
+    lines = []
+    lines.append(f"# Customer Card — {pdf_name}")
+    lines.append("")
+
+    # Group fields into logical sections for readability
+    identity_fields = ["CustomerId", "Company", "PrimaryContactName", "Status", "Tier"]
+    contact_fields = ["Email", "Phone", "HqLocation"]
+    business_fields = ["Industry", "Region", "AccountManager"]
+    contract_fields = ["ContractStartDate", "ContractEndDate", "RenewalReviewDate", "Currency"]
+
+    sections = [
+        ("Customer Identity", identity_fields),
+        ("Contact Information", contact_fields),
+        ("Business Details", business_fields),
+        ("Contract", contract_fields),
+    ]
+
+    for section_title, field_names in sections:
+        section_rows = []
+        for name in field_names:
+            if name in fields:
+                value = get_field_value(fields[name])
+                if value:
+                    section_rows.append((name, value))
+
+        if section_rows:
+            lines.append(f"## {section_title}")
+            lines.append("")
+            lines.append("| Field | Value |")
+            lines.append("|-------|-------|")
+            for name, value in section_rows:
+                lines.append(f"| {name} | {value} |")
+            lines.append("")
+
+    # Any remaining fields not in the sections above
+    known = set(f for _, flds in sections for f in flds)
+    extra = {k: v for k, v in fields.items() if k not in known}
+    if extra:
+        lines.append("## Other")
+        lines.append("")
+        lines.append("| Field | Value |")
+        lines.append("|-------|-------|")
+        for name, field_value in extra.items():
+            value = get_field_value(field_value)
+            if value:
+                lines.append(f"| {name} | {value} |")
+        lines.append("")
+
+    return "\n".join(lines)
+
+### Function build_fields_only_json
+
+def build_fields_only_json(result: dict) -> dict:
+    """
+    Build a clean JSON with only the extracted fields — no raw markdown/layout.
+    This ensures sensitive data not in the schema never appears in the output.
+    """
+    if not result or "result" not in result:
+        return {}
+
+    contents = result["result"].get("contents", [])
+    clean_contents = []
+    for content in contents:
+        clean_content = {
+            "kind": content.get("kind"),
+            "startPageNumber": content.get("startPageNumber"),
+            "endPageNumber": content.get("endPageNumber"),
+            "fields": content.get("fields", {}),
+        }
+        clean_contents.append(clean_content)
+
+    return {
+        "status": result.get("status"),
+        "result": {
+            "analyzerId": result.get("result", {}).get("analyzerId"),
+            "apiVersion": result.get("result", {}).get("apiVersion"),
+            "contents": clean_contents,
+        },
+    }
+
+### Function save_result
+
+def save_result(result: dict, pdf_name: str) -> tuple[str, str]:
+    """Save a clean JSON (fields only) and Markdown built from extracted fields."""
+    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    stem = Path(pdf_name).stem
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Save clean JSON — fields only, no raw markdown/layout
+    json_path = os.path.join(OUTPUT_FOLDER, f"{stem}_{timestamp}.json")
+    clean_result = build_fields_only_json(result)
+    with open(json_path, "w") as f:
+        json.dump(clean_result, f, indent=2, ensure_ascii=False)
+
+    # Build Markdown from extracted fields only (no sensitive data)
+    md_path = os.path.join(OUTPUT_FOLDER, f"{stem}_{timestamp}.md")
+    markdown_content = build_markdown_from_fields(result, pdf_name)
+
+    if markdown_content:
+        with open(md_path, "w") as f:
+            f.write(markdown_content)
+    else:
+        md_path = None
+
+    return json_path, md_path
+
+### Function print_extracted_fields
+
+def print_extracted_fields(result: dict):
+    """Pretty-print the extracted fields from the analysis result."""
+    if not result or "result" not in result:
+        print("   ⚠️  No result available")
+        return
+
+    contents = result["result"].get("contents", [])
+    if not contents:
+        print("   ⚠️  No contents found in result")
+        return
+
+    for i, content in enumerate(contents):
+        print(f"\n   📄 Content #{i + 1}")
+        print(f"   {'─' * 60}")
+
+        # ── Metadata ──
+        kind = content.get("kind", "unknown")
+        print(f"   Kind: {kind}")
+        if kind == "document":
+            start_page = content.get("startPageNumber", "?")
+            end_page = content.get("endPageNumber", "?")
+            print(f"   Pages: {start_page} – {end_page}")
+
+        # ── Fields ──
+        fields = content.get("fields", {})
+        if fields:
+            print(f"\n   📊 Extracted Fields:")
+            print(f"   {'─' * 60}")
+            for field_name, field_value in fields.items():
+                field_type = field_value.get("type")
+
+                if field_type == "string":
+                    print(f"   {field_name}: {field_value.get('valueString')}")
+                elif field_type == "number":
+                    print(f"   {field_name}: {field_value.get('valueNumber')}")
+                elif field_type == "date":
+                    print(f"   {field_name}: {field_value.get('valueDate')}")
+                elif field_type == "boolean":
+
+### Function print_extracted_fields (part 1)
+
+field_value.get('valueNumber')}")
+                elif field_type == "date":
+                    print(f"   {field_name}: {field_value.get('valueDate')}")
+                elif field_type == "boolean":
+                    print(f"   {field_name}: {field_value.get('valueBoolean')}")
+                elif field_type == "array":
+                    items = field_value.get("valueArray", [])
+                    print(f"   {field_name} (array with {len(items)} items):")
+                    for idx, item in enumerate(items, 1):
+                        if item.get("type") == "object":
+                            print(f"     Item {idx}:")
+                            for key, val in item.get("valueObject", {}).items():
+                                if val.get("type") == "string":
+                                    print(f"       {key}: {val.get('valueString')}")
+                                elif val.get("type") == "number":
+                                    print(f"       {key}: {val.get('valueNumber')}")
+                                elif val.get("type") == "date":
+                                    print(f"       {key}: {val.get('valueDate')}")
+                                confidence = val.get("confidence")
+                                if confidence is not None:
+                                    print(f"         Confidence: {confidence:.3f}")
+                elif field_type == "object":
+
+### Function print_extracted_fields (part 2)
+
+confidence")
+                                if confidence is not None:
+                                    print(f"         Confidence: {confidence:.3f}")
+                elif field_type == "object":
+                    print(f"   {field_name}: {json.dumps(field_value.get('valueObject'), indent=4)}")
+
+                # Confidence & source
+                confidence = field_value.get("confidence")
+                if confidence is not None:
+                    print(f"     Confidence: {confidence:.3f}")
+                source = field_value.get("source")
+                if source:
+                    print(f"     Source: {source}")
+        else:
+            print("   ⚠️  No fields extracted")
+
+        # ── Markdown / text content ──
+        markdown = content.get("markdown")
+        if markdown:
+            print(f"\n   📝 Layout / Markdown Content (first 500 chars):")
+            print(f"   {'─' * 60}")
+            print(f"   {markdown[:500]}")
+            if len(markdown) > 500:
+                print(f"   ... ({len(markdown)} total chars)")
+
+
+# ── Main ───────────────────────────────────────────────────────────────────
+
+### Function analyze_pdf
+
+def analyze_pdf(client: AzureContentUnderstandingClient, pdf_path: str):
+    """Analyze a single PDF file with the sapiensanalyzer."""
+    pdf_name = os.path.basename(pdf_path)
+    print(f"\n{'═' * 70}")
+    print(f"🔍 Analyzing: {pdf_name}")
+    print(f"{'═' * 70}")
+
+    # Submit for analysis
+    print(f"   ⏳ Submitting to analyzer '{ANALYZER_ID}'...")
+    analysis_response = client.begin_analyze_binary(
+        analyzer_id=ANALYZER_ID,
+        file_location=pdf_path,
+    )
+
+    # Poll until complete
+    print(f"   ⏳ Waiting for analysis to complete...")
+    analysis_result = client.poll_result(analysis_response)
+    print(f"   ✅ Analysis completed!")
+
+    # Print extracted fields
+    print_extracted_fields(analysis_result)
+
+    # Save JSON + Markdown results
+    json_path, md_path = save_result(analysis_result, pdf_name)
+    print(f"\n   💾 JSON result saved to: {json_path}")
+    if md_path:
+        print(f"   📝 Markdown layout saved to: {md_path}")
+
+    return analysis_result
+
+### Function main
+
+def main():
+    validate_env()
+    client = create_client()
+
+    # Determine which PDFs to process
+    if len(sys.argv) > 1:
+        # Process specific file(s) passed as arguments
+        pdf_files = sys.argv[1:]
+    else:
+        # Process all PDFs in the sample folder
+        if not os.path.isdir(PDF_FOLDER):
+            print(f"❌ PDF folder not found: {PDF_FOLDER}")
+            sys.exit(1)
+        pdf_files = sorted([
+            os.path.join(PDF_FOLDER, f)
+            for f in os.listdir(PDF_FOLDER)
+            if f.lower().endswith(".pdf")
+        ])
+
+    if not pdf_files:
+        print(f"⚠️  No PDF files found in {PDF_FOLDER}/")
+        sys.exit(1)
+
+    print(f"\n📂 Found {len(pdf_files)} PDF file(s) to process")
+
+    # Analyze each PDF
+    results = {}
+    for pdf_path in pdf_files:
+        try:
+            result = analyze_pdf(client, pdf_path)
+            results[os.path.basename(pdf_path)] = result
+        except Exception as e:
+            print(f"   ❌ Error analyzing {pdf_path}: {e}")
+            results[os.path.basename(pdf_path)] = {"error": str(e)}
+
+    # Summary
+    print(f"\n{'═' * 70}")
+    print(f"📊 Summary: Processed {len(results)} file(s)")
+    print(f"   Output folder: {OUTPUT_FOLDER}/")
+    print(f"{'═' * 70}")
+
+
+if __name__ == "__main__":
+    main()
+
+---
+
+## File: output/CUST-20260001_customer_card_20260209_113004.json
+Language: json
+Type: config
+
+{
+  "status": "Succeeded",
+  "result": {
+    "analyzerId": "sapiensanalyzer",
+    "apiVersion": "2025-11-01",
+    "contents": [
+      {
+        "kind": "document",
+        "startPageNumber": 1,
+        "endPageNumber": 1,
+        "fields": {
+          "CustomerId": {
+            "type": "string",
+            "valueString": "CUST-20260001",
+            "spans": [
+              {
+                "offset": 182,
+                "length": 13
+              }
+            ],
+            "confidence": 0.981,
+            "source": "D(1,3.5201,1.2016,4.5613,1.1997,4.5616,1.3421,3.5204,1.3440)"
+          },
+          "Company": {
+            "type": "string",
+            "valueString": "Davis Insurance",
+            "spans": [
+              {
+                "offset": 152,
+                "length": 15
+              }
+            ],
+            "confidence": 0.963,
+            "source": "D(1,1.4534,1.2043,2.4719,1.2067,2.4716,1.3492,1.4531,1.3468)"
+          },
+          "PrimaryContactName": {
+            "type": "string",
+            "valueString": "Noah Davis",
+            "spans": [
+              {
+                "offset": 214,
+                "length": 10
+              }
+            ],
+            "confidence": 0.959,
+            "source": "D(1,1.8869,1.3698,2.6127,1.3689,2.6129,1.5189,1.8871,1.5198)"
+          },
+          "Email": {
+            "type": "string",
+            "valueString": "noah.davis@davis.example.com",
+            "spans": [
+              {
+
+### Atomic output/CUST-20260001_customer_card_20260209_113004.json (part 1)
+
+7,1.3689,2.6129,1.5189,1.8871,1.5198)"
+          },
+          "Email": {
+            "type": "string",
+            "valueString": "noah.davis@davis.example.com",
+            "spans": [
+              {
+                "offset": 482,
+                "length": 28
+              }
+            ],
+            "confidence": 0.968,
+            "source": "D(1,1.9196,2.7328,3.7416,2.7315,3.7416,2.8759,1.9216,2.8750)"
+          },
+          "Phone": {
+            "type": "string",
+            "valueString": "+1 (500) 996-6752",
+            "spans": [
+              {
+                "offset": 535,
+                "length": 17
+              }
+            ],
+            "confidence": 0.955,
+            "source": "D(1,5.7234,2.7320,6.7693,2.7320,6.7693,2.8762,5.7234,2.8762)"
+          },
+          "Industry": {
+            "type": "string",
+            "valueString": "Retail",
+            "spans": [
+              {
+                "offset": 312,
+                "length": 6
+              }
+            ],
+            "confidence": 0.97,
+            "source": "D(1,1.9247,2.1828,2.2578,2.1852,2.2578,2.3090,1.9247,2.3061)"
+          },
+          "Region": {
+            "type": "string",
+            "valueString": "LATAM",
+            "spans": [
+              {
+                "offset": 344,
+                "length": 5
+              }
+            ],
+            "confidence": 0.973,
+            "source": "D(1,5.7192,2.1793,6.1550,2.1795,6.1550,2.3082,5.7192,2.3072)"
+          },
+
+### Atomic output/CUST-20260001_customer_card_20260209_113004.json (part 2)
+
+set": 344,
+                "length": 5
+              }
+            ],
+            "confidence": 0.973,
+            "source": "D(1,5.7192,2.1793,6.1550,2.1795,6.1550,2.3082,5.7192,2.3072)"
+          },
+          "AccountManager": {
+            "type": "string",
+            "valueString": "Chen Wei",
+            "spans": [
+              {
+                "offset": 438,
+                "length": 8
+              }
+            ],
+            "confidence": 0.956,
+            "source": "D(1,5.7234,2.4569,6.2838,2.4573,6.2837,2.5888,5.7233,2.5884)"
+          },
+          "LicensedSeats": {
+            "type": "integer",
+            "valueInteger": 250,
+            "spans": [
+              {
+                "offset": 597,
+                "length": 3
+              }
+            ],
+            "confidence": 0.98,
+            "source": "D(1,1.9206,3.0132,2.1458,3.0132,2.1458,3.1367,1.9206,3.1367)"
+          },
+          "Status": {
+            "type": "string",
+            "valueString": "Active",
+            "spans": [
+              {
+                "offset": 233,
+                "length": 6
+              }
+            ],
+            "confidence": 0.977,
+            "source": "D(1,3.2493,1.3736,3.6370,1.3734,3.6370,1.5117,3.2493,1.5118)"
+          },
+          "Tier": {
+            "type": "string",
+            "valueString": "Silver",
+            "spans": [
+              {
+                "offset": 246,
+                "length": 6
+              }
+            ],
+
+### Atomic output/CUST-20260001_customer_card_20260209_113004.json (part 3)
+
+": {
+            "type": "string",
+            "valueString": "Silver",
+            "spans": [
+              {
+                "offset": 246,
+                "length": 6
+              }
+            ],
+            "confidence": 0.97,
+            "source": "D(1,4.1296,1.3732,4.4990,1.3730,4.4990,1.5102,4.1296,1.5110)"
+          },
+          "HqLocation": {
+            "type": "string",
+            "valueString": "New York, NY",
+            "spans": [
+              {
+                "offset": 391,
+                "length": 12
+              }
+            ],
+            "confidence": 0.959,
+            "source": "D(1,1.9206,2.4514,2.7230,2.4529,2.7227,2.5951,1.9203,2.5936)"
+          },
+          "ContractStartDate": {
+            "type": "date",
+            "valueDate": "2025-05-16",
+            "spans": [
+              {
+                "offset": 728,
+                "length": 10
+              }
+            ],
+            "confidence": 0.979,
+            "source": "D(1,2.1157,3.9166,2.7787,3.9174,2.7787,4.0486,2.1167,4.0483)"
+          },
+          "ContractEndDate": {
+            "type": "date",
+            "valueDate": "2028-04-30",
+            "spans": [
+              {
+                "offset": 770,
+                "length": 10
+              }
+            ],
+            "confidence": 0.976,
+            "source": "D(1,5.9102,3.9072,6.5742,3.9062,6.5742,4.0405,5.9102,4.0414)"
+          },
+          "RenewalReviewDate": {
+            "type": "date",
+
+### Atomic output/CUST-20260001_customer_card_20260209_113004.json (part 4)
+
+],
+            "confidence": 0.976,
+            "source": "D(1,5.9102,3.9072,6.5742,3.9062,6.5742,4.0405,5.9102,4.0414)"
+          },
+          "RenewalReviewDate": {
+            "type": "date",
+            "valueDate": "2028-03-16",
+            "spans": [
+              {
+                "offset": 830,
+                "length": 10
+              }
+            ],
+            "confidence": 0.979,
+            "source": "D(1,2.1157,4.1892,2.7787,4.1885,2.7787,4.3174,2.1177,4.3181)"
+          },
+          "Currency": {
+            "type": "string",
+            "valueString": "USD",
+            "spans": [
+              {
+                "offset": 868,
+                "length": 3
+              }
+            ],
+            "confidence": 0.957,
+            "source": "D(1,5.9268,4.1892,6.2007,4.1882,6.2007,4.3166,5.9268,4.3156)"
+          }
+        }
+      }
+    ]
+  }
+}
+
+---
+
+## File: output/CUST-20260001_customer_card_20260209_113004.md
+Language: markdown
+Type: docs
+
+### Section Customer Card — CUST-20260001_customer_card.pdf
+
+# Customer Card — CUST-20260001_customer_card.pdf
+
+### Section Customer Identity
+
+## Customer Identity
+
+| Field | Value |
+|-------|-------|
+| CustomerId | CUST-20260001 |
+| Company | Davis Insurance |
+| PrimaryContactName | Noah Davis |
+| Status | Active |
+| Tier | Silver |
+
+### Section Contact Information
+
+## Contact Information
+
+| Field | Value |
+|-------|-------|
+| Email | noah.davis@davis.example.com |
+| Phone | +1 (500) 996-6752 |
+| HqLocation | New York, NY |
+
+### Section Business Details
+
+## Business Details
+
+| Field | Value |
+|-------|-------|
+| Industry | Retail |
+| Region | LATAM |
+| AccountManager | Chen Wei |
+
+### Section Contract
+
+## Contract
+
+| Field | Value |
+|-------|-------|
+| ContractStartDate | 2025-05-16 |
+| ContractEndDate | 2028-04-30 |
+| RenewalReviewDate | 2028-03-16 |
+| Currency | USD |
+
+### Section Other
+
+## Other
+
+| Field | Value |
+|-------|-------|
+
+---
+
+## File: output/CUST-20260002_customer_card_20260209_135314.json
+Language: json
+Type: config
+
+{
+  "status": "Succeeded",
+  "result": {
+    "analyzerId": "sapiensanalyzer",
+    "apiVersion": "2025-11-01",
+    "contents": [
+      {
+        "kind": "document",
+        "startPageNumber": 1,
+        "endPageNumber": 1,
+        "fields": {
+          "CustomerId": {
+            "type": "string",
+            "valueString": "CUST-20260002",
+            "spans": [
+              {
+                "offset": 180,
+                "length": 13
+              }
+            ],
+            "confidence": 0.98,
+            "source": "D(1,3.4675,1.1978,4.5198,1.1951,4.5202,1.3463,3.4679,1.3490)"
+          },
+          "Company": {
+            "type": "string",
+            "valueString": "Lopez Partners",
+            "spans": [
+              {
+                "offset": 152,
+                "length": 14
+              }
+            ],
+            "confidence": 0.96,
+            "source": "D(1,1.4648,1.1997,2.4084,1.1989,2.4085,1.3526,1.4649,1.3533)"
+          },
+          "PrimaryContactName": {
+            "type": "string",
+            "valueString": "Amelia Lopez",
+            "spans": [
+              {
+                "offset": 212,
+                "length": 12
+              }
+            ],
+            "confidence": 0.939,
+            "source": "D(1,1.8776,1.3680,2.7263,1.3674,2.7264,1.5232,1.8777,1.5238)"
+          },
+          "Email": {
+            "type": "string",
+            "valueString": "amelia.lopez@lopez.example.com",
+            "spans": [
+              {
+
+### Atomic output/CUST-20260002_customer_card_20260209_135314.json (part 1)
+
+1.3674,2.7264,1.5232,1.8777,1.5238)"
+          },
+          "Email": {
+            "type": "string",
+            "valueString": "amelia.lopez@lopez.example.com",
+            "spans": [
+              {
+                "offset": 492,
+                "length": 30
+              }
+            ],
+            "confidence": 0.918,
+            "source": "D(1,1.9175,2.7323,3.8433,2.7305,3.8433,2.8791,1.9175,2.8755)"
+          },
+          "Phone": {
+            "type": "string",
+            "valueString": "+1 (938) 362-7959",
+            "spans": [
+              {
+                "offset": 547,
+                "length": 17
+              }
+            ],
+            "confidence": 0.936,
+            "source": "D(1,5.7275,2.7325,6.7651,2.7325,6.7651,2.8755,5.7275,2.8755)"
+          },
+          "Industry": {
+            "type": "string",
+            "valueString": "Transportation",
+            "spans": [
+              {
+                "offset": 314,
+                "length": 14
+              }
+            ],
+            "confidence": 0.936,
+            "source": "D(1,1.9206,2.1818,2.7434,2.1833,2.7434,2.3231,1.9206,2.3225)"
+          },
+          "Region": {
+            "type": "string",
+            "valueString": "APAC",
+            "spans": [
+              {
+                "offset": 354,
+                "length": 4
+              }
+            ],
+            "confidence": 0.98,
+            "source": "D(1,5.7109,2.1768,6.0762,2.1783,6.0762,2.3094,5.7109,2.3055)"
+          },
+
+### Atomic output/CUST-20260002_customer_card_20260209_135314.json (part 2)
+
+fset": 354,
+                "length": 4
+              }
+            ],
+            "confidence": 0.98,
+            "source": "D(1,5.7109,2.1768,6.0762,2.1783,6.0762,2.3094,5.7109,2.3055)"
+          },
+          "AccountManager": {
+            "type": "string",
+            "valueString": "Michael Reed",
+            "spans": [
+              {
+                "offset": 444,
+                "length": 12
+              }
+            ],
+            "confidence": 0.938,
+            "source": "D(1,5.7234,2.4546,6.4958,2.4570,6.4954,2.5915,5.7230,2.5891)"
+          },
+          "LicensedSeats": {
+            "type": "integer",
+            "valueInteger": 120,
+            "spans": [
+              {
+                "offset": 609,
+                "length": 3
+              }
+            ],
+            "confidence": 0.98,
+            "source": "D(1,1.9351,3.0132,2.1437,3.0132,2.1437,3.1367,1.9351,3.1367)"
+          },
+          "Status": {
+            "type": "string",
+            "valueString": "Active",
+            "spans": [
+              {
+                "offset": 233,
+                "length": 6
+              }
+            ],
+            "confidence": 0.975,
+            "source": "D(1,3.3814,1.3674,3.7760,1.3663,3.7760,1.5186,3.3814,1.5202)"
+          },
+          "Tier": {
+            "type": "string",
+            "valueString": "Platinum",
+            "spans": [
+              {
+                "offset": 246,
+                "length": 8
+              }
+            ],
+
+### Atomic output/CUST-20260002_customer_card_20260209_135314.json (part 3)
+
+{
+            "type": "string",
+            "valueString": "Platinum",
+            "spans": [
+              {
+                "offset": 246,
+                "length": 8
+              }
+            ],
+            "confidence": 0.974,
+            "source": "D(1,4.2609,1.3648,4.8103,1.3630,4.8103,1.5141,4.2609,1.5165)"
+          },
+          "HqLocation": {
+            "type": "string",
+            "valueString": "Miami, FL",
+            "spans": [
+              {
+                "offset": 400,
+                "length": 9
+              }
+            ],
+            "confidence": 0.939,
+            "source": "D(1,1.9196,2.4557,2.4799,2.4546,2.4802,2.5932,1.9199,2.5943)"
+          },
+          "ContractStartDate": {
+            "type": "date",
+            "valueDate": "2025-10-24",
+            "spans": [
+              {
+                "offset": 740,
+                "length": 10
+              }
+            ],
+            "confidence": 0.979,
+            "source": "D(1,2.1157,3.9171,2.7787,3.9179,2.7787,4.0522,2.1167,4.0484)"
+          },
+          "ContractEndDate": {
+            "type": "date",
+            "valueDate": "2026-10-19",
+            "spans": [
+              {
+                "offset": 782,
+                "length": 10
+              }
+            ],
+            "confidence": 0.974,
+            "source": "D(1,5.9102,3.9104,6.5784,3.9064,6.5784,4.0405,5.9102,4.0414)"
+          },
+          "RenewalReviewDate": {
+            "type": "date",
+
+### Atomic output/CUST-20260002_customer_card_20260209_135314.json (part 4)
+
+],
+            "confidence": 0.974,
+            "source": "D(1,5.9102,3.9104,6.5784,3.9064,6.5784,4.0405,5.9102,4.0414)"
+          },
+          "RenewalReviewDate": {
+            "type": "date",
+            "valueDate": "2026-09-04",
+            "spans": [
+              {
+                "offset": 842,
+                "length": 10
+              }
+            ],
+            "confidence": 0.981,
+            "source": "D(1,2.1157,4.1889,2.7745,4.1872,2.7745,4.3173,2.1177,4.3181)"
+          },
+          "Currency": {
+            "type": "string",
+            "valueString": "USD",
+            "spans": [
+              {
+                "offset": 880,
+                "length": 3
+              }
+            ],
+            "confidence": 0.957,
+            "source": "D(1,5.9268,4.1892,6.2007,4.1881,6.2007,4.3167,5.9268,4.3148)"
+          }
+        }
+      }
+    ]
+  }
+}
+
+---
+
+## File: output/CUST-20260002_customer_card_20260209_135314.md
+Language: markdown
+Type: docs
+
+### Section Customer Card — CUST-20260002_customer_card.pdf
+
+# Customer Card — CUST-20260002_customer_card.pdf
+
+### Section Customer Identity
+
+## Customer Identity
+
+| Field | Value |
+|-------|-------|
+| CustomerId | CUST-20260002 |
+| Company | Lopez Partners |
+| PrimaryContactName | Amelia Lopez |
+| Status | Active |
+| Tier | Platinum |
+
+### Section Contact Information
+
+## Contact Information
+
+| Field | Value |
+|-------|-------|
+| Email | amelia.lopez@lopez.example.com |
+| Phone | +1 (938) 362-7959 |
+| HqLocation | Miami, FL |
+
+### Section Business Details
+
+## Business Details
+
+| Field | Value |
+|-------|-------|
+| Industry | Transportation |
+| Region | APAC |
+| AccountManager | Michael Reed |
+
+### Section Contract
+
+## Contract
+
+| Field | Value |
+|-------|-------|
+| ContractStartDate | 2025-10-24 |
+| ContractEndDate | 2026-10-19 |
+| RenewalReviewDate | 2026-09-04 |
+| Currency | USD |
+
+### Section Other
+
+## Other
+
+| Field | Value |
+|-------|-------|
+
+---
+
+## File: requirements.txt
+Language: unknown
+Type: docs
+
+requests>=2.31.0
+python-dotenv>=1.0.0
+azure-identity>=1.15.0
+
+---

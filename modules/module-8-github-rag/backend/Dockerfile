@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies (git required for cloning repos)
+RUN apt-get update && apt-get install -y \
+    gcc \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create directories for clone workspace and GraphRAG
+RUN mkdir -p /tmp/github-repos /app/graphrag-index /app/sync-metadata
+
+EXPOSE 8000
+
+# Use --loop asyncio to avoid conflict between uvloop and graphrag's nest_asyncio2
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--loop", "asyncio"]
