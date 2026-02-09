@@ -10,7 +10,7 @@ interface RetrievalConfigProps {
 
 // Recommended min_score values based on search mode
 // NOTE: Semantic ranker scores are 0-4, vector scores are 0-1
-const getRecommendedMinScore = (searchMode: string, semanticRanker: boolean): number => {
+const getRecommendedMinScore = (searchMode: string, _semanticRanker: boolean): number => {
   switch (searchMode) {
     case 'vector':
       return 0  // Vector scores can be very low, don't filter by default

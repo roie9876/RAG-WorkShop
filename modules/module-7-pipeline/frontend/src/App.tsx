@@ -14,7 +14,7 @@ import type { QueryResponse, QueryConfig } from './types'
 function App() {
   const [queryResponse, setQueryResponse] = useState<QueryResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [currentQuestion, setCurrentQuestion] = useState('')
+  const [_currentQuestion, setCurrentQuestion] = useState('')
   
   const { config, updateConfig } = useConfig()
   const { executeQuery } = useQuery()

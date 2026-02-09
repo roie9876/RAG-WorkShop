@@ -5,7 +5,6 @@ import { systemApi, type SystemStatus } from '../services/api'
 export function SystemControls() {
   const [isOpen, setIsOpen] = useState(false)
   const [status, setStatus] = useState<SystemStatus | null>(null)
-  const [loading, setLoading] = useState(false)
   const [restarting, setRestarting] = useState(false)
   const [backendOnline, setBackendOnline] = useState(true)
 

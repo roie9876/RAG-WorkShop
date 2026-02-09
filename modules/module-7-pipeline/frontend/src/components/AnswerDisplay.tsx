@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { FileText, Image, Table, ExternalLink, Combine, Search, Network, Sparkles } from 'lucide-react'
+import { FileText, Image, Table, ExternalLink, Combine, Search, Network, Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
 import type { QueryResponse, SourceChunk, CombinedResults } from '../types'
 
 interface AnswerDisplayProps {
@@ -9,7 +9,7 @@ interface AnswerDisplayProps {
   isLoading: boolean
 }
 
-export function AnswerDisplay({ response, isLoading }: AnswerDisplayProps) {
+export function AnswerDisplay({ response }: AnswerDisplayProps) {
   const isCombined = response.retrieval_metadata.strategy_used === 'combined' && response.combined_results
 
   if (isCombined && response.combined_results) {
@@ -24,17 +24,6 @@ function StandardAnswerDisplay({ response }: { response: QueryResponse }) {
   const isRTL = /[\u0590-\u05FF\u0600-\u06FF]/.test(response.answer)
   const normalizedAnswer = response.answer.replace(/\[Source\s+(\d+)\]/g, '[$1]')
   const linkedAnswer = normalizedAnswer.replace(/\[(\d+)\]/g, '[$1](#source-$1)')
-
-  const getContentIcon = (type: string) => {
-    switch (type) {
-      case 'figure':
-        return <Image className="h-4 w-4" />
-      case 'table':
-        return <Table className="h-4 w-4" />
-      default:
-        return <FileText className="h-4 w-4" />
-    }
-  }
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -62,111 +51,161 @@ function StandardAnswerDisplay({ response }: { response: QueryResponse }) {
 }
 
 function CombinedAnswerDisplay({ response, combinedResults }: { response: QueryResponse; combinedResults: CombinedResults }) {
-  const [activeTab, setActiveTab] = useState<'merged' | 'search' | 'graphrag'>('merged')
+  const [activeTab, setActiveTab] = useState<'search' | 'graphrag'>('search')
+  const [showDetails, setShowDetails] = useState(false)
 
   const tabs = [
-    { id: 'merged' as const, label: 'Merged Answer', icon: <Sparkles className="h-4 w-4" />, color: 'text-amber-500' },
     { id: 'search' as const, label: `AI Search (${combinedResults.search_strategy})`, icon: <Search className="h-4 w-4" />, color: 'text-blue-500' },
     { id: 'graphrag' as const, label: `GraphRAG (${combinedResults.graphrag_mode})`, icon: <Network className="h-4 w-4" />, color: 'text-purple-500' },
   ]
 
-  const getActiveAnswer = () => {
+  const getDetailAnswer = () => {
     switch (activeTab) {
-      case 'merged': return response.answer
       case 'search': return combinedResults.search_answer
       case 'graphrag': return combinedResults.graphrag_answer
     }
   }
 
-  const getActiveSources = () => {
+  const getDetailSources = () => {
     switch (activeTab) {
-      case 'merged': return response.sources
       case 'search': return combinedResults.search_sources
       case 'graphrag': return combinedResults.graphrag_sources
     }
   }
 
-  const answer = getActiveAnswer()
-  const sources = getActiveSources()
-  const isRTL = /[\u0590-\u05FF\u0600-\u06FF]/.test(answer)
-  const normalizedAnswer = answer.replace(/\[Source\s+(\d+)\]/g, '[$1]')
-  const linkedAnswer = normalizedAnswer.replace(/\[(\d+)\]/g, '[$1](#source-$1)')
+  // Main merged answer
+  const mergedAnswer = response.answer
+  const isRTL = /[\u0590-\u05FF\u0600-\u06FF]/.test(mergedAnswer)
+  const normalizedMerged = mergedAnswer.replace(/\[Source\s+(\d+)\]/g, '[$1]')
+  const linkedMerged = normalizedMerged.replace(/\[(\d+)\]/g, '[$1](#source-$1)')
+
+  // Figures from all sources
+  const allFigures = response.sources.filter((s) => s.content_type === 'figure')
+
+  // Detail tab answer
+  const detailAnswer = getDetailAnswer()
+  const detailRTL = /[\u0590-\u05FF\u0600-\u06FF]/.test(detailAnswer)
+  const normalizedDetail = detailAnswer.replace(/\[Source\s+(\d+)\]/g, '[$1]')
+  const linkedDetail = normalizedDetail.replace(/\[(\d+)\]/g, '[$1](#detail-source-$1)')
 
   return (
-    <div className="rounded-lg border bg-card p-4">
-      {/* Combined Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <Combine className="h-5 w-5 text-amber-500" />
-        <h2 className="text-lg font-semibold">Combined Answer</h2>
-        <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Search className="h-3 w-3 text-blue-500" />
-            {combinedResults.search_sources.length} chunks · {(combinedResults.search_time_ms / 1000).toFixed(1)}s
-          </span>
-          <span className="flex items-center gap-1">
-            <Network className="h-3 w-3 text-purple-500" />
-            {combinedResults.graphrag_sources.length} chunks · {(combinedResults.graphrag_time_ms / 1000).toFixed(1)}s
-          </span>
-          {combinedResults.graphrag_metadata && (
+    <div className="space-y-4">
+      {/* ═══════════════════════════════════════════════════ */}
+      {/* SECTION 1: FINAL ANSWER + FIGURES                  */}
+      {/* ═══════════════════════════════════════════════════ */}
+      <div className="rounded-lg border bg-card p-6">
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles className="h-5 w-5 text-amber-500" />
+          <h2 className="text-lg font-semibold">Answer</h2>
+          <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              🔗 {combinedResults.graphrag_metadata.entities_found} entities · {combinedResults.graphrag_metadata.relationships_found} rels
+              <Search className="h-3 w-3 text-blue-500" />
+              {combinedResults.search_sources.length} chunks · {(combinedResults.search_time_ms / 1000).toFixed(1)}s
             </span>
-          )}
+            <span className="flex items-center gap-1">
+              <Network className="h-3 w-3 text-purple-500" />
+              {combinedResults.graphrag_sources.length} chunks · {(combinedResults.graphrag_time_ms / 1000).toFixed(1)}s
+            </span>
+            {combinedResults.graphrag_metadata && (
+              <span className="flex items-center gap-1">
+                🔗 {combinedResults.graphrag_metadata.entities_found} entities · {combinedResults.graphrag_metadata.relationships_found} rels
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Merged Answer Text */}
+        <div
+          className={`prose prose-sm max-w-none ${isRTL ? 'text-right' : 'text-left'}`}
+          dir={isRTL ? 'rtl' : 'ltr'}
+        >
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{linkedMerged}</ReactMarkdown>
+        </div>
+
+        {/* Figures — directly below the answer */}
+        {allFigures.length > 0 && (
+          <div className="mt-6">
+            {allFigures.map((source) => (
+              <FigureDisplay key={source.id} source={source} />
+            ))}
+          </div>
+        )}
+
+        {/* Sources summary */}
+        <SourcesList sources={response.sources} />
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex gap-1 mb-4 bg-muted/50 rounded-lg p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`
-              flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all
-              ${activeTab === tab.id 
-                ? 'bg-background shadow-sm border' 
-                : 'hover:bg-background/50 text-muted-foreground'
-              }
-            `}
-          >
-            <span className={activeTab === tab.id ? tab.color : ''}>{tab.icon}</span>
-            {tab.label}
-            {tab.id === 'search' && (
-              <span className="text-xs bg-blue-500/10 text-blue-600 px-1.5 py-0.5 rounded">
-                {combinedResults.search_sources.length}
-              </span>
-            )}
-            {tab.id === 'graphrag' && (
-              <span className="text-xs bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded">
-                {combinedResults.graphrag_sources.length}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* ═══════════════════════════════════════════════════ */}
+      {/* SECTION 2: HOW THIS ANSWER WAS GENERATED           */}
+      {/* ═══════════════════════════════════════════════════ */}
+      <div className="rounded-lg border bg-card overflow-hidden">
+        {/* Collapsible header */}
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="w-full flex items-center gap-2 p-4 hover:bg-muted/50 transition-colors text-left"
+        >
+          {showDetails
+            ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          }
+          <Combine className="h-4 w-4 text-amber-500" />
+          <span className="text-sm font-semibold">How this answer was generated</span>
+          <span className="text-xs text-muted-foreground ml-2">
+            — merged from AI Search ({combinedResults.search_strategy}) + GraphRAG ({combinedResults.graphrag_mode})
+          </span>
+        </button>
+
+        {showDetails && (
+          <div className="px-4 pb-4 border-t">
+            {/* Tab Navigation */}
+            <div className="flex gap-1 my-4 bg-muted/50 rounded-lg p-1">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all
+                    ${activeTab === tab.id
+                      ? 'bg-background shadow-sm border'
+                      : 'hover:bg-background/50 text-muted-foreground'
+                    }
+                  `}
+                >
+                  <span className={activeTab === tab.id ? tab.color : ''}>{tab.icon}</span>
+                  {tab.label}
+                  {tab.id === 'search' && (
+                    <span className="text-xs bg-blue-500/10 text-blue-600 px-1.5 py-0.5 rounded">
+                      {combinedResults.search_sources.length}
+                    </span>
+                  )}
+                  {tab.id === 'graphrag' && (
+                    <span className="text-xs bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded">
+                      {combinedResults.graphrag_sources.length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Detail Answer */}
+            <div
+              className={`prose prose-sm max-w-none ${detailRTL ? 'text-right' : 'text-left'}`}
+              dir={detailRTL ? 'rtl' : 'ltr'}
+            >
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{linkedDetail}</ReactMarkdown>
+            </div>
+
+            {/* Detail Sources */}
+            <SourcesList sources={getDetailSources()} idPrefix="detail-" />
+          </div>
+        )}
       </div>
-
-      {/* Active Answer */}
-      <div
-        className={`prose prose-sm max-w-none ${isRTL ? 'text-right' : 'text-left'}`}
-        dir={isRTL ? 'rtl' : 'ltr'}
-      >
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{linkedAnswer}</ReactMarkdown>
-      </div>
-
-      {/* Figures in active answer */}
-      {sources
-        .filter((s) => s.content_type === 'figure')
-        .map((source) => (
-          <FigureDisplay key={source.id} source={source} />
-        ))}
-
-      {/* Sources for active tab */}
-      <SourcesList sources={sources} />
     </div>
   )
 }
 
-function SourcesList({ sources }: { sources: SourceChunk[] }) {
+function SourcesList({ sources, idPrefix = '' }: { sources: SourceChunk[]; idPrefix?: string }) {
   const getContentIcon = (type: string) => {
     switch (type) {
       case 'figure':
@@ -185,7 +224,7 @@ function SourcesList({ sources }: { sources: SourceChunk[] }) {
         {sources.map((source, idx) => (
           <div
             key={source.id}
-            id={`source-${idx + 1}`}
+            id={`${idPrefix}source-${idx + 1}`}
             className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
           >
             <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">
