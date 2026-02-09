@@ -1,8 +1,62 @@
 import React, { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
 import { FileText, Image, Table, ExternalLink, Combine, Search, Network, Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
 import type { QueryResponse, SourceChunk, CombinedResults } from '../types'
+
+/** Shared remark/rehype plugins for all ReactMarkdown instances */
+const remarkPlugins = [remarkGfm, remarkMath]
+const rehypePlugins = [rehypeKatex]
+
+/**
+ * Convert LLM-style LaTeX delimiters to standard $ / $$ delimiters
+ * that remark-math understands.
+ *
+ * Patterns handled:
+ *   \( ... \)  →  $...$      (inline)
+ *   \[ ... \]  →  $$...$$    (display)
+ *   ( O(T^2 \cdot D) )  — bare parens with LaTeX inside → $...$
+ */
+function normalizeMath(text: string): string {
+  // \( ... \)  →  $ ... $
+  let result = text.replace(/\\\((.+?)\\\)/g, (_m, inner) => `$${inner.trim()}$`)
+  // \[ ... \]  →  $$ ... $$
+  result = result.replace(/\\\[(.+?)\\\]/gs, (_m, inner) => `$$${inner.trim()}$$`)
+  // Bare ( ... ) with LaTeX commands inside → $ ... $
+  // Matches ( ... ) where contents contain \cdot, \times, ^, _, \frac, \text, \mathcal, etc.
+  result = result.replace(/\(\s*([^()]*(?:\\(?:cdot|times|frac|text|mathcal|mathrm|log|sqrt|sum|prod|int|infty|leq|geq|neq|approx|left|right)[^()]*|\^[^()]*|_[^()]*)[^()]*)\s*\)/g,
+    (_m, inner) => `$${inner.trim()}$`
+  )
+  return result
+}
+
+/**
+ * Normalize all citation formats into individually linked references.
+ * Handles: [Source 1], [Source 1, 3, 5], [1], [1, 3, 5], [1][3][5]
+ * Produces: [[1]](#source-1) [[3]](#source-3) [[5]](#source-5)
+ * The double-brackets prevent ReactMarkdown from consuming them as link text.
+ */
+function linkCitations(text: string, prefix = ''): string {
+  // Step 0: Normalize LaTeX math delimiters for KaTeX rendering
+  let result = normalizeMath(text)
+
+  // Step 1: Normalize "[Source N]" → "[N]"
+  result = result.replace(/\[Source\s+(\d+)\]/g, '[$1]')
+
+  // Step 2: Expand comma-separated groups "[1, 3, 5]" or "[1,3,5]" → "[1] [3] [5]"
+  result = result.replace(/\[([\d,\s]+)\]/g, (_match, inner: string) => {
+    const nums = inner.split(/[,\s]+/).filter((n: string) => n.length > 0)
+    if (nums.length === 0) return _match
+    return nums.map((n: string) => `[${n}]`).join('')
+  })
+
+  // Step 3: Convert individual "[N]" → linked superscript
+  result = result.replace(/\[(\d+)\]/g, `[[$1]](#${prefix}source-$1)`)
+
+  return result
+}
 
 interface AnswerDisplayProps {
   response: QueryResponse
@@ -22,8 +76,7 @@ export function AnswerDisplay({ response }: AnswerDisplayProps) {
 function StandardAnswerDisplay({ response }: { response: QueryResponse }) {
   // Detect RTL in answer
   const isRTL = /[\u0590-\u05FF\u0600-\u06FF]/.test(response.answer)
-  const normalizedAnswer = response.answer.replace(/\[Source\s+(\d+)\]/g, '[$1]')
-  const linkedAnswer = normalizedAnswer.replace(/\[(\d+)\]/g, '[$1](#source-$1)')
+  const linkedAnswer = linkCitations(response.answer)
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -34,7 +87,7 @@ function StandardAnswerDisplay({ response }: { response: QueryResponse }) {
         className={`prose prose-sm max-w-none ${isRTL ? 'text-right' : 'text-left'}`}
         dir={isRTL ? 'rtl' : 'ltr'}
       >
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{linkedAnswer}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>{linkedAnswer}</ReactMarkdown>
       </div>
 
       {/* Figures in Answer */}
@@ -76,8 +129,7 @@ function CombinedAnswerDisplay({ response, combinedResults }: { response: QueryR
   // Main merged answer
   const mergedAnswer = response.answer
   const isRTL = /[\u0590-\u05FF\u0600-\u06FF]/.test(mergedAnswer)
-  const normalizedMerged = mergedAnswer.replace(/\[Source\s+(\d+)\]/g, '[$1]')
-  const linkedMerged = normalizedMerged.replace(/\[(\d+)\]/g, '[$1](#source-$1)')
+  const linkedMerged = linkCitations(mergedAnswer)
 
   // Figures from all sources
   const allFigures = response.sources.filter((s) => s.content_type === 'figure')
@@ -85,8 +137,7 @@ function CombinedAnswerDisplay({ response, combinedResults }: { response: QueryR
   // Detail tab answer
   const detailAnswer = getDetailAnswer()
   const detailRTL = /[\u0590-\u05FF\u0600-\u06FF]/.test(detailAnswer)
-  const normalizedDetail = detailAnswer.replace(/\[Source\s+(\d+)\]/g, '[$1]')
-  const linkedDetail = normalizedDetail.replace(/\[(\d+)\]/g, '[$1](#detail-source-$1)')
+  const linkedDetail = linkCitations(detailAnswer, 'detail-')
 
   return (
     <div className="space-y-4">
@@ -120,7 +171,7 @@ function CombinedAnswerDisplay({ response, combinedResults }: { response: QueryR
           className={`prose prose-sm max-w-none ${isRTL ? 'text-right' : 'text-left'}`}
           dir={isRTL ? 'rtl' : 'ltr'}
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{linkedMerged}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>{linkedMerged}</ReactMarkdown>
         </div>
 
         {/* Figures — directly below the answer */}
@@ -193,7 +244,7 @@ function CombinedAnswerDisplay({ response, combinedResults }: { response: QueryR
               className={`prose prose-sm max-w-none ${detailRTL ? 'text-right' : 'text-left'}`}
               dir={detailRTL ? 'rtl' : 'ltr'}
             >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{linkedDetail}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>{linkedDetail}</ReactMarkdown>
             </div>
 
             {/* Detail Sources */}

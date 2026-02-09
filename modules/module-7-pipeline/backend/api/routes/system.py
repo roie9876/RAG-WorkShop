@@ -45,11 +45,20 @@ async def health_check():
     )
 
 
-async def delayed_shutdown():
-    """Shutdown the server after a short delay to allow response to be sent."""
+async def delayed_restart():
+    """Trigger a restart after a short delay to allow the response to be sent."""
     await asyncio.sleep(1)
     logger.info("🔄 Initiating backend restart...")
-    os.kill(os.getpid(), signal.SIGTERM)
+    
+    # If running with --reload, touching a watched file triggers automatic restart
+    main_py = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "main.py")
+    if os.path.exists(main_py):
+        os.utime(main_py)  # Touch the file → uvicorn --reload detects change
+        logger.info(f"✅ Touched {main_py} to trigger uvicorn reload")
+    else:
+        # Fallback: SIGTERM (run_all.sh monitor loop will restart)
+        logger.warning("⚠️ main.py not found, falling back to SIGTERM")
+        os.kill(os.getpid(), signal.SIGTERM)
 
 
 @router.post("/restart", response_model=RestartResponse)
@@ -57,19 +66,19 @@ async def restart_backend(background_tasks: BackgroundTasks):
     """
     Restart the backend server.
     
-    This will gracefully shutdown the current process.
-    The process manager (run_all.sh) should restart it automatically.
+    Triggers uvicorn's --reload watcher by touching main.py.
+    Falls back to SIGTERM if --reload is not active (run_all.sh will restart).
     
     ⚠️ Use with caution - any in-progress operations will be interrupted.
     """
     logger.warning("⚠️ Backend restart requested via API")
     
-    # Schedule shutdown in background so we can return a response first
-    background_tasks.add_task(delayed_shutdown)
+    # Schedule restart in background so we can return a response first
+    background_tasks.add_task(delayed_restart)
     
     return RestartResponse(
         success=True,
-        message="Backend is restarting. Please wait a few seconds and refresh the page."
+        message="Backend is restarting. Please wait a few seconds."
     )
 
 

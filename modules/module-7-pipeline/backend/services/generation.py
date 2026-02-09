@@ -20,6 +20,8 @@ RULES:
 6. When figures or images are included in the context, they will be AUTOMATICALLY DISPLAYED to the user - do NOT tell the user to "look at page X" or "see the PDF". Just reference the figure naturally (e.g., "As shown in the figure from page 14...")
 7. Focus on answering the question with the figures that ARE provided in context, not figures that might exist elsewhere
 8. CRITICAL - FIGURE RELEVANCE: Only reference figures that DIRECTLY illustrate or answer the question. If a figure is tangentially related (e.g., about a related topic but not answering the specific question), do NOT reference it. Irrelevant figures dilute the answer quality.
+9. CLAIM-EVIDENCE ALIGNMENT: Every factual claim must be directly supported by the context. Do NOT extrapolate, escalate language (e.g., "infeasible" when sources say "limits scalability"), or include details the sources do not present as relevant to the question.
+10. NO UNSUPPORTED DETAILS: Do not include tangentially related facts just because they appear in context. Stay focused on what the question actually asks.
 
 CONTEXT:
 {contexts}
@@ -314,25 +316,42 @@ Return ONLY the JSON object."""
         """
         import asyncio
 
-        merge_prompt = f"""You are an expert at synthesizing information from multiple sources.
-You have received two answers to the same question, each from a different retrieval system:
+        merge_prompt = f"""You are an expert at synthesizing information into one clean, document-faithful answer.
 
-**Answer from AI Search ({search_strategy}):**
+You have received two draft answers to the same question, produced by different retrieval methods.
+These are NOT two independent sources — they are two imperfect views of the SAME underlying documents.
+Your job: merge them into ONE unified answer as if you only had the documents themselves.
+
+**Draft A:**
 {search_answer}
 
-**Answer from Knowledge Graph (GraphRAG {graphrag_mode}):**
+**Draft B:**
 {graphrag_answer}
 
-Your job is to merge these into a single, comprehensive answer that:
-1. Combines unique information from BOTH answers
-2. Resolves any contradictions by noting both perspectives
-3. Preserves specific details, numbers, and entity names from both
-4. Uses clear structure (headings, bullet points) when helpful
-5. Notes which source contributed which information when relevant
-6. Maintains citation references from both answers where present
+CRITICAL RULES:
 
-If one answer has "not enough information" or is empty, use the other answer as the primary source.
-Produce a well-structured merged answer."""
+1. SINGLE UNIFIED NARRATIVE: Write ONE flowing answer. NEVER split into "original analysis" vs "later analyses", "initial findings" vs "further analyses", or any temporal/source-based structure that mirrors the two drafts. The reader must not be able to tell that two drafts existed.
+
+2. DOCUMENT-BASED CITATIONS ONLY: Use [Source N] references from the drafts. NEVER write "(AI Search)", "(GraphRAG)", "the original paper", "later analyses", "one analysis", "the other analysis" or any phrase that maps to Draft A vs Draft B.
+
+3. ONE FACT = ONE STATEMENT: If both drafts state the same fact (even in different notation like O(T²·D) vs O(n²·d)), write it ONCE with the most precise formulation. Do NOT present it as agreement between two sources.
+
+4. NO LANGUAGE ESCALATION: Use the same strength of language as the source documents. NEVER write "infeasible", "prohibitive", "impossible" unless the documents use those exact words. Prefer neutral phrasing: "limits scalability", "becomes impractical for very long sequences".
+
+5. STAY ON TOPIC: Only include information that directly answers the question. Omit tangential details.
+
+6. PRESERVE CITATIONS: Keep [Source N] references where they support specific claims.
+
+FORBIDDEN PATTERNS (do NOT use any of these):
+- "In the original analysis..." / "Later analyses..."
+- "The initial/first analysis..." / "Further/subsequent analyses..."
+- "One perspective..." / "Another perspective..."
+- "Both sources/analyses agree..."
+- "infeasible" / "prohibitive" / "impossible" (unless quoting the document)
+- Any structure that maps paragraph-by-paragraph to Draft A then Draft B
+
+If one draft has no useful information, use the other. If both say the same thing, write it once.
+Write a clear, unified answer that reads as if produced from a single research synthesis."""
 
         def _sync_merge():
             return self.client.chat.completions.create(
