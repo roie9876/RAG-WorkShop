@@ -20,8 +20,10 @@ RULES:
 6. When figures or images are included in the context, they will be AUTOMATICALLY DISPLAYED to the user - do NOT tell the user to "look at page X" or "see the PDF". Just reference the figure naturally (e.g., "As shown in the figure from page 14...")
 7. Focus on answering the question with the figures that ARE provided in context, not figures that might exist elsewhere
 8. CRITICAL - FIGURE RELEVANCE: Only reference figures that DIRECTLY illustrate or answer the question. If a figure is tangentially related (e.g., about a related topic but not answering the specific question), do NOT reference it. Irrelevant figures dilute the answer quality.
-9. CLAIM-EVIDENCE ALIGNMENT: Every factual claim must be directly supported by the context. Do NOT extrapolate, escalate language (e.g., "infeasible" when sources say "limits scalability"), or include details the sources do not present as relevant to the question.
+9. CLAIM-EVIDENCE ALIGNMENT: Every factual claim must be directly supported by the context. Do NOT extrapolate or escalate language beyond what the documents say. NEVER use "infeasible", "prohibitive", or "impossible" unless the source document uses that exact word — prefer neutral phrasing like "limits scalability" or "becomes impractical for very long sequences".
 10. NO UNSUPPORTED DETAILS: Do not include tangentially related facts just because they appear in context. Stay focused on what the question actually asks.
+11. TRADE-OFF FRAMING: When comparing architectures (self-attention vs RNNs vs CNNs), frame as trade-offs, NOT as one being simply better or worse. E.g., "self-attention trades parallelism and global context for quadratic scaling, whereas RNNs trade scalability for sequentiality." Do NOT write comparisons that imply simple dominance.
+12. CITATION DISTRIBUTION: Each [Source N] should only be cited for claims that source actually makes. Do NOT pile multiple distinct claims onto a single citation. If a claim comes from a survey or later paper, cite that source — not the original paper.
 
 CONTEXT:
 {contexts}
@@ -223,7 +225,7 @@ class GenerationService:
         figures_text = "\n\n".join(figure_descriptions)
         
         eval_prompt = f"""You are evaluating whether figures should be displayed alongside an answer.
-Your default is to KEEP figures — only remove a figure if it would clearly mislead the reader.
+Be selective — only KEEP figures that genuinely serve the answer. A good answer with no figure is better than a good answer with a loosely related figure.
 
 QUESTION: {query}
 
@@ -235,25 +237,26 @@ CANDIDATE FIGURES:
 
 For each figure, decide: should it be shown to the user alongside this answer?
 
-A figure should be KEPT if ANY of these are true:
-1. It directly illustrates the specific claim or fact in the answer
-2. It shows the architecture, structure, or system being described at the right level of detail
-3. It provides useful visual context that helps the reader understand the answer
-4. It is a diagram of the base/original concept being discussed
+A figure should be KEPT only if BOTH of these are true:
+1. It directly illustrates a specific claim, mechanism, or structure described in the answer
+2. Its level of detail matches what the question is asking about
 
 A figure should be REMOVED if ANY of these are true:
-- It clearly CONTRADICTS the answer (e.g., answer says "X is removed" but figure shows X being reintroduced)
+- It CONTRADICTS the answer (e.g., answer says "X is removed" but figure shows X being reintroduced)
 - It is from a completely unrelated topic that only shares keywords
-- It would actively mislead or confuse the reader about the answer
-- It shows a DIFFERENT LEVEL OF DETAIL than the question asks about (e.g., the question asks about the number of layers in a system but the figure only shows the internals of a single layer/block — that figure is about layer composition, not layer count)
-- It is tangentially related but does NOT address the specific question being asked
+- It shows the SOLUTIONS or RESPONSES to the problem rather than the problem itself (e.g., question asks about a bottleneck, but the figure shows a taxonomy of methods that address the bottleneck — that's the "what came next", not the "why")
+- It is a taxonomy/survey overview that is topically related but does not provide evidence for any specific claim in the answer
+- It shows a DIFFERENT LEVEL OF DETAIL than the question asks about (e.g., question asks about layer count but figure shows internals of a single block)
+- It is tangentially related but does NOT visually demonstrate the specific mechanism being explained
+- It would shift the reader's focus away from the answer's main point
 
-KEY PRINCIPLE: Match the figure to the QUESTION, not just the topic.
-- If the question is about HOW MANY layers → show the full architecture with visible layer stacking, NOT a single-block detail diagram
-- If the question is about WHAT components are inside → show the block internals
-- If the question is about the overall architecture → show the full model diagram
+KEY PRINCIPLE: A figure must provide visual EVIDENCE for claims in the answer, not just be from the same topic area.
+Ask: "Does this figure help PROVE or SHOW what the answer explains?" If it only shows related/downstream concepts, REMOVE it.
 
-When in doubt between two figures, prefer the one whose level of detail matches the question.
+Examples:
+- Question about "why self-attention is O(T²)" → KEEP a figure showing the T×T attention matrix. REMOVE a figure showing a taxonomy of efficient attention methods.
+- Question about "what components are in a Transformer block" → KEEP a block diagram. REMOVE a full architecture with many stacked layers.
+- Question about "how many layers" → KEEP a full architecture diagram. REMOVE a single-block detail.
 
 Return a JSON object: {{"keep": ["fig_id_1", "fig_id_2"], "remove": ["fig_id_3"], "reasoning": "brief explanation for each decision"}}
 Return ONLY the JSON object."""
@@ -330,7 +333,7 @@ Your job: merge them into ONE unified answer as if you only had the documents th
 
 CRITICAL RULES:
 
-1. SINGLE UNIFIED NARRATIVE: Write ONE flowing answer. NEVER split into "original analysis" vs "later analyses", "initial findings" vs "further analyses", or any temporal/source-based structure that mirrors the two drafts. The reader must not be able to tell that two drafts existed.
+1. SINGLE UNIFIED NARRATIVE: Write ONE flowing answer organized by CONCEPT, not by source. Even if the question asks about "original" vs "later" analyses, organize your answer around the concepts (e.g., complexity, memory, solutions) — NOT around a timeline of analyses. NEVER split into "original analysis" vs "later analyses", "initial findings" vs "further analyses", or any temporal/source-based structure that mirrors the two drafts. The reader must not be able to tell that two drafts existed.
 
 2. DOCUMENT-BASED CITATIONS ONLY: Use [Source N] references from the drafts. NEVER write "(AI Search)", "(GraphRAG)", "the original paper", "later analyses", "one analysis", "the other analysis" or any phrase that maps to Draft A vs Draft B.
 
@@ -341,6 +344,10 @@ CRITICAL RULES:
 5. STAY ON TOPIC: Only include information that directly answers the question. Omit tangential details.
 
 6. PRESERVE CITATIONS: Keep [Source N] references where they support specific claims.
+
+7. TRADE-OFF FRAMING: When comparing architectures (e.g., self-attention vs RNNs vs CNNs), always frame as trade-offs. Self-attention trades parallelism and global context for quadratic scaling; RNNs trade scalability for sequentiality; CNNs trade scalability for locality. NEVER imply one architecture is simply "worse" — present the design trade-off.
+
+8. CITATION ACCURACY: Each [Source N] should only be cited for claims that source actually supports. Do NOT overload one citation with many distinct claims. If the original paper [Source 1] defines the complexity but a survey [Source 3] discusses scalability implications, cite them separately for their respective claims.
 
 FORBIDDEN PATTERNS (do NOT use any of these):
 - "In the original analysis..." / "Later analyses..."

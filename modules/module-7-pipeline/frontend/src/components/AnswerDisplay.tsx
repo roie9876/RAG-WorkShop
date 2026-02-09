@@ -25,9 +25,14 @@ function normalizeMath(text: string): string {
   // \[ ... \]  →  $$ ... $$
   result = result.replace(/\\\[(.+?)\\\]/gs, (_m, inner) => `$$${inner.trim()}$$`)
   // Bare ( ... ) with LaTeX commands inside → $ ... $
-  // Matches ( ... ) where contents contain \cdot, \times, ^, _, \frac, \text, \mathcal, etc.
-  result = result.replace(/\(\s*([^()]*(?:\\(?:cdot|times|frac|text|mathcal|mathrm|log|sqrt|sum|prod|int|infty|leq|geq|neq|approx|left|right)[^()]*|\^[^()]*|_[^()]*)[^()]*)\s*\)/g,
-    (_m, inner) => `$${inner.trim()}$`
+  // Uses alternation to SKIP existing $...$ blocks so nested parens like $O(T^2 \cdot D)$ aren't destroyed.
+  result = result.replace(
+    /(\$[^$]+\$)|(\(\s*([^()]*(?:\\(?:cdot|times|frac|text|mathcal|mathrm|log|sqrt|sum|prod|int|infty|leq|geq|neq|approx|left|right)[^()]*|\^[^()]*|_[^()]*)[^()]*)\s*\))/g,
+    (match, dollarBlock, _parenBlock, inner) => {
+      void match // suppress TS6133
+      if (dollarBlock) return dollarBlock // preserve existing $...$
+      return `$${inner.trim()}$` // convert bare parens
+    }
   )
   return result
 }

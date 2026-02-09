@@ -6,7 +6,7 @@ const DEFAULT_CONFIG: QueryConfig = {
   // Target index (empty = server default)
   index_name: '',
   // AI Search parameters
-  top_k: 25,
+  top_k: 26,
   search_mode: 'semantic',
   semantic_ranker: true,
   min_score: 0.0,
@@ -17,7 +17,7 @@ const DEFAULT_CONFIG: QueryConfig = {
   // Combined strategy parameters
   combined_base_strategy: 'iterative',
   // GraphRAG parameters
-  graphrag_mode: 'local',
+  graphrag_mode: 'drift',
   graphrag_community_level: 2,
   graphrag_response_type: 'Multiple Paragraphs',
 }

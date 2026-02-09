@@ -65,7 +65,7 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
       // Target index (empty = server default)
       index_name: '',
       // AI Search defaults
-      top_k: 25,
+      top_k: 26,
       search_mode: 'semantic',
       semantic_ranker: true,
       min_score: 0.0,
@@ -76,7 +76,7 @@ export function RetrievalConfig({ config, onChange }: RetrievalConfigProps) {
       // Combined defaults
       combined_base_strategy: 'iterative',
       // GraphRAG defaults
-      graphrag_mode: 'local',
+      graphrag_mode: 'drift',
       graphrag_community_level: 2,
       graphrag_response_type: 'Multiple Paragraphs',
     })
