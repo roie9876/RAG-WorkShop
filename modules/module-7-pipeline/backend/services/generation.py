@@ -234,17 +234,24 @@ CANDIDATE FIGURES:
 For each figure, decide: should it be shown to the user alongside this answer?
 
 A figure should be KEPT if ANY of these are true:
-1. It illustrates the concept discussed in the answer (even from a review/survey paper)
-2. It shows the architecture, process, or mechanism described in the answer
-3. It provides useful visual context for understanding the answer
+1. It directly illustrates the specific claim or fact in the answer
+2. It shows the architecture, structure, or system being described at the right level of detail
+3. It provides useful visual context that helps the reader understand the answer
 4. It is a diagram of the base/original concept being discussed
 
-A figure should be REMOVED ONLY if:
-- It clearly CONTRADICTS the answer (e.g., answer says "X is removed" but figure shows X being reintroduced as an improvement/variant)
+A figure should be REMOVED if ANY of these are true:
+- It clearly CONTRADICTS the answer (e.g., answer says "X is removed" but figure shows X being reintroduced)
 - It is from a completely unrelated topic that only shares keywords
 - It would actively mislead or confuse the reader about the answer
+- It shows a DIFFERENT LEVEL OF DETAIL than the question asks about (e.g., the question asks about the number of layers in a system but the figure only shows the internals of a single layer/block — that figure is about layer composition, not layer count)
+- It is tangentially related but does NOT address the specific question being asked
 
-When in doubt, KEEP the figure. A figure showing the same architecture from a different paper is still helpful.
+KEY PRINCIPLE: Match the figure to the QUESTION, not just the topic.
+- If the question is about HOW MANY layers → show the full architecture with visible layer stacking, NOT a single-block detail diagram
+- If the question is about WHAT components are inside → show the block internals
+- If the question is about the overall architecture → show the full model diagram
+
+When in doubt between two figures, prefer the one whose level of detail matches the question.
 
 Return a JSON object: {{"keep": ["fig_id_1", "fig_id_2"], "remove": ["fig_id_3"], "reasoning": "brief explanation for each decision"}}
 Return ONLY the JSON object."""
