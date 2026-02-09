@@ -118,10 +118,12 @@ flowchart TB
     subgraph OUTPUT["✅ Validation & Generation"]
         VALID["Chunk Validation<br/>(entity filtering)"]
         GEN["🤖 GPT-4.1<br/>(answer generation)"]
+        FIGEVAL["🖼️ Figure Evaluation<br/>(LLM relevance check)"]
         REPORT["📊 Validation Report<br/>• Confidence score<br/>• Grounding check"]
         
         VALID --> GEN
-        GEN --> REPORT
+        GEN --> FIGEVAL
+        FIGEVAL --> REPORT
     end
 
     HYBRID --> VALID
@@ -200,12 +202,33 @@ Users choose a retrieval strategy (or let the system auto-select). Each strategy
 | **Agentic** | Complex multi-part questions | An **AI agent breaks your question** into smaller sub-questions, searches for each one independently, then combines all results into a single comprehensive context for the final answer. | _"Compare the entrance designs of stations 36 and 38"_ | 🐢 Slower (~10–20s) |
 | **Agentic Search** | Azure-native query decomposition | Same idea as Agentic, but **Azure AI Search handles the decomposition** natively on the server side. Requires S1+ tier index. Faster than custom Agentic because no extra LLM calls for decomposition. | _"What are the construction phases and timelines for stations 35–38?"_ | ⚡ Medium (~5–10s) |
 | **GraphRAG** | Relationship and impact questions | Searches a **knowledge graph** of entities and relationships (not document text). Traverses connections between stations, lines, organizations, and locations. Three modes: **Local** ⚡ (direct relationships), **Global** 🌍 (big-picture summaries), **DRIFT** 🎯 (deep iterative analysis, slow). | _"What services depend on Station 36?"_, _"How are the metro lines connected?"_ | 🕸️ Varies (5–60s) |
-| **Combined** | Get the best of both worlds | Runs **any AI Search strategy + GraphRAG in parallel**. Produces three answers: AI Search answer, GraphRAG answer, and an **LLM-merged** comprehensive answer. The UI shows all three in tabs so you can compare. | _"Tell me everything about Station 36 and its connections"_ | 🐢 Slowest (~15–40s) |
+| **Combined** | Get the best of both worlds | Runs **any AI Search strategy + GraphRAG in parallel**. Produces an **LLM-merged** answer shown first with relevant figures, plus a collapsible "How this answer was generated" section with individual AI Search and GraphRAG answers for comparison. | _"Tell me everything about Station 36 and its connections"_ | 🐢 Slowest (~15–40s) |
 | **Auto** | Not sure which to pick | An **LLM analyzes your question** and automatically picks the best strategy. Simple questions → Hybrid, complex → Agentic, relationships → GraphRAG. | Any question — the system decides for you | 🎯 Depends on pick |
 
-### Stage 6: Validation & Generation
+### Stage 6: Validation, Generation & Figure Evaluation
 
-A two-stage quality control process ensures answer reliability:
+A multi-stage quality control process ensures answer reliability:
+
+#### Generation Quality
+
+The generation prompt enforces **12 rules** for answer quality:
+- **Document grounding** — every claim must come from provided context
+- **Citation accuracy** — each `[Source N]` cited only for claims that source supports
+- **No language escalation** — never say "infeasible" or "prohibitive" unless the source does
+- **Trade-off framing** — architecture comparisons framed as trade-offs, not dominance
+- **Figure relevance** — only reference figures that directly illustrate the answer
+
+For **Combined mode**, a separate merge prompt with **8 rules** synthesizes the AI Search and GraphRAG answers into one unified narrative organized by concept — never exposing the two-source structure to the reader.
+
+#### Three-Layer Figure Filtering
+
+Figures pass through three filters before reaching the user:
+
+| Layer | What It Does | Why |
+|-------|-------------|-----|
+| **Score filter** (50%) | Removes figures scoring below 50% of the top figure score | Eliminates low-relevance candidates early |
+| **Combined-path filter** | Keeps only figures that both AI Search and GraphRAG agree on | Cross-validates relevance across retrieval methods |
+| **LLM semantic evaluator** | GPT-4.1 evaluates each figure against the question and answer | Catches the hard case: a figure that's topically related but doesn't provide visual evidence for the answer's claims |
 
 ---
 
@@ -251,13 +274,12 @@ Searches a **knowledge graph** of entities and relationships extracted from your
 
 **Best for:** Getting the most comprehensive answer — _"Tell me everything about Station 36 and its connections."_
 
-Runs **any AI Search strategy** (Hybrid, Iterative, Agentic, or Agentic Search) **in parallel** with GraphRAG. You get **three answers**:
+Runs **any AI Search strategy** (Hybrid, Iterative, Agentic, or Agentic Search) **in parallel** with GraphRAG. The **merged answer** is displayed first with relevant figures, followed by a collapsible **"How this answer was generated"** section showing:
 
 1. **AI Search answer** — from document chunks (text, tables, figures)
 2. **GraphRAG answer** — from the knowledge graph (entities, relationships)
-3. **Merged answer** — an LLM synthesizes both into one comprehensive response
 
-The UI shows all three in **tabs** so you can compare what each source contributed. Pick the base AI Search strategy in the config panel — the default is Hybrid.
+The merge prompt synthesizes both into one unified narrative organized by concept, with strict rules against exposing the two-source structure. Pick the base AI Search strategy in the config panel — the default is Iterative (Entity-Aware).
 
 > 💡 **Tip:** Combined mode takes longer (both strategies run in parallel, plus a merge step) but gives the most complete answers because it draws from both document content and entity relationships.
 
@@ -343,9 +365,11 @@ _(What are the development plan differences between Station 37 and 38?)_
 
 **Pre-generation filtering** — extracts entities from the user's query (e.g., "Station: 36") and checks each retrieved chunk for conflicts. Chunks about Station 37 are filtered out before the LLM ever sees them.
 
+**Post-generation figure evaluation** — after the answer is generated, an LLM evaluates each candidate figure against the question and answer. Figures that are topically related but don't provide visual evidence for the answer's claims are removed. For example, a taxonomy of Transformer variants is removed when the question asks about the self-attention bottleneck — the figure shows responses to the problem, not the problem itself.
+
 **Post-generation validation** — checks whether the answer is grounded in the provided chunks, identifies which aspects were answered vs. missing, calculates a confidence score, and suggests a retry query if quality is low.
 
-The final answer is generated by GPT-4.1 with strict grounding rules — only information from provided chunks, explicit citations using `[Source N]` format, and "I don't have enough information" when context is insufficient.
+The final answer is generated by GPT-4.1 with strict grounding rules — only information from provided chunks, explicit citations using `[Source N]` format, trade-off framing for comparisons, and "I don't have enough information" when context is insufficient.
 
 ---
 
@@ -376,11 +400,11 @@ The query interface has **two levels of configuration**:
 
 | Parameter | Description |
 |-----------|-------------|
-| **Search Mode** | Hybrid (vector + BM25), Vector Only, Text Only, or Semantic |
-| **Semantic Ranker** | Neural reranking for relevance (on/off) |
-| **Top K** | Number of results per search (1–50) |
-| **Min Score** | Filter threshold (0–1 for vector, 0–4 for semantic) |
-| **Content Filter** | Restrict to text, table, or figure chunks |
+| **Search Mode** | Hybrid (vector + BM25), Vector Only, Text Only, or Semantic (default: **Semantic**) |
+| **Semantic Ranker** | Neural reranking for relevance (default: **on**) |
+| **Top K** | Number of results per search, 1–50 (default: **26**) |
+| **Min Score** | Filter threshold, 0–1 for vector, 0–4 for semantic (default: **0.0**) |
+| **Content Filter** | Restrict to text, table, or figure chunks (default: **all**) |
 
 For example, an **Agentic Search** with **Hybrid mode** means the LLM decomposes your question into sub-queries, and each sub-query runs as a hybrid (vector + keyword) search with the configured parameters.
 
@@ -424,7 +448,10 @@ cd modules/module-7-pipeline
 - **Document Upload** — drag & drop for PDF, Word, Excel, PowerPoint, and images
 - **Index Status Panels** — unique document count, total chunks by type, GraphRAG progress
 - **Retrieval Strategy Selector** — switch between Hybrid, Iterative, Agentic, GraphRAG, Combined
-- **Combined Mode** — tabbed view showing AI Search answer, GraphRAG answer, and merged answer side by side
+- **Combined Mode** — merged answer + figures first, collapsible details showing individual AI Search and GraphRAG answers
+- **LaTeX Math Rendering** — mathematical notation like $O(T^2 \cdot D)$ renders as proper equations via KaTeX
+- **Citation Linking** — `[Source N]` citations are clickable, with comma-separated groups expanded automatically
+- **Figure Evaluation** — 3-layer filtering ensures only figures that directly illustrate the answer are shown
 - **Validation Reports** — confidence scores, entity conflict detection, grounding checks
 - **Delete Controls** — reset either index independently for testing
 
@@ -439,21 +466,24 @@ Upload documents through the UI (they auto-export to GraphRAG format), then clic
 ```
 module-7-pipeline/
 ├── backend/
-│   ├── api/routes/
-│   │   ├── query.py                  # Query endpoint with validation
-│   │   ├── documents.py              # Document upload + dual indexing
-│   │   └── graphrag.py               # GraphRAG status/build/delete
 │   ├── services/
 │   │   ├── document_processor.py     # DI extraction + GPT-4.1 vision
 │   │   ├── chunk_enricher.py         # Figure context enrichment
 │   │   ├── search_service.py         # Azure AI Search operations
 │   │   ├── blob_service.py           # Azure Blob Storage + SAS URLs
+│   │   ├── generation.py             # LLM answer generation, merging & figure evaluation
 │   │   ├── iterative_retriever.py    # Entity-aware multi-hop retrieval
 │   │   ├── retrieval_router.py       # Strategy routing + SAS enrichment
 │   │   ├── validation_service.py     # Pre/post-generation validation
 │   │   ├── graphrag_exporter.py      # Export chunks → text for GraphRAG
 │   │   ├── graphrag_indexer.py       # Run GraphRAG indexing (background)
 │   │   └── graphrag_retriever.py     # Query GraphRAG knowledge graph
+│   ├── api/routes/
+│   │   ├── query.py                  # Query endpoint with validation
+│   │   ├── documents.py              # Document upload + dual indexing
+│   │   ├── config.py                 # Configuration get/set/reset
+│   │   ├── system.py                 # Health check + restart
+│   │   └── graphrag.py               # GraphRAG status/build/delete
 │   ├── graphrag-index/               # GraphRAG data (input/, output/, cache/)
 │   ├── config/settings.py            # Environment configuration
 │   └── main.py                       # FastAPI application
@@ -507,6 +537,8 @@ module-7-pipeline/
 - **LazyGraphRAG** — defers expensive LLM calls until query time for lower indexing cost
 - **Incremental GraphRAG** — update the knowledge graph without full re-indexing
 - **Auto-combined routing** — automatically trigger Combined mode when the question would benefit from both sources
+- **Streaming answers** — stream merged answers token-by-token for faster perceived latency
+- **Evaluation benchmarks** — automated answer quality scoring against gold-standard Q&A pairs
 
 ---
 
