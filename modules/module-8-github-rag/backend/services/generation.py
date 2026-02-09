@@ -26,6 +26,8 @@ RULES:
 6. For architecture questions, describe how components connect
 7. Use code blocks with the appropriate language identifier when showing code snippets
 8. If GraphRAG entities or relationships are in context, use them to explain connections
+9. Pay close attention to ALL sources including documentation (README, CONTRIBUTING, etc.) — they often contain the answer to "what does this project do?" and feature-related questions
+10. Search ALL provided sources thoroughly before saying you don't have information
 
 CONTEXT:
 {contexts}

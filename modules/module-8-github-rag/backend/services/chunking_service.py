@@ -405,16 +405,23 @@ class ChunkingService:
             if not block:
                 continue
 
-            if len(block) > self.max_chunk_size * 2:
+            # Prepend file path + section header context to the chunk content
+            # so keyword search can match on section titles and file identity
+            context_prefix = f"File: {f.path}"
+            if sec["header"] and sec["header"] != f.path:
+                context_prefix += f" | Section: {sec['header']}"
+            enriched_block = f"{context_prefix}\n\n{block}"
+
+            if len(enriched_block) > self.max_chunk_size * 2:
                 sub = self._split_text(
-                    block, f, owner, name,
+                    enriched_block, f, owner, name,
                     chunk_type="section",
                     section_header=sec["header"],
                 )
                 chunks.extend(sub)
             else:
                 chunks.append(self._make_chunk(
-                    content=block, content_type="docs", chunk_type="section",
+                    content=enriched_block, content_type="docs", chunk_type="section",
                     file_path=f.path, language=f.language,
                     owner=owner, name=name,
                     section_header=sec["header"],

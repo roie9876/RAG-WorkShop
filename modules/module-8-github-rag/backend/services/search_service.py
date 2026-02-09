@@ -341,6 +341,12 @@ class SearchService:
                 score = r.get("@search.reranker_score") or r.get("@search.score", 0)
                 if score < min_score:
                     continue
+
+                # Boost high-value docs (README, CONTRIBUTING, etc) to
+                # ensure documentation answers surface above low-relevance code
+                is_high_value = r.get("is_high_value", False)
+                boosted_score = score * 1.3 if is_high_value else score
+
                 chunks.append({
                     "id": r["id"],
                     "content": r["content"],
@@ -352,10 +358,13 @@ class SearchService:
                     "chunk_type": r.get("chunk_type", ""),
                     "parent_class": r.get("parent_class", ""),
                     "section_header": r.get("section_header", ""),
-                    "is_high_value": r.get("is_high_value", False),
-                    "@search.score": r.get("@search.score", 0),
+                    "is_high_value": is_high_value,
+                    "@search.score": boosted_score,
                     "@search.reranker_score": r.get("@search.reranker_score"),
                 })
+
+            # Re-sort by boosted score so high-value docs appear first
+            chunks.sort(key=lambda c: c["@search.score"], reverse=True)
             return chunks
         except Exception as e:
             logger.error(f"Search failed: {e}")

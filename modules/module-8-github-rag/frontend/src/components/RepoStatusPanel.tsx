@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { RepoStatus, SyncStatus } from '../types'
 import { CheckCircle2, XCircle, Loader2, GitBranch, FileCode, Layers } from 'lucide-react'
-import { getSyncStatus, syncRepo } from '../services/api'
+import { getSyncStatus, syncRepo, indexRepo } from '../services/api'
 
 interface Props {
   status: RepoStatus
@@ -26,6 +26,7 @@ export function RepoStatusPanel({ status, onSyncStarted }: Props) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null)
   const [syncChecking, setSyncChecking] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [reindexing, setReindexing] = useState(false)
 
   // Parse owner/name from full_name
   const [owner, name] = status.repo_full_name.split('/')
@@ -63,6 +64,21 @@ export function RepoStatusPanel({ status, onSyncStarted }: Props) {
       alert(`Sync failed: ${err?.response?.data?.detail || err.message}`)
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const handleReindex = async () => {
+    if (!owner || !name) return
+    if (!confirm(`🔄 Re-index ${owner}/${name}?\n\nThis will re-clone, re-chunk, re-embed, and rebuild the entire index.\nUseful after improving chunking or embedding logic.`)) return
+    setReindexing(true)
+    try {
+      const repoUrl = `https://github.com/${owner}/${name}`
+      await indexRepo(repoUrl, true, true)
+      onSyncStarted?.()
+    } catch (err: any) {
+      alert(`Re-index failed: ${err?.response?.data?.detail || err.message}`)
+    } finally {
+      setReindexing(false)
     }
   }
 
@@ -142,6 +158,19 @@ export function RepoStatusPanel({ status, onSyncStarted }: Props) {
 
             {/* Action buttons */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={handleReindex}
+                disabled={reindexing || syncing}
+                className="text-xs px-3 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-medium transition-colors disabled:opacity-50 flex items-center gap-1"
+                title="Re-clone, re-chunk, re-embed, and rebuild the full index + GraphRAG"
+              >
+                {reindexing ? (
+                  <><Loader2 className="w-3 h-3 animate-spin" /> Re-indexing...</>
+                ) : (
+                  '🔁 Re-index'
+                )}
+              </button>
+
               <button
                 onClick={checkSync}
                 disabled={syncChecking || syncing}

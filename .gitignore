@@ -81,10 +81,6 @@ venv.bak/
 Thumbs.db
 
 # Project specific
-data/sample-pdfs/*.pdf
-data/sample-office/*.docx
-data/sample-office/*.xlsx
-data/sample-office/*.pptx
 *.log
 output/
 .graphrag/
