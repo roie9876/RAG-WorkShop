@@ -92,6 +92,7 @@ ragtest/
 **/graphrag-index/logs/
 **/graphrag-index/input/
 graphrag-indexing.log
+.indexing_in_progress
 
 # Testing & Development scratch space
 scratch/

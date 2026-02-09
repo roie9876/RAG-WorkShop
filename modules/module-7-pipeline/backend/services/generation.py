@@ -19,6 +19,7 @@ RULES:
 5. For technical questions, include relevant details
 6. When figures or images are included in the context, they will be AUTOMATICALLY DISPLAYED to the user - do NOT tell the user to "look at page X" or "see the PDF". Just reference the figure naturally (e.g., "As shown in the figure from page 14...")
 7. Focus on answering the question with the figures that ARE provided in context, not figures that might exist elsewhere
+8. CRITICAL - FIGURE RELEVANCE: Only reference figures that DIRECTLY illustrate or answer the question. If a figure is tangentially related (e.g., about a related topic but not answering the specific question), do NOT reference it. Irrelevant figures dilute the answer quality.
 
 CONTEXT:
 {contexts}
@@ -164,6 +165,124 @@ class GenerationService:
             formatted.append(f"[Source {i}] ({source_line})\n{content_desc}")
         
         return "\n\n---\n\n".join(formatted)
+
+    async def evaluate_figure_relevance(
+        self,
+        query: str,
+        answer: str,
+        figures: List[Dict[str, Any]],
+    ) -> List[str]:
+        """
+        Use the LLM to evaluate which figures should be displayed with the answer.
+        
+        This catches the hard case that keyword/score filtering cannot:
+        a figure may share the same terminology as the answer but semantically
+        CONTRADICT it (e.g., answer says "Transformer removes recurrence",
+        figure shows "Recurrent Transformer variant").
+        
+        Args:
+            query: The user's original question
+            answer: The generated answer text
+            figures: List of figure chunk dicts
+        
+        Returns:
+            List of figure IDs that should be KEPT (displayed).
+        """
+        import asyncio
+        import json
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        if not figures:
+            return []
+        
+        # Build a concise description of each figure for the LLM
+        figure_descriptions = []
+        for fig in figures:
+            fig_id = fig.get("id") or fig.get("chunk_id", "")
+            doc = fig.get("source_document", "unknown")
+            section = fig.get("section_header", "")
+            pages = fig.get("page_numbers", [])
+            caption = fig.get("figure_caption") or fig.get("contextual_caption", "")
+            content_snippet = (fig.get("content") or "")[:300]
+            
+            desc = f"Figure ID: {fig_id}\n"
+            desc += f"  Document: {doc}\n"
+            if section:
+                desc += f"  Section: {section}\n"
+            if pages:
+                desc += f"  Page(s): {', '.join(str(p) for p in pages)}\n"
+            if caption:
+                desc += f"  Caption: {caption}\n"
+            desc += f"  Description: {content_snippet}"
+            figure_descriptions.append(desc)
+        
+        figures_text = "\n\n".join(figure_descriptions)
+        
+        eval_prompt = f"""You are evaluating whether figures should be displayed alongside an answer.
+Your default is to KEEP figures — only remove a figure if it would clearly mislead the reader.
+
+QUESTION: {query}
+
+ANSWER (summary):
+{answer[:800]}
+
+CANDIDATE FIGURES:
+{figures_text}
+
+For each figure, decide: should it be shown to the user alongside this answer?
+
+A figure should be KEPT if ANY of these are true:
+1. It illustrates the concept discussed in the answer (even from a review/survey paper)
+2. It shows the architecture, process, or mechanism described in the answer
+3. It provides useful visual context for understanding the answer
+4. It is a diagram of the base/original concept being discussed
+
+A figure should be REMOVED ONLY if:
+- It clearly CONTRADICTS the answer (e.g., answer says "X is removed" but figure shows X being reintroduced as an improvement/variant)
+- It is from a completely unrelated topic that only shares keywords
+- It would actively mislead or confuse the reader about the answer
+
+When in doubt, KEEP the figure. A figure showing the same architecture from a different paper is still helpful.
+
+Return a JSON object: {{"keep": ["fig_id_1", "fig_id_2"], "remove": ["fig_id_3"], "reasoning": "brief explanation for each decision"}}
+Return ONLY the JSON object."""
+
+        def _sync_eval():
+            return self.client.chat.completions.create(
+                model=self.settings.azure_openai_deployment,
+                messages=[
+                    {"role": "system", "content": eval_prompt},
+                    {"role": "user", "content": "Evaluate the figures above."}
+                ],
+                temperature=0,
+                max_tokens=500,
+                response_format={"type": "json_object"}
+            )
+        
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(None, _sync_eval)
+            raw_content = response.choices[0].message.content
+            logger.info(f"Figure evaluator raw response: {raw_content}")
+            result = json.loads(raw_content)
+            keep_ids = result.get("keep", [])
+            remove_ids = result.get("remove", [])
+            reasoning = result.get("reasoning", "")
+            
+            logger.info(
+                f"Figure evaluation: {len(figures)} candidates → "
+                f"{len(keep_ids)} kept, {len(remove_ids)} removed. "
+                f"Keep: {keep_ids}. Remove: {remove_ids}. "
+                f"Reasoning: {reasoning}"
+            )
+            return keep_ids
+            
+        except Exception as e:
+            logger.warning(f"Figure evaluation failed, keeping all: {e}")
+            # On error, keep all figures (fail open)
+            return [f.get("id") or f.get("chunk_id", "") for f in figures]
 
     async def generate_merged_answer(
         self,

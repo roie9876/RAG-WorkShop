@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { FileText, Image, Table, ExternalLink, Combine, Search, Network, Sparkles } from 'lucide-react'
 import type { QueryResponse, SourceChunk, CombinedResults } from '../types'
 
@@ -44,7 +45,7 @@ function StandardAnswerDisplay({ response }: { response: QueryResponse }) {
         className={`prose prose-sm max-w-none ${isRTL ? 'text-right' : 'text-left'}`}
         dir={isRTL ? 'rtl' : 'ltr'}
       >
-        <ReactMarkdown>{linkedAnswer}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{linkedAnswer}</ReactMarkdown>
       </div>
 
       {/* Figures in Answer */}
@@ -149,7 +150,7 @@ function CombinedAnswerDisplay({ response, combinedResults }: { response: QueryR
         className={`prose prose-sm max-w-none ${isRTL ? 'text-right' : 'text-left'}`}
         dir={isRTL ? 'rtl' : 'ltr'}
       >
-        <ReactMarkdown>{linkedAnswer}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{linkedAnswer}</ReactMarkdown>
       </div>
 
       {/* Figures in active answer */}

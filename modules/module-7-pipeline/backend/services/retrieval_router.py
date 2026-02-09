@@ -263,9 +263,10 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             text_scores = [c.get("score", 0) for c in chunks if c.get("content_type") == "text"]
             max_text_score = max(text_scores) if text_scores else 0
             
-            # Figure threshold: must be at least 80% of best text score
-            # This is relative to actual search results, not hardcoded
-            FIGURE_SCORE_RATIO = 0.8
+            # Figure threshold: must be at least 50% of best text score
+            # This is a coarse pre-filter; the LLM figure evaluator handles
+            # nuanced semantic checks (e.g., contradicting figures)
+            FIGURE_SCORE_RATIO = 0.5
             min_figure_score = max_text_score * FIGURE_SCORE_RATIO
             
             # Filter figures with low relative scores
@@ -332,7 +333,7 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         if content_type_filter == "all" or content_type_filter is None:
             text_scores = [c.get("score", 0) for c in chunks if c.get("content_type") == "text"]
             max_text_score = max(text_scores) if text_scores else 0
-            FIGURE_SCORE_RATIO = 0.8
+            FIGURE_SCORE_RATIO = 0.5
             min_figure_score = max_text_score * FIGURE_SCORE_RATIO
             
             filtered_chunks = []

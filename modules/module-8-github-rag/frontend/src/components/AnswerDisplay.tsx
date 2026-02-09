@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { QueryResponse } from '../types'
 import { Clock, Zap, Brain } from 'lucide-react'
 
@@ -15,7 +16,7 @@ export function AnswerDisplay({ response }: Props) {
 
       {/* Answer body */}
       <div className="prose prose-sm max-w-none dark:prose-invert">
-        <ReactMarkdown>{response.answer}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{response.answer}</ReactMarkdown>
       </div>
 
       {/* Metadata bar */}
@@ -43,7 +44,7 @@ export function AnswerDisplay({ response }: Props) {
             GraphRAG Knowledge Graph Answer
           </summary>
           <div className="mt-2 p-3 bg-muted rounded-md text-sm prose prose-sm max-w-none">
-            <ReactMarkdown>{response.combined_results.graphrag_response}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{response.combined_results.graphrag_response}</ReactMarkdown>
           </div>
         </details>
       )}

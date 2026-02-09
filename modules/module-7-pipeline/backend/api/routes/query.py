@@ -9,12 +9,15 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 from datetime import datetime
 import json
+import logging
 
 from services.retrieval_router import RetrievalRouter
 from services.generation import GenerationService
 from services.agent_service import AgentService
 from services.iterative_retriever import IterativeRetriever
 from services.validation_service import ValidationService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -351,6 +354,22 @@ async def execute_query(request: QueryRequest):
             # Use all merged chunks for sources display
             chunks_for_generation = retrieval_result["chunks"]
 
+            # Filter low-relevance figures from combined results
+            # In combined mode, figures can leak in from both AI Search and GraphRAG
+            # even when the query isn't asking for figures
+            text_scores = [c.get("score", 0) for c in chunks_for_generation if c.get("content_type") == "text"]
+            if text_scores:
+                max_text_score = max(text_scores)
+                min_fig_score = max_text_score * 0.5
+                before_count = len(chunks_for_generation)
+                chunks_for_generation = [
+                    c for c in chunks_for_generation
+                    if c.get("content_type") != "figure" or c.get("score", 0) >= min_fig_score
+                ]
+                filtered = before_count - len(chunks_for_generation)
+                if filtered:
+                    logger.info(f"Combined: filtered {filtered} low-relevance figures")
+
         elif strategy == "iterative":
             # Use iterative entity-aware retrieval
             chunks, iter_trace = await iterative_retriever.retrieve(
@@ -442,6 +461,40 @@ async def execute_query(request: QueryRequest):
                     report=validation_report_data
                 )
         
+        # === FIGURE SEMANTIC EVALUATION ===
+        # Score-based filtering catches low-relevance figures, but cannot catch
+        # figures that score well on keywords yet semantically contradict the answer.
+        # Example: answer says "Transformer removes recurrence" but a figure shows
+        # "Recurrent Transformer variant" — same keywords, opposite meaning.
+        # Use LLM to evaluate each figure against the question + generated answer.
+        figure_chunks = [c for c in chunks_for_generation if c.get("content_type") == "figure"]
+        if figure_chunks:
+            logger.info(f"=== FIGURE EVALUATION: {len(figure_chunks)} candidates ===")
+            for fc in figure_chunks:
+                fig_id = fc.get("id") or fc.get("chunk_id", "")
+                fig_doc = fc.get("source_document") or fc.get("file_name", "?")
+                fig_section = fc.get("section_header") or fc.get("section_path", "?")
+                fig_score = fc.get("score") or fc.get("search_score", 0)
+                fig_has_img = bool(fc.get("image_sas_url"))
+                logger.info(f"  Candidate: id={fig_id} doc={fig_doc} section={fig_section} score={fig_score:.2f} has_image={fig_has_img}")
+            
+            keep_ids = await generation_service.evaluate_figure_relevance(
+                query=request.question,
+                answer=generation_result["answer"],
+                figures=figure_chunks,
+            )
+            keep_id_set = set(keep_ids)
+            before = len(chunks_for_generation)
+            chunks_for_generation = [
+                c for c in chunks_for_generation
+                if c.get("content_type") != "figure"
+                or (c.get("id") or c.get("chunk_id", "")) in keep_id_set
+            ]
+            removed = before - len(chunks_for_generation)
+            logger.info(f"  Result: kept={len(keep_ids)}, removed={removed}, keep_ids={list(keep_id_set)}")
+            if removed:
+                logger.info(f"Figure evaluation removed {removed} contradicting/irrelevant figures")
+
         # Build response with full observability (use filtered chunks as sources)
         sources = [
             SourceChunk(

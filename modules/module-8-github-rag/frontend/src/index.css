@@ -35,3 +35,49 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Markdown table styling */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+}
+
+.prose thead {
+  background: hsl(var(--muted));
+}
+
+.prose th {
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  border-bottom: 2px solid hsl(var(--border));
+  white-space: nowrap;
+}
+
+.prose td {
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground) / 0.9);
+}
+
+.prose tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.prose tbody tr:hover {
+  background: hsl(var(--muted) / 0.5);
+}
+
+.prose tbody tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.3);
+}
+
+.prose tbody tr:nth-child(even):hover {
+  background: hsl(var(--muted) / 0.6);
+}

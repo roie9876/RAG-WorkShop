@@ -205,6 +205,37 @@ class IterativeRetriever:
         
         trace.all_entities = accumulated_entities
         
+        # Filter out low-relevance figures
+        # Figures often match broadly due to AI-generated descriptions
+        # They must score at least 80% of the best text chunk to be included
+        text_scores = [c.get("score", 0) for c in all_chunks if c.get("content_type") == "text"]
+        if text_scores:
+            max_text_score = max(text_scores)
+            FIGURE_SCORE_RATIO = 0.5
+            min_figure_score = max_text_score * FIGURE_SCORE_RATIO
+            
+            filtered_chunks = []
+            filtered_count = 0
+            for chunk in all_chunks:
+                if chunk.get("content_type") == "figure":
+                    if chunk.get("score", 0) >= min_figure_score:
+                        filtered_chunks.append(chunk)
+                    else:
+                        filtered_count += 1
+                        logger.debug(
+                            f"Filtered low-score figure: {chunk.get('source_document')} "
+                            f"score={chunk.get('score', 0):.3f} < {min_figure_score:.3f}"
+                        )
+                else:
+                    filtered_chunks.append(chunk)
+            
+            if filtered_count:
+                logger.info(
+                    f"Iterative: filtered {filtered_count} figures below "
+                    f"{FIGURE_SCORE_RATIO*100:.0f}% of best text score ({min_figure_score:.4f})"
+                )
+            all_chunks = filtered_chunks
+        
         # Add SAS URLs to chunks
         all_chunks = await self._enrich_with_sas_urls(all_chunks)
         
