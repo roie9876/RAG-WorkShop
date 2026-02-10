@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload, File, CheckCircle, XCircle, Loader2, RefreshCw, Database, Network, Trash2 } from 'lucide-react'
-import { documentsApi, graphragApi, indexApi, type GraphRAGStatus } from '../services/api'
+import { Upload, File, CheckCircle, XCircle, Loader2, RefreshCw, Database, Network, Trash2, BarChart3, X } from 'lucide-react'
+import { documentsApi, graphragApi, indexApi, type GraphRAGStatus, type TokenUsageResponse } from '../services/api'
 import type { DocumentStatus, IndexStats } from '../types'
 
 export function DocumentUpload() {
@@ -15,6 +15,9 @@ export function DocumentUpload() {
   const [isIndexing, setIsIndexing] = useState(false)
   const [indexStats, setIndexStats] = useState<IndexStats | null>(null)
   const [loadingIndexStats, setLoadingIndexStats] = useState(false)
+  const [showTokenUsage, setShowTokenUsage] = useState(false)
+  const [tokenUsage, setTokenUsage] = useState<TokenUsageResponse['token_usage'] | null>(null)
+  const [loadingTokenUsage, setLoadingTokenUsage] = useState(false)
   
   // Use refs to track polling state without causing re-renders
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -215,16 +218,23 @@ export function DocumentUpload() {
   }
 
   const handleDeleteGraphragIndex = async () => {
-    if (!confirm('⚠️ Delete Knowledge Graph Index?\n\nThis will remove all GraphRAG data including:\n- Exported documents\n- Entities and relationships\n- Community reports\n\nYou will need to re-process documents to rebuild.')) {
+    if (!confirm('⚠️ Delete Knowledge Graph Index?\n\nThis will remove ALL GraphRAG data including:\n- Exported documents\n- Entities and relationships\n- Community reports\n- Cached LLM responses\n\nYou will need to re-process documents to rebuild.')) {
       return
     }
     setDeletingGraphragIndex(true)
     try {
-      await graphragApi.clearIndex()
+      const result = await graphragApi.clearIndex()
+      if (!result.success) {
+        alert('⚠️ Failed to fully clear GraphRAG index. Some files may be locked. Try restarting the server.')
+      }
+      // Reset token usage cache since cache was deleted
+      setTokenUsage(null)
       await fetchGraphragStatus(true)
     } catch (error) {
       console.error('Failed to delete GraphRAG index:', error)
-      alert('Failed to delete GraphRAG index: ' + (error as Error).message)
+      const msg = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail 
+        || (error as Error).message
+      alert('Failed to delete GraphRAG index: ' + msg)
     } finally {
       setDeletingGraphragIndex(false)
     }
@@ -506,10 +516,142 @@ export function DocumentUpload() {
                 )}
               </div>
             )}
-            <p className="text-sm text-purple-500 pt-3">Powered by Microsoft GraphRAG</p>
+            <div className="flex items-center justify-between pt-3">
+              <p className="text-sm text-purple-500">Powered by Microsoft GraphRAG</p>
+              {graphragStatus?.ready && (
+                <button
+                  onClick={async () => {
+                    setShowTokenUsage(true)
+                    if (!tokenUsage) {
+                      setLoadingTokenUsage(true)
+                      try {
+                        const resp = await graphragApi.getTokenUsage()
+                        setTokenUsage(resp.token_usage)
+                      } catch (e) {
+                        console.error('Failed to fetch token usage:', e)
+                      } finally {
+                        setLoadingTokenUsage(false)
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 bg-white/70 hover:bg-white rounded-lg transition-colors border border-purple-200"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Token Usage
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Token Usage Modal */}
+      {showTokenUsage && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTokenUsage(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-purple-50 to-purple-100">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="h-6 w-6 text-purple-700" />
+                <h3 className="text-xl font-semibold text-purple-900">GraphRAG Indexing Token Usage</h3>
+              </div>
+              <button onClick={() => setShowTokenUsage(false)} className="p-2 hover:bg-purple-200 rounded-lg transition-colors">
+                <X className="h-5 w-5 text-purple-600" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
+              {loadingTokenUsage ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+                  <span className="ml-3 text-purple-600">Scanning cache files...</span>
+                </div>
+              ) : tokenUsage ? (
+                <div className="space-y-6">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
+                      <div className="text-sm text-blue-600 font-medium">🧠 LLM Tokens</div>
+                      <div className="text-2xl font-bold text-blue-900 mt-1">{tokenUsage.totals.llm_total_tokens.toLocaleString()}</div>
+                      <div className="text-xs text-blue-500 mt-1">
+                        {tokenUsage.totals.llm_calls.toLocaleString()} calls • 
+                        Prompt: {tokenUsage.totals.llm_prompt_tokens.toLocaleString()} • 
+                        Completion: {tokenUsage.totals.llm_completion_tokens.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+                      <div className="text-sm text-emerald-600 font-medium">📐 Embedding Tokens</div>
+                      <div className="text-2xl font-bold text-emerald-900 mt-1">{tokenUsage.totals.embedding_tokens.toLocaleString()}</div>
+                      <div className="text-xs text-emerald-500 mt-1">
+                        {tokenUsage.totals.embedding_calls.toLocaleString()} calls
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grand Total */}
+                  <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 text-center">
+                    <div className="text-sm text-purple-600 font-medium">Grand Total</div>
+                    <div className="text-3xl font-bold text-purple-900">{tokenUsage.totals.grand_total_tokens.toLocaleString()}</div>
+                  </div>
+
+                  {/* Category Breakdown */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">LLM Usage by Phase</h4>
+                    <div className="space-y-2">
+                      {Object.entries(tokenUsage.categories)
+                        .filter(([key]) => key !== 'text_embedding')
+                        .map(([key, cat]) => (
+                          <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div>
+                              <span className="font-medium text-gray-800">{key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
+                              <span className="text-xs text-gray-500 ml-2">({cat.calls.toLocaleString()} calls)</span>
+                            </div>
+                            <span className="font-semibold text-gray-900">{cat.total_tokens.toLocaleString()}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* Per-Document Table */}
+                  {tokenUsage.per_document.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">Estimated Usage Per Document</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200">
+                              <th className="text-left py-2 px-3 text-gray-600 font-medium">Document</th>
+                              <th className="text-right py-2 px-3 text-gray-600 font-medium">Chunks</th>
+                              <th className="text-right py-2 px-3 text-blue-600 font-medium">LLM Tokens</th>
+                              <th className="text-right py-2 px-3 text-emerald-600 font-medium">Embed Tokens</th>
+                              <th className="text-right py-2 px-3 text-purple-600 font-medium">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tokenUsage.per_document.map((doc, i) => (
+                              <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                                <td className="py-2 px-3 truncate max-w-[200px]" title={doc.title}>{doc.title}</td>
+                                <td className="py-2 px-3 text-right text-gray-600">{doc.chunks}</td>
+                                <td className="py-2 px-3 text-right text-blue-700">{doc.estimated_llm_tokens.toLocaleString()}</td>
+                                <td className="py-2 px-3 text-right text-emerald-700">{doc.estimated_embedding_tokens.toLocaleString()}</td>
+                                <td className="py-2 px-3 text-right font-semibold text-purple-700">{doc.estimated_total_tokens.toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2 italic">* Per-document values are proportional estimates based on chunk count</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">No token usage data available</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* GraphRAG Index Checkbox */}
       <div className="mb-6 flex items-center gap-4 p-4 bg-muted/30 rounded-lg">

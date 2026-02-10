@@ -637,38 +637,216 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
         
         return status
     
-    def clear_index(self) -> bool:
+    def get_token_usage(self) -> Dict[str, Any]:
         """
-        Clear the GraphRAG index (both input and output).
+        Analyze token usage from GraphRAG cache files.
+        
+        GraphRAG caches every LLM and embedding call as JSON files.
+        Each cache entry contains the full OpenAI response including
+        token usage stats. This method aggregates those stats to show
+        how many tokens were consumed during indexing.
+        
+        Returns per-category totals (extract_graph, summarize_descriptions,
+        community_reporting, text_embedding) and per-document proportional
+        estimates based on text_unit counts.
+        """
+        cache_dir = self.graphrag_root / "cache"
+        
+        result: Dict[str, Any] = {
+            "available": False,
+            "categories": {},
+            "totals": {
+                "llm_prompt_tokens": 0,
+                "llm_completion_tokens": 0,
+                "llm_total_tokens": 0,
+                "llm_calls": 0,
+                "embedding_tokens": 0,
+                "embedding_calls": 0,
+                "grand_total_tokens": 0,
+            },
+            "per_document": [],
+        }
+        
+        if not cache_dir.exists():
+            return result
+        
+        result["available"] = True
+        
+        # 1. Aggregate LLM token usage per category
+        llm_categories = ["extract_graph", "summarize_descriptions", "community_reporting"]
+        for cat in llm_categories:
+            cat_dir = cache_dir / cat
+            if not cat_dir.exists():
+                continue
+            
+            prompt_tokens = 0
+            completion_tokens = 0
+            call_count = 0
+            
+            for f in cat_dir.iterdir():
+                try:
+                    with open(f) as fh:
+                        d = json.load(fh)
+                    usage = d.get("result", {}).get("response", {}).get("usage", {})
+                    prompt_tokens += usage.get("prompt_tokens", 0)
+                    completion_tokens += usage.get("completion_tokens", 0)
+                    call_count += 1
+                except (json.JSONDecodeError, OSError):
+                    continue
+            
+            cat_info = {
+                "calls": call_count,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            }
+            result["categories"][cat] = cat_info
+            result["totals"]["llm_prompt_tokens"] += prompt_tokens
+            result["totals"]["llm_completion_tokens"] += completion_tokens
+            result["totals"]["llm_total_tokens"] += prompt_tokens + completion_tokens
+            result["totals"]["llm_calls"] += call_count
+        
+        # 2. Aggregate embedding token usage
+        emb_dir = cache_dir / "text_embedding"
+        if emb_dir.exists():
+            emb_tokens = 0
+            emb_calls = 0
+            for f in emb_dir.iterdir():
+                try:
+                    with open(f) as fh:
+                        d = json.load(fh)
+                    usage = d.get("result", {}).get("response", {}).get("usage", {})
+                    # Embedding responses use total_tokens (= prompt_tokens, no completion)
+                    emb_tokens += usage.get("total_tokens", 0) or usage.get("prompt_tokens", 0)
+                    emb_calls += 1
+                except (json.JSONDecodeError, OSError):
+                    continue
+            
+            result["categories"]["text_embedding"] = {
+                "calls": emb_calls,
+                "total_tokens": emb_tokens,
+            }
+            result["totals"]["embedding_tokens"] = emb_tokens
+            result["totals"]["embedding_calls"] = emb_calls
+        
+        result["totals"]["grand_total_tokens"] = (
+            result["totals"]["llm_total_tokens"] + result["totals"]["embedding_tokens"]
+        )
+        
+        # 3. Per-document proportional breakdown
+        try:
+            import pandas as pd
+            
+            docs_path = self.output_dir / "documents.parquet"
+            tu_path = self.output_dir / "text_units.parquet"
+            
+            if docs_path.exists() and tu_path.exists():
+                docs = pd.read_parquet(docs_path)
+                tu = pd.read_parquet(tu_path)
+                
+                total_chunks = len(tu)
+                total_llm = result["totals"]["llm_total_tokens"]
+                total_emb = result["totals"]["embedding_tokens"]
+                
+                per_doc = tu.groupby("document_id").agg(
+                    chunks=("id", "count"),
+                    chunk_tokens=("n_tokens", "sum"),
+                ).reset_index()
+                
+                per_doc = per_doc.merge(
+                    docs[["id", "title"]], left_on="document_id", right_on="id", how="left"
+                )
+                
+                for _, row in per_doc.iterrows():
+                    ratio = row["chunks"] / total_chunks if total_chunks > 0 else 0
+                    result["per_document"].append({
+                        "title": row["title"],
+                        "chunks": int(row["chunks"]),
+                        "chunk_tokens": int(row["chunk_tokens"]),
+                        "estimated_llm_tokens": int(total_llm * ratio),
+                        "estimated_embedding_tokens": int(total_emb * ratio),
+                        "estimated_total_tokens": int((total_llm + total_emb) * ratio),
+                    })
+                
+                # Sort by total tokens descending
+                result["per_document"].sort(key=lambda x: x["estimated_total_tokens"], reverse=True)
+        except Exception as e:
+            logger.warning(f"Could not compute per-document token usage: {e}")
+        
+        return result
+
+    def clear_index(self, clear_cache: bool = True) -> bool:
+        """
+        Clear the GraphRAG index (input, output, and cache).
         Also removes any indexing lock files to cancel in-progress builds.
+        
+        Args:
+            clear_cache: If True, also delete the LLM/embedding cache files.
+                         Set to True for a full reset.
         
         Returns:
             True if successful
         """
         import shutil
+        import time
         
-        try:
-            # Remove indexing lock file if it exists (cancel in-progress indexing)
-            lock_file = self.graphrag_root / ".indexing_in_progress"
-            if lock_file.exists():
+        errors = []
+        
+        # Remove indexing lock file if it exists (cancel in-progress indexing)
+        lock_file = self.graphrag_root / ".indexing_in_progress"
+        if lock_file.exists():
+            try:
                 lock_file.unlink()
                 logger.info("Removed indexing lock file")
-            
-            # Remove indexing log file
-            log_file = self.graphrag_root / "indexing.log"
-            if log_file.exists():
+            except OSError as e:
+                errors.append(f"lock file: {e}")
+        
+        # Remove indexing log file
+        log_file = self.graphrag_root / "indexing.log"
+        if log_file.exists():
+            try:
                 log_file.unlink()
                 logger.info("Removed indexing log file")
-            
-            if self.input_dir.exists():
-                shutil.rmtree(self.input_dir)
+            except OSError as e:
+                errors.append(f"log file: {e}")
+        
+        # Clear input directory
+        if self.input_dir.exists():
+            try:
+                shutil.rmtree(self.input_dir, ignore_errors=True)
                 self.input_dir.mkdir(parents=True, exist_ok=True)
-            
-            if self.output_dir.exists():
-                shutil.rmtree(self.output_dir)
-            
-            logger.info("Cleared GraphRAG index")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to clear GraphRAG index: {e}")
+                logger.info("Cleared input directory")
+            except OSError as e:
+                errors.append(f"input dir: {e}")
+        
+        # Clear output directory (may contain lancedb with locked files)
+        if self.output_dir.exists():
+            try:
+                shutil.rmtree(self.output_dir, ignore_errors=False)
+                logger.info("Cleared output directory")
+            except OSError:
+                # LanceDB may hold file locks — wait briefly and retry
+                logger.warning("Output dir locked, retrying after 1s...")
+                time.sleep(1)
+                try:
+                    shutil.rmtree(self.output_dir, ignore_errors=True)
+                    logger.info("Cleared output directory (retry with ignore_errors)")
+                except OSError as e2:
+                    errors.append(f"output dir: {e2}")
+        
+        # Clear cache directory (LLM + embedding response caches)
+        if clear_cache:
+            cache_dir = self.graphrag_root / "cache"
+            if cache_dir.exists():
+                try:
+                    shutil.rmtree(cache_dir, ignore_errors=True)
+                    logger.info("Cleared cache directory")
+                except OSError as e:
+                    errors.append(f"cache dir: {e}")
+        
+        if errors:
+            logger.error(f"Partial clear - errors: {errors}")
             return False
+        
+        logger.info("Cleared GraphRAG index completely (input + output + cache)")
+        return True

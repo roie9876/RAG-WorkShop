@@ -204,21 +204,29 @@ async def get_graphrag_relationships(limit: int = 50):
 @router.post("/clear")
 async def clear_graphrag_index():
     """
-    Clear the GraphRAG index (both input and output).
+    Clear the GraphRAG index (input, output, and cache).
     
-    Use with caution - this deletes all exported documents and 
-    the knowledge graph!
+    Use with caution - this deletes all exported documents,
+    the knowledge graph, and cached LLM responses!
     """
     try:
         settings = get_settings()
         exporter = GraphRAGExporter(settings.graphrag_index_path)
         
-        success = exporter.clear_index()
+        success = exporter.clear_index(clear_cache=True)
+        
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to fully clear GraphRAG index. Some files may be locked. Try again after restarting the server."
+            )
         
         return {
-            "success": success,
-            "message": "GraphRAG index cleared" if success else "Failed to clear index"
+            "success": True,
+            "message": "GraphRAG index cleared (input + output + cache)"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to clear GraphRAG index: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -249,6 +257,35 @@ async def configure_graphrag(request: GraphRAGExportRequest):
         }
     except Exception as e:
         logger.error(f"Failed to configure GraphRAG: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/token-usage")
+async def get_graphrag_token_usage():
+    """
+    Get token usage statistics for GraphRAG indexing.
+    
+    Scans GraphRAG cache files to aggregate token usage across all
+    LLM calls (entity extraction, description summarization, community
+    reporting) and embedding calls. Also provides per-document proportional
+    estimates.
+    
+    Returns:
+    - categories: Token usage broken down by indexing phase
+    - totals: Overall LLM + embedding token counts
+    - per_document: Estimated token usage per indexed document
+    """
+    try:
+        settings = get_settings()
+        exporter = GraphRAGExporter(settings.graphrag_index_path)
+        usage = exporter.get_token_usage()
+        
+        return {
+            "success": True,
+            "token_usage": usage
+        }
+    except Exception as e:
+        logger.error(f"Failed to get token usage: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

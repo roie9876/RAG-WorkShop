@@ -133,6 +133,40 @@ export interface GraphRAGStatus {
   }
 }
 
+export interface TokenUsageCategory {
+  calls: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens: number
+}
+
+export interface TokenUsagePerDocument {
+  title: string
+  chunks: number
+  chunk_tokens: number
+  estimated_llm_tokens: number
+  estimated_embedding_tokens: number
+  estimated_total_tokens: number
+}
+
+export interface TokenUsageResponse {
+  success: boolean
+  token_usage: {
+    available: boolean
+    categories: Record<string, TokenUsageCategory>
+    totals: {
+      llm_prompt_tokens: number
+      llm_completion_tokens: number
+      llm_total_tokens: number
+      llm_calls: number
+      embedding_tokens: number
+      embedding_calls: number
+      grand_total_tokens: number
+    }
+    per_document: TokenUsagePerDocument[]
+  }
+}
+
 export const graphragApi = {
   getStatus: async (): Promise<GraphRAGStatus> => {
     const response = await api.get('/graphrag/status')
@@ -146,6 +180,11 @@ export const graphragApi = {
 
   clearIndex: async (): Promise<{ success: boolean; message: string }> => {
     const response = await api.post('/graphrag/clear')
+    return response.data
+  },
+
+  getTokenUsage: async (): Promise<TokenUsageResponse> => {
+    const response = await api.get('/graphrag/token-usage')
     return response.data
   },
 }
