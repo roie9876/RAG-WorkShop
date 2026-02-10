@@ -86,19 +86,27 @@ Now that you've learned Document Intelligence in Module 2, let's see how Content
 
 | Capability | Simple OCR | Document Intelligence | Content Understanding |
 |------------|------------|----------------------|----------------------|
-| Text extraction | ✅ Raw characters | ✅ With reading order | ✅ With reading order |
-| Table structure | ❌ Flattened | ✅ Rows/columns preserved | ✅ Rows/columns preserved |
+| Text extraction | ✅ Raw characters | ✅ With reading order | ✅ With reading order (enhanced) |
+| Table structure | ❌ Flattened | ✅ Rows/columns preserved | ✅ Rows/columns + **multi-page tables** |
 | Figure detection | ❌ Ignored | ✅ Bounding boxes | ✅ Bounding boxes + **AI descriptions** |
 | Reading order | ❌ Lost | ✅ Preserved | ✅ Preserved |
-| Semantic understanding | ❌ None | ❌ None | ✅ **AI-powered** |
+| Semantic understanding | ❌ None | ⚠️ Limited (structural only) | ✅ **AI-powered inference & reasoning** |
+| Inferred fields | ❌ No | ❌ No | ✅ **Generate fields not explicitly in the document** |
+| Confidence scores & grounding | ❌ No | ✅ Yes | ✅ Yes |
 | Chart → Code | ❌ No | ❌ No | ✅ **Chart.js output** |
 | Diagram → Code | ❌ No | ❌ No | ✅ **Mermaid.js output** |
-| Document summary | ❌ No | ❌ No | ✅ **One-paragraph summary** |
-| Audio/Video support | ❌ No | ❌ No | ✅ **Full support** |
-| LLM Required | ❌ No | ❌ No | ✅ Yes (GPT-4.1-mini) |
-| Cost | 💰 Lowest | 💰 Low | 💰💰 Higher |
+| Document summary | ❌ No | ❌ No | ✅ **Summarization & metadata generation** |
+| Classification & splitting | ❌ No | ✅ Yes | ✅ Yes |
+| Audio/Video support | ❌ No | ❌ No | ✅ **Full multimodal support** |
+| Multi-file input | ❌ No | ❌ No | ✅ Yes (preview) |
+| Reasoning | ❌ No | ❌ No | ✅ Yes (preview) |
+| LLM Required | ❌ No | ❌ No | ✅ Yes (Gen AI model deployment required) |
+| Latency | ⚡ Low | ⚡ Low | 🔄 Medium (Gen AI calls) |
+| Cost | 💰 Lowest | 💰 Low | 💰 Layout pricing now lower than DI; 💰💰 higher with Gen AI features |
 
 > 📖 **Official comparison**: [Choosing the Right AI Tool](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/choosing-right-ai-tool)
+>
+> **Note on "Semantic understanding":** Microsoft describes DI as having *"limited semantic understanding capabilities"*. DI understands document **structure** (tables, headers, sections, reading order) but cannot **infer** meaning, generate summaries, or reason about content. CU adds true AI-powered semantic understanding via Gen AI models.
 
 ## 🔑 CU vs Document Intelligence: What's the Real Difference?
 
