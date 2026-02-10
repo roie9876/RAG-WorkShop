@@ -189,13 +189,16 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
 
         async def run_graphrag():
             t0 = time.time()
-            result = await self.retrieve(
+            # Call _retrieve_graphrag directly with skip_figure_boost=True
+            # In combined mode, AI Search already provides figures — no need
+            # for GraphRAG to do a redundant figure search (~2-3s saved)
+            result = await self._retrieve_graphrag(
                 query=query,
-                strategy="graphrag",
                 top_k=top_k,
-                graphrag_mode=graphrag_mode,
-                graphrag_community_level=graphrag_community_level,
-                graphrag_response_type=graphrag_response_type
+                mode=graphrag_mode,
+                community_level=graphrag_community_level,
+                response_type=graphrag_response_type,
+                skip_figure_boost=True
             )
             elapsed = int((time.time() - t0) * 1000)
             return result, elapsed
@@ -365,7 +368,8 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         top_k: int,
         mode: str = "local",
         community_level: int = 2,
-        response_type: str = "Multiple Paragraphs"
+        response_type: str = "Multiple Paragraphs",
+        skip_figure_boost: bool = False
     ) -> Dict[str, Any]:
         """
         GraphRAG retrieval using pre-built knowledge graph.
@@ -437,8 +441,9 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
             
             # GraphRAG doesn't have figures - augment with figures from Azure AI Search
             # if user is asking for images/תמונות
+            # Skip when called from combined mode (AI Search side already provides figures)
             all_chunks = chunks
-            if self._should_boost_figures(query):
+            if not skip_figure_boost and self._should_boost_figures(query):
                 logger.info("GraphRAG: User asked for figures, fetching from Azure AI Search")
                 try:
                     # Extract entities from GraphRAG result to use as search terms
@@ -587,6 +592,84 @@ Respond with ONLY the strategy name: hybrid, agentic, or graphrag"""
         ]
         return any(k in q for k in keywords)
 
+    async def retrieve_figures_for_references(
+        self,
+        figure_references: list,
+    ) -> list:
+        """
+        Targeted figure retrieval from AI Search based on structured
+        figure references extracted from draft answers.
+
+        For each reference (figure_label, document, concept) we query
+        AI Search with chunk_type='figure' using the concept as the
+        semantic query. We run all queries in parallel for speed.
+
+        Args:
+            figure_references: list of dicts with figure_label, document, concept
+
+        Returns:
+            Deduplicated list of figure chunk dicts enriched with SAS URLs.
+        """
+        if not figure_references:
+            return []
+
+        all_figures = []
+        seen_ids = set()
+
+        async def _fetch_one(ref):
+            concept = ref.get("concept", "")
+            document = ref.get("document", "")
+            label = ref.get("figure_label", "")
+
+            # Build semantic query — concept is most important for vector match
+            # Include the label for keyword match
+            search_query = f"{label} {concept}" if concept else label
+            if document:
+                # Append document title for keyword boost but
+                # don't rely on it solely (index has filenames, not titles)
+                search_query = f"{search_query} {document}"
+
+            logger.info(f"Figure chain: searching for '{label}' → query: '{search_query[:80]}...'")
+
+            try:
+                figures = await self.search_service.search(
+                    query=search_query,
+                    top_k=5,
+                    search_mode="hybrid",
+                    semantic_ranker=True,
+                    content_type_filter="figure",
+                    min_score=0.0,
+                )
+                logger.info(
+                    f"Figure chain: '{label}' → {len(figures)} results "
+                    f"(docs: {[f.get('source_document','?')[:30] for f in figures[:3]]})"
+                )
+                return [(label, fig) for fig in figures]
+            except Exception as e:
+                logger.warning(f"Figure retrieval for '{label}' failed: {e}")
+                return []
+
+        # Run all figure searches in parallel
+        results = await asyncio.gather(*[_fetch_one(ref) for ref in figure_references])
+
+        for result_list in results:
+            for label, fig in result_list:
+                fig_id = fig.get("id") or fig.get("chunk_id", "")
+                if fig_id not in seen_ids:
+                    seen_ids.add(fig_id)
+                    fig["_figure_ref"] = label
+                    all_figures.append(fig)
+
+        # Enrich with SAS URLs
+        if all_figures:
+            all_figures = await self._enrich_with_sas_urls(all_figures)
+            logger.info(
+                f"Figure chain retrieval: {len(figure_references)} refs → "
+                f"{len(all_figures)} unique figure chunks"
+            )
+
+        return all_figures
+
     def _merge_chunks(self, primary: List[Dict[str, Any]], extra: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Merge chunk lists by id, preserving order with extras appended."""
         # Use 'id' which is already mapped from 'chunk_id' in search results
@@ -623,23 +706,24 @@ Return only the expanded query, no explanations."""
         return response.choices[0].message.content.strip()
     
     async def _enrich_with_sas_urls(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Add SAS URLs to chunks for figures and source documents."""
-        for chunk in chunks:
+        """Add SAS URLs to chunks for figures and source documents.
+        
+        Generates all SAS URLs in parallel for much faster processing
+        when there are multiple figure chunks.
+        """
+        async def _enrich_one(chunk):
             # Add SAS URL for figures
             if chunk.get("image_blob_path"):
                 image_path = chunk["image_blob_path"]
 
                 # Strip full URLs back to blob paths (fix stale index data)
                 if image_path.startswith("http"):
-                    # Extract blob path from full URL like:
-                    # https://account.blob.core.windows.net/figures/figures/doc/fig.png?sas
                     try:
                         from urllib.parse import urlparse
                         parsed = urlparse(image_path)
-                        # Path is /container/blob_path, strip leading slash
                         path_parts = parsed.path.lstrip("/").split("/", 1)
                         if len(path_parts) == 2:
-                            image_path = path_parts[1]  # blob path without container
+                            image_path = path_parts[1]
                         else:
                             image_path = path_parts[0]
                     except Exception:
@@ -658,8 +742,8 @@ Return only the expanded query, no explanations."""
                         duration_hours=1.0
                     )
                     chunk["image_sas_url"] = sas_result["url"]
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"SAS URL generation failed for {image_path}: {e}")
             
             # Add SAS URL for source document
             if chunk.get("source_document_blob_path"):
@@ -672,5 +756,8 @@ Return only the expanded query, no explanations."""
                     chunk["source_document_sas_url"] = sas_result["url"]
                 except Exception:
                     pass
+
+        # Run ALL SAS URL generations in parallel
+        await asyncio.gather(*[_enrich_one(chunk) for chunk in chunks])
         
         return chunks

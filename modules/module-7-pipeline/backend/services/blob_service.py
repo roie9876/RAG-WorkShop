@@ -157,14 +157,23 @@ class BlobService:
         container_name, clean_path = self._resolve_container_and_path(blob_path)
 
         # Fallback: if figures blob is stored in documents container (legacy), use that
-        if blob_path.startswith("figures/"):
+        # Cache the container resolution to avoid repeated network calls
+        if not hasattr(self, '_blob_container_cache'):
+            self._blob_container_cache = {}
+        
+        cache_key = f"{container_name}/{clean_path}"
+        if blob_path.startswith("figures/") and cache_key not in self._blob_container_cache:
             try:
                 container_client = self.client.get_container_client(container_name)
                 container_client.get_blob_client(clean_path).get_blob_properties()
+                self._blob_container_cache[cache_key] = container_name
             except ResourceNotFoundError:
                 container_name = self.settings.get_documents_container_name()
+                self._blob_container_cache[cache_key] = container_name
             except Exception:
-                pass
+                self._blob_container_cache[cache_key] = container_name
+        elif cache_key in self._blob_container_cache:
+            container_name = self._blob_container_cache[cache_key]
         
         # Set permissions
         if permission == "read":

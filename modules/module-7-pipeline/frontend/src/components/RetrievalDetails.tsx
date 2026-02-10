@@ -50,7 +50,19 @@ export function RetrievalDetails({ metadata, response }: RetrievalDetailsProps) 
           <Zap className="h-4 w-4 text-yellow-500" />
           <div>
             <p className="text-xs text-muted-foreground">Strategy</p>
-            <p className="text-sm font-medium capitalize">{metadata.strategy_used}</p>
+            <p className="text-sm font-medium capitalize">
+              {metadata.strategy_used}
+              {metadata.strategy_used === 'combined' && metadata.parameters.combined_base_strategy && (
+                <span className="text-xs text-muted-foreground ml-1">
+                  ({metadata.parameters.combined_base_strategy})
+                </span>
+              )}
+            </p>
+            {(metadata.strategy_used === 'combined' || metadata.strategy_used === 'graphrag') && (
+              <p className="text-xs text-violet-500 font-medium capitalize">
+                GraphRAG: {metadata.parameters.graphrag_mode || 'local'}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -80,6 +92,54 @@ export function RetrievalDetails({ metadata, response }: RetrievalDetailsProps) 
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Always-Visible Parameter Badges */}
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {/* AI Search params */}
+        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+          🔍 {metadata.parameters.search_mode}{metadata.parameters.semantic_ranker ? ' + semantic' : ''}
+        </span>
+        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+          top_k: {metadata.parameters.top_k}
+        </span>
+        {metadata.parameters.content_type_filter && metadata.parameters.content_type_filter !== 'all' && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+            filter: {metadata.parameters.content_type_filter}
+          </span>
+        )}
+        {metadata.parameters.min_score > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+            min_score: {metadata.parameters.min_score}
+          </span>
+        )}
+        {/* GraphRAG params (when applicable) */}
+        {(metadata.strategy_used === 'combined' || metadata.strategy_used === 'graphrag') && (
+          <>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20">
+              GraphRAG: {metadata.parameters.graphrag_mode || 'local'}
+            </span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20">
+              community: {metadata.parameters.graphrag_community_level ?? 2}
+            </span>
+          </>
+        )}
+        {metadata.strategy_used === 'combined' && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+            base: {metadata.parameters.combined_base_strategy || 'iterative'}
+          </span>
+        )}
+        {/* Combined timing breakdown */}
+        {response?.combined_results && (
+          <>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              Search: {formatTime(response.combined_results.search_time_ms)}
+            </span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400">
+              GraphRAG: {formatTime(response.combined_results.graphrag_time_ms)}
+            </span>
+          </>
+        )}
       </div>
 
       {/* Tokens & Timing Summary */}
@@ -178,7 +238,7 @@ export function RetrievalDetails({ metadata, response }: RetrievalDetailsProps) 
                 <span className="font-medium">{metadata.parameters.top_k}</span>
               </div>
               <div className="p-2 rounded bg-muted/50">
-                <span className="text-muted-foreground">Mode:</span>{' '}
+                <span className="text-muted-foreground">Search Mode:</span>{' '}
                 <span className="font-medium">{metadata.parameters.search_mode}</span>
               </div>
               <div className="p-2 rounded bg-muted/50">
@@ -187,7 +247,46 @@ export function RetrievalDetails({ metadata, response }: RetrievalDetailsProps) 
                   {metadata.parameters.semantic_ranker ? 'On' : 'Off'}
                 </span>
               </div>
+              {metadata.parameters.content_type_filter && metadata.parameters.content_type_filter !== 'all' && (
+                <div className="p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">Content Filter:</span>{' '}
+                  <span className="font-medium capitalize">{metadata.parameters.content_type_filter}</span>
+                </div>
+              )}
+              {metadata.parameters.min_score > 0 && (
+                <div className="p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">Min Score:</span>{' '}
+                  <span className="font-medium">{metadata.parameters.min_score}</span>
+                </div>
+              )}
             </div>
+
+            {/* Strategy Details */}
+            {(metadata.strategy_used === 'combined' || metadata.strategy_used === 'graphrag') && (
+              <div className="mt-2">
+                <h4 className="text-xs font-semibold text-muted-foreground mb-1">Strategy Configuration</h4>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  {metadata.strategy_used === 'combined' && (
+                    <div className="p-2 rounded bg-violet-500/10 border border-violet-500/20">
+                      <span className="text-muted-foreground">Base Strategy:</span>{' '}
+                      <span className="font-medium capitalize">{metadata.parameters.combined_base_strategy || 'iterative'}</span>
+                    </div>
+                  )}
+                  <div className="p-2 rounded bg-violet-500/10 border border-violet-500/20">
+                    <span className="text-muted-foreground">GraphRAG Mode:</span>{' '}
+                    <span className="font-medium capitalize">{metadata.parameters.graphrag_mode || 'local'}</span>
+                  </div>
+                  <div className="p-2 rounded bg-violet-500/10 border border-violet-500/20">
+                    <span className="text-muted-foreground">Community Level:</span>{' '}
+                    <span className="font-medium">{metadata.parameters.graphrag_community_level ?? 2}</span>
+                  </div>
+                  <div className="p-2 rounded bg-violet-500/10 border border-violet-500/20">
+                    <span className="text-muted-foreground">Response Type:</span>{' '}
+                    <span className="font-medium">{metadata.parameters.graphrag_response_type || 'Multiple Paragraphs'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Iterative Trace (NEW!) */}

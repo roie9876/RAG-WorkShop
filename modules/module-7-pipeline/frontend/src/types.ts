@@ -22,6 +22,13 @@ export interface QueryConfig {
   graphrag_mode: 'local' | 'global' | 'drift'
   graphrag_community_level: number
   graphrag_response_type: 'Multiple Paragraphs' | 'Single Paragraph' | 'Single Sentence' | 'List of 3-7 Points'
+
+  // These are returned in metadata.parameters (may not be in request config)
+  retrieval_strategy?: string
+  combined_base_strategy?: string
+  content_type_filter?: string
+  min_score?: number
+  enable_validation?: boolean
 }
 
 export interface SourceChunk {

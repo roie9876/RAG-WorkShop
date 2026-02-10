@@ -240,6 +240,10 @@ async def execute_query(request: QueryRequest):
         # Execute retrieval based on strategy
         if strategy == "combined":
             # === COMBINED STRATEGY: AI Search + GraphRAG in parallel ===
+            import time as _time
+            stage_times = {}
+
+            t_retrieval = _time.time()
             retrieval_result = await retrieval_router.retrieve_combined(
                 query=request.question,
                 base_strategy=request.combined_base_strategy,
@@ -253,6 +257,7 @@ async def execute_query(request: QueryRequest):
                 graphrag_response_type=request.graphrag_response_type
             )
 
+            stage_times["retrieval"] = int((_time.time() - t_retrieval) * 1000)
             retrieval_time_ms = int((time.time() - start_time) * 1000)
 
             # Check for errors from either side
@@ -277,23 +282,28 @@ async def execute_query(request: QueryRequest):
             async def gen_search_answer():
                 if not search_chunks:
                     return {"answer": "No results from AI Search.", "model": "", "tokens_used": 0}
-                return await generation_service.generate_answer(
+                return await generation_service.generate_draft_answer(
                     query=request.question,
-                    contexts=search_chunks
+                    contexts=search_chunks,
+                    max_chunks=15
                 )
 
             async def gen_graphrag_answer():
                 if not graphrag_chunks:
                     return {"answer": "No results from GraphRAG.", "model": "", "tokens_used": 0}
-                return await generation_service.generate_answer(
+                return await generation_service.generate_draft_answer(
                     query=request.question,
-                    contexts=graphrag_chunks
+                    contexts=graphrag_chunks,
+                    max_chunks=15
                 )
 
             import asyncio as _asyncio
+
+            t_drafts = _time.time()
             search_gen, graphrag_gen = await _asyncio.gather(
                 gen_search_answer(), gen_graphrag_answer()
             )
+            stage_times["drafts_parallel"] = int((_time.time() - t_drafts) * 1000)
 
             search_answer = search_gen["answer"]
             graphrag_answer = graphrag_gen["answer"]
@@ -340,13 +350,117 @@ async def execute_query(request: QueryRequest):
                 graphrag_metadata=retrieval_result.get("graphrag_metadata")
             )
 
-            # Merge the two answers into one
-            merge_result = await generation_service.generate_merged_answer(
-                query=request.question,
-                search_answer=search_answer,
-                graphrag_answer=graphrag_answer,
-                search_strategy=request.combined_base_strategy,
-                graphrag_mode=request.graphrag_mode
+            # === FIGURE CHAIN ANALYSIS (Option 2) ===
+            # When both drafts reference figures from different documents,
+            # extract the references, retrieve the actual figure descriptions
+            # from AI Search, and produce a causal analysis that connects them.
+            # === FIGURE CHAIN + MERGE (parallelized where possible) ===
+            figure_chain_analysis = ""
+            figure_chunks_for_chain = []
+            need_figure_chain = False
+
+            try:
+                # Step 1: Extract figure references with FAST regex (instant)
+                t_fig_extract = _time.time()
+                figure_refs = generation_service.extract_figure_references_fast(
+                    search_answer=search_answer,
+                    graphrag_answer=graphrag_answer,
+                )
+                stage_times["fig_extract_regex"] = int((_time.time() - t_fig_extract) * 1000)
+
+                if len(figure_refs) >= 2:
+                    unique_docs = {r.get("document", "") for r in figure_refs if r.get("document")}
+                    if len(unique_docs) >= 2:
+                        logger.info(
+                            f"Figure chain: {len(figure_refs)} figures from "
+                            f"{len(unique_docs)} documents — running cross-document analysis"
+                        )
+
+                        # Step 2: Retrieve figure chunks (fast, ~1-2s)
+                        t_fig_retrieve = _time.time()
+                        figure_chunks_for_chain = await retrieval_router.retrieve_figures_for_references(
+                            figure_references=figure_refs,
+                        )
+                        stage_times["fig_retrieval"] = int((_time.time() - t_fig_retrieve) * 1000)
+
+                        if len(figure_chunks_for_chain) >= 2:
+                            need_figure_chain = True
+                            # Add figure chunks to pool for sources display
+                            chunks_pool = retrieval_result["chunks"]
+                            existing_ids = {c.get("id") or c.get("chunk_id") for c in chunks_pool}
+                            for fc in figure_chunks_for_chain:
+                                fc_id = fc.get("id") or fc.get("chunk_id", "")
+                                if fc_id not in existing_ids:
+                                    chunks_pool.append(fc)
+                                    existing_ids.add(fc_id)
+                            retrieval_result["chunks"] = chunks_pool
+                        else:
+                            logger.info("Figure chain: not enough figure chunks retrieved, skipping")
+                    else:
+                        logger.info("Figure chain: figures from single document, skipping cross-doc analysis")
+                else:
+                    logger.info(f"Figure chain: only {len(figure_refs)} figure ref(s), skipping")
+            except Exception as fc_err:
+                logger.warning(f"Figure chain analysis failed (non-fatal): {fc_err}")
+
+            if need_figure_chain:
+                # Run figure chain LLM and merge LLM IN PARALLEL
+                # The merge without figure chain takes the same time,
+                # and we inject the figure chain result as a follow-up.
+                # Strategy: run both concurrently, then do a quick
+                # re-merge only if figure chain produced useful content.
+                t_parallel = _time.time()
+
+                async def _run_fig_chain():
+                    return await generation_service.generate_figure_chain_analysis(
+                        query=request.question,
+                        figure_chunks=figure_chunks_for_chain,
+                    )
+
+                async def _run_merge_no_chain():
+                    return await generation_service.generate_merged_answer(
+                        query=request.question,
+                        search_answer=search_answer,
+                        graphrag_answer=graphrag_answer,
+                        search_strategy=request.combined_base_strategy,
+                        graphrag_mode=request.graphrag_mode,
+                        figure_chain_analysis=""  # No chain yet
+                    )
+
+                fig_chain_result, merge_no_chain = await _asyncio.gather(
+                    _run_fig_chain(), _run_merge_no_chain()
+                )
+                stage_times["fig_chain_and_merge_parallel"] = int((_time.time() - t_parallel) * 1000)
+
+                figure_chain_analysis = fig_chain_result or ""
+
+                if figure_chain_analysis:
+                    logger.info(f"Figure chain analysis: {len(figure_chain_analysis)} chars — appending to answer")
+                    # Append figure chain directly to merged answer (saves ~6-7s vs. LLM weave)
+                    merged_answer = merge_no_chain["answer"]
+                    merged_answer += "\n\n### Cross-Document Figure Analysis\n\n" + figure_chain_analysis
+                    merge_result = dict(merge_no_chain)
+                    merge_result["answer"] = merged_answer
+                else:
+                    merge_result = merge_no_chain
+            else:
+                # No figure chain needed — simple merge
+                t_merge = _time.time()
+                merge_result = await generation_service.generate_merged_answer(
+                    query=request.question,
+                    search_answer=search_answer,
+                    graphrag_answer=graphrag_answer,
+                    search_strategy=request.combined_base_strategy,
+                    graphrag_mode=request.graphrag_mode,
+                    figure_chain_analysis=""
+                )
+                stage_times["merge_llm"] = int((_time.time() - t_merge) * 1000)
+
+            # Log all stage timings
+            total_pipeline = int((_time.time() - t_retrieval) * 1000)
+            stage_times["total_pipeline"] = total_pipeline
+            logger.info(
+                f"⏱️ Combined pipeline timing: {stage_times}"
             )
 
             generation_result = merge_result
@@ -584,7 +698,12 @@ async def execute_query(request: QueryRequest):
                 "semantic_ranker": request.semantic_ranker,
                 "min_score": request.min_score,
                 "content_type_filter": request.content_type_filter,
-                "enable_validation": request.enable_validation
+                "enable_validation": request.enable_validation,
+                "retrieval_strategy": request.retrieval_strategy,
+                "combined_base_strategy": request.combined_base_strategy,
+                "graphrag_mode": request.graphrag_mode,
+                "graphrag_community_level": request.graphrag_community_level,
+                "graphrag_response_type": request.graphrag_response_type,
             },
             query_decomposition=query_decomposition,
             activity_log=activity_log,

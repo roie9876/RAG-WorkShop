@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     azure_openai_endpoint: str = ""
     azure_openai_api_key: str = ""
     azure_openai_deployment: str = "gpt-4.1"
+    azure_openai_mini_deployment: str = "gpt-4.1-mini"  # Faster model for intermediate drafts
     azure_openai_embedding_deployment: str = "text-embedding-3-large"
     
     # Azure AI Search

@@ -51,11 +51,19 @@ echo "📥 Installing dependencies..."
 ./venv/bin/pip install -r requirements.txt --quiet
 
 # Load environment variables from root .env
+# NOTE: We use 'set -a' + source instead of 'export $(xargs)' because
+# connection strings contain semicolons that xargs mishandles.
+# Pydantic BaseSettings also reads .env directly, but some non-Python
+# tools (GraphRAG CLI) may need env vars set in the shell.
 if [ -f "../../.env" ]; then
-    export $(grep -v '^#' ../../.env | xargs)
+    set -a
+    source <(grep -v '^#' ../../.env | sed 's/^\([^=]*\)=\(.*\)$/\1="\2"/')
+    set +a
     echo "✅ Loaded environment from ../../.env"
 elif [ -f "../.env" ]; then
-    export $(grep -v '^#' ../.env | xargs)
+    set -a
+    source <(grep -v '^#' ../.env | sed 's/^\([^=]*\)=\(.*\)$/\1="\2"/')
+    set +a
     echo "✅ Loaded environment from ../.env"
 fi
 

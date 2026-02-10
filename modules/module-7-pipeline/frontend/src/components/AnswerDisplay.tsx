@@ -24,16 +24,92 @@ function normalizeMath(text: string): string {
   let result = text.replace(/\\\((.+?)\\\)/g, (_m, inner) => `$${inner.trim()}$`)
   // \[ ... \]  →  $$ ... $$
   result = result.replace(/\\\[(.+?)\\\]/gs, (_m, inner) => `$$${inner.trim()}$$`)
-  // Bare ( ... ) with LaTeX commands inside → $ ... $
-  // Uses alternation to SKIP existing $...$ blocks so nested parens like $O(T^2 \cdot D)$ aren't destroyed.
+
+  // ---- Fix 1: Split-dollar formulas ----
+  // "$O$N^2 d_k"   → "$O(N^2 \\cdot d_k)$"
+  // "$O$H N^2 d_k" → "$O(H \\cdot N^2 \\cdot d_k)$"
+  // "$O$H N^2 d_k$$" → "$O(H \\cdot N^2 \\cdot d_k)$"   (strip trailing $$)
   result = result.replace(
-    /(\$[^$]+\$)|(\(\s*([^()]*(?:\\(?:cdot|times|frac|text|mathcal|mathrm|log|sqrt|sum|prod|int|infty|leq|geq|neq|approx|left|right)[^()]*|\^[^()]*|_[^()]*)[^()]*)\s*\))/g,
-    (match, dollarBlock, _parenBlock, inner) => {
-      void match // suppress TS6133
-      if (dollarBlock) return dollarBlock // preserve existing $...$
-      return `$${inner.trim()}$` // convert bare parens
+    /\$([A-Za-z]{1,4})\$\s*([A-Za-z0-9^_{}\s·×*\\]+(?:[^$\n,.:;]{2,}))\$*/g,
+    (_match, head: string, tail: string) => {
+      // Only merge if the tail looks like math (has ^, _, digits after letters)
+      if (!/[\^_\d]/.test(tail)) return _match
+      const cleaned = tail.trim()
+        .replace(/\$+$/g, '')            // strip trailing $ or $$
+        .replace(/\s+/g, ' ')            // normalize spaces
+      // Build the merged formula — add parens if head looks like a function (O)
+      const parts = cleaned.split(/\s+/)
+      const joined = parts.join(' \\cdot ')
+      const body = /^[A-Z]$/.test(head)
+        ? `${head}(${joined})`
+        : `${head} \\cdot ${joined}`
+      return `$${body}$`
     }
   )
+
+  // ---- Fix 2: Bare Big-O notation ----
+  // O(N^2), O(n^2 · d), O(T^2) not inside $...$ → wrap in $...$
+  result = result.replace(
+    /(\$\$[^$]+\$\$|\$[^$]+\$)|(?<!\$)\b(O\([^)]+\))(?!\$)/g,
+    (_match, dollarBlock, bigO) => {
+      if (dollarBlock) return dollarBlock
+      const cleaned = bigO.replace(/\s*[·×*]\s*/g, ' \\cdot ')
+      return `$${cleaned}$`
+    }
+  )
+
+  // ---- Fix 3: Bare single-letter math variables ----
+  // Q, K, V, N, H, T, D standing alone (not inside $...$, not part of a word)
+  result = result.replace(
+    /(\$\$[^$]+\$\$|\$[^$]+\$)|(?<=[\s(,])([QKVNHTD])(?=[\s),.:;!?]|$)/gm,
+    (_match, dollarBlock, letter) => {
+      if (dollarBlock) return dollarBlock
+      if (!letter) return _match
+      return `$${letter}$`
+    }
+  )
+
+  // ---- Fix 4: Bare subscript / superscript expressions ----
+  // d_k, d_v, N^2, T^2 not inside $...$
+  result = result.replace(
+    /(\$\$[^$]+\$\$|\$[^$]+\$)|(?<=[\s(,])([A-Za-z](?:_[A-Za-z0-9{}]+|\^[A-Za-z0-9{}]+))(?=[\s),.:;!?]|$)/gm,
+    (_match, dollarBlock, expr) => {
+      if (dollarBlock) return dollarBlock
+      if (!expr) return _match
+      return `$${expr}$`
+    }
+  )
+
+  // ---- Fix 5: Bare parens with LaTeX commands inside ----
+  // ( ... \cdot ... ) → $...$
+  result = result.replace(
+    /(\$\$[^$]+\$\$|\$[^$]+\$)|(\(\s*([^()]*(?:\\(?:cdot|times|frac|text|mathcal|mathrm|log|sqrt|sum|prod|int|infty|leq|geq|neq|approx|left|right)[^()]*|\^[^()]*|_[^()]*)[^()]*)\s*\))/g,
+    (_match, dollarBlock, _parenBlock, inner) => {
+      if (dollarBlock) return dollarBlock
+      return `$${inner.trim()}$`
+    }
+  )
+
+  // ---- Fix 6: Bare LaTeX commands outside $...$ ----
+  // e.g. "1/\sqrt{d_k}" or "\frac{a}{b}" or "\sqrt{x}" not inside dollars
+  result = result.replace(
+    /(\$\$[^$]+\$\$|\$[^$]+\$)|(?<!\$)((?:[A-Za-z0-9]+[/])?\\(?:sqrt|frac|mathrm|mathcal|text|log|sum|prod|int|mathbb)(?:\{[^}]*\})+(?:[/^_][A-Za-z0-9{}\\]+)*)(?!\$)/g,
+    (_match, dollarBlock, expr) => {
+      if (dollarBlock) return dollarBlock
+      if (!expr) return _match
+      return `$${expr}$`
+    }
+  )
+
+  // ---- Fix 7: Broken display math ----
+  // Short $$x$$ that should be inline → $x$
+  result = result.replace(/\$\$([^$]{1,30})\$\$/g, (_m, inner) => {
+    if (inner.trim().length < 20 && !inner.includes('\\frac') && !inner.includes('\n')) {
+      return `$${inner.trim()}$`
+    }
+    return _m
+  })
+
   return result
 }
 
@@ -327,9 +403,44 @@ function SourcesList({ sources, idPrefix = '' }: { sources: SourceChunk[]; idPre
   )
 }
 
+/**
+ * Extract a clean caption from figure chunk content.
+ *
+ * The indexed content for figures looks like:
+ *   Document: 1706.03762v7.pdf\nSection: 3.2\nPage: 4\n\nSurrounding Context:\n...\n\nFigure Description:\n...
+ *
+ * We want to show only the Figure Description, or the Surrounding Context
+ * as a fallback, instead of the raw metadata block.
+ */
+function extractFigureCaption(content: string): string {
+  // Try to find "Figure Description:" and use everything after it
+  const descIdx = content.indexOf('Figure Description:')
+  if (descIdx !== -1) {
+    let desc = content.slice(descIdx + 'Figure Description:'.length).trim()
+    // Strip leading markdown bold markers from CU output like "**Type of image:**"
+    desc = desc.replace(/^\*\*[^*]+\*\*\s*/g, '').trim()
+    if (desc.length > 0) return desc.length > 300 ? desc.slice(0, 300) + '…' : desc
+  }
+  // Fallback: try "Surrounding Context:"
+  const ctxIdx = content.indexOf('Surrounding Context:')
+  if (ctxIdx !== -1) {
+    const afterCtx = content.slice(ctxIdx + 'Surrounding Context:'.length).trim()
+    const endIdx = afterCtx.indexOf('Figure Description:')
+    const ctx = endIdx !== -1 ? afterCtx.slice(0, endIdx).trim() : afterCtx
+    if (ctx.length > 0) return ctx.length > 200 ? ctx.slice(0, 200) + '…' : ctx
+  }
+  // Last resort: first 200 chars, skipping the "Document: / Section: / Page:" header
+  const lines = content.split('\n').filter(l =>
+    !/^(Document:|Section:|Page:)\s/.test(l.trim()) && l.trim().length > 0
+  )
+  const fallback = lines.join(' ').trim()
+  return fallback.length > 200 ? fallback.slice(0, 200) + '…' : fallback
+}
+
 function FigureDisplay({ source }: { source: SourceChunk }) {
   const [imageStatus, setImageStatus] = React.useState<'loading' | 'loaded' | 'error'>('loading')
   const [isExpanded, setIsExpanded] = React.useState(false)
+  const caption = React.useMemo(() => extractFigureCaption(source.content || ''), [source.content])
 
   return (
     <div className="my-4 p-4 rounded-lg border bg-muted/30">
@@ -362,7 +473,7 @@ function FigureDisplay({ source }: { source: SourceChunk }) {
           )}
           <img
             src={source.image_sas_url}
-            alt={source.content || 'Figure'}
+            alt={caption || 'Figure'}
             className={`max-w-full h-auto rounded-lg border cursor-pointer transition-all ${
               isExpanded ? 'max-h-none' : 'max-h-96 object-contain'
             } ${imageStatus === 'loading' ? 'opacity-0' : 'opacity-100'}`}
@@ -391,9 +502,9 @@ function FigureDisplay({ source }: { source: SourceChunk }) {
         </div>
       )}
       
-      {source.content && (
+      {caption && (
         <p className="text-xs text-muted-foreground mt-2 italic">
-          {source.content.slice(0, 200)}{source.content.length > 200 ? '...' : ''}
+          {caption}
         </p>
       )}
       {source.section_header && (
