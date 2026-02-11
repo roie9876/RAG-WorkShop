@@ -20,20 +20,36 @@ G1. ZERO EXTERNAL KNOWLEDGE: Your answer must contain ZERO facts from your train
     Every single claim must trace to a specific [Source N]. If a fact is not in the context,
     it does not exist for this answer. Say "not stated in the available sources" instead.
 
-G2. ADJACENCY & SPATIAL CLAIMS: Stating that X is "adjacent to" / "next to" / "connected to" Y
-    requires the context to EXPLICITLY say so (e.g., "station 35 is directly followed by station 36"
-    or a table row showing them as consecutive). Knowing both exist on the same line/route is
-    NOT evidence of adjacency. If unsure, write: "the direct adjacency is not confirmed in the
+G2. RELATIONSHIP CLAIMS: Stating that X is "adjacent to" / "next to" / "connected to" /
+    "part of" / "caused by" Y requires the context to EXPLICITLY say so. Co-occurrence in
+    the same document or list is NOT evidence of a direct relationship. If the relationship
+    is not explicitly stated, write: "the direct relationship is not confirmed in the
     provided sources."
+    IMAGE/FIGURE OCR CAVEAT: Sources with content_type="figure" contain OCR-extracted
+    text from maps or diagrams. OCR text is a flat dump of ALL visible labels — their
+    order does NOT represent spatial adjacency. Two items next to each other in OCR text
+    may be far apart in the original image. DO NOT use figure/image OCR to determine
+    which entities are adjacent, connected, or nearby — those claims require EXPLICIT
+    statements from text or table sources (e.g., "station X is adjacent to station Y"
+    or a sequential table row listing). If only a figure/image source is available for
+    adjacency and no text/table source confirms it, write: "adjacency cannot be reliably
+    determined from the available image data alone."
 
-G3. NAMES, CITIES, MUNICIPALITIES: ONLY use the city/municipality name that APPEARS in the
-    data for that specific item. If station X is listed under "Rishon LeZion" in the table,
-    write "Rishon LeZion" even if you think it is in Tel Aviv. If no municipality is stated,
-    write "the municipality is not specified in the provided data."
+G3. ATTRIBUTE ACCURACY: ONLY use the attribute values that APPEAR in the data for that
+    specific entity. If the source says entity X has value "A", write "A" even if you
+    believe it should be "B". If an attribute is not stated, write "this attribute is not
+    specified in the provided data."
+    CRITICAL: Do NOT transfer attributes from one entity to a nearby entity. If entity X
+    belongs to category "A" and entity Y appears near X in the same document, do NOT assume
+    Y also belongs to category "A" unless the source EXPLICITLY says so.
+    GEOGRAPHIC ATTRIBUTES: Municipality, city, district, and jurisdiction MUST come from
+    EXPLICIT statements in the source (e.g., "located in city X" or "belongs to municipality Y").
+    Do NOT infer geographic attributes from spatial context, proximity to other entities,
+    or from the general region. If no source EXPLICITLY states the municipality, write
+    "the municipality is not explicitly stated in the available sources."
 
 G4. NO GAP-FILLING: If the question asks for a detail and no source contains it, say so.
-    NEVER invent plausible-sounding details (underground passages, land-use designations,
-    commercial zones, specific measurements) to make the answer look complete.
+    NEVER invent plausible-sounding details to make the answer look complete.
     A short accurate answer beats a long fabricated one.
 
 === FORMATTING & CITATION RULES ===
@@ -57,8 +73,8 @@ CONTEXT:
 Answer the question based ONLY on the context above. Include [Source N] citations.
 Before writing your answer, mentally verify each factual claim:
 - Can I point to a specific source that states this? If no → omit or say "not stated."
-- Am I inferring adjacency/proximity without explicit evidence? If yes → say "not confirmed."
-- Am I naming a city/municipality that appears in the data for THIS item? If unsure → say "not specified."
+- Am I inferring a relationship without explicit evidence? If yes → say "not confirmed."
+- Am I using the exact attribute value from the data for THIS entity? If unsure → say "not specified."
 Figures from the context will be displayed automatically."""
 
 
@@ -676,20 +692,18 @@ G1. ZERO EXTERNAL KNOWLEDGE: The merged answer must contain ZERO facts from your
     Every claim must come from Draft A or Draft B with a [Source N] citation.
     If neither draft states a fact, it does not exist. Write "not stated in the available sources."
 
-G2. ADJACENCY & SPATIAL CLAIMS: Stating X is "adjacent to" / "next to" / "directly connected to" Y
-    requires one of the drafts to EXPLICITLY state this direct connection. Two items existing
-    in the same system (same line, same route) is NOT evidence of adjacency.
-    If uncertain, write: "the direct adjacency is not confirmed in the sources."
+G2. RELATIONSHIP CLAIMS: Stating X is "adjacent to" / "next to" / "directly connected to" /
+    "part of" / "caused by" Y requires one of the drafts to EXPLICITLY state this direct
+    relationship. Co-occurrence in the same document or list is NOT evidence of a direct
+    relationship. If uncertain, write: "the direct relationship is not confirmed in the sources."
 
-G3. NAMES, CITIES, MUNICIPALITIES: ONLY use the city/municipality name that the drafts
-    attribute to a specific item. If a draft says station X belongs to "Rishon LeZion",
-    use that — even if you believe it is in Tel Aviv. If neither draft states a municipality,
-    write "not specified in the available sources."
+G3. ATTRIBUTE ACCURACY: ONLY use the attribute values that the drafts assign to a specific
+    entity. If a draft says entity X has value "A", use "A" even if you believe it should
+    be "B". If neither draft states an attribute, write "not specified in the available sources."
 
 G4. NO GAP-FILLING: If the question asks for a detail and neither draft provides it,
-    say so explicitly. NEVER invent plausible-sounding details (underground passages,
-    land-use designations, commercial zones, zoning categories, specific measurements)
-    to make the answer look complete. A short accurate answer beats a long fabricated one.
+    say so explicitly. NEVER invent plausible-sounding details to make the answer look
+    complete. A short accurate answer beats a long fabricated one.
 
 === MERGE INSTRUCTIONS ===
 
@@ -713,6 +727,29 @@ Merge them into ONE unified answer.
 
 === CONFLICT-AWARE MERGE RULES ===
 
+⛔ TOP PRIORITY — READ FIRST:
+Most apparent "contradictions" between drafts are NOT real conflicts. They are caused by:
+(a) One draft being silent about something the other mentions → USE the mentioned fact
+(b) Map/image OCR capturing generic/garbled/wrong labels → PREFER structured PDF/table data
+(c) One draft saying "cannot determine" while the other has the answer → USE the answer
+NEVER write "סתירה" / "אי-התאמה" / "contradiction" / "inconsistency" for cases (a)-(c).
+Only flag TRUE conflicts where two structured sources make EXPLICIT incompatible claims.
+
+⚠️ DRAFT QUALITY AWARENESS:
+Draft A (Document Search) may cite figure/image OCR sources for relationship claims
+(adjacency, proximity, connectivity). Map/image OCR extracts ALL visible labels as flat
+text, so the model cannot determine spatial adjacency from OCR text order.
+Draft B (Knowledge Graph) derives relationships from entity-relationship triples that
+were explicitly extracted from structured documents.
+RULE: For relationship AND attribute claims (adjacency, municipality, category, status),
+if Draft A INFERS a value (uses phrases like "as can be understood from", "based on
+spatial context", "likely", "appears to be") while Draft B STATES it directly from
+entity data or text sources — PREFER Draft B's explicit statement.
+Also: if Draft A bases relationship claims on figure/image/map sources and Draft B
+provides different answers from entity relationships or text sources — PREFER Draft B.
+Draft B's entity-relationship data was explicitly modeled, while Draft A's figure-based
+or inferred claims are less reliable.
+
 1. SINGLE UNIFIED NARRATIVE: Write ONE flowing answer organized by CONCEPT, not by source.
    NEVER split into "original analysis" vs "later analyses" or any structure that mirrors
    the two drafts. The reader must not be able to tell that two drafts existed.
@@ -725,8 +762,8 @@ Merge them into ONE unified answer.
 
 4. CONFLICT DETECTION: Before writing, scan for **entity-level contradictions** —
    cases where the drafts assign DIFFERENT values to the SAME entity. Common patterns:
-   - Same ID (e.g., "station 37") but different names ("יוסף בורג" vs "ראשון לציון מרכז")
-   - Same name but different attributes (different city, different status)
+   - Same identifier but different names or labels
+   - Same entity but different attribute values (different category, status, location)
    - Same relationship but different direction or target
    - Different counts or measurements for the same item
    ⚠️ CRITICAL: ABSENCE IS NOT CONTRADICTION. If Draft A states a fact and Draft B
@@ -734,6 +771,21 @@ Merge them into ONE unified answer.
    Only flag a conflict when both drafts make EXPLICIT but INCOMPATIBLE claims about
    the same entity or attribute. "Source X says Y, Source Z does not mention it" is
    NEVER a contradiction — just use the information from Source X.
+   ⚠️ EQUALLY CRITICAL: "CANNOT DETERMINE" IS THE SAME AS SILENCE.
+   If Draft A says "the data is in city X" and Draft B says "not mentioned explicitly"
+   or "cannot be determined from the data" or "there is no information" — Draft B is
+   simply admitting it does not have the data. This is NOT a competing claim.
+   USE Draft A's concrete answer. Do NOT write "cannot be determined" when one draft
+   provides a definitive answer and the other merely lacks the information.
+   ⚠️ ALSO CRITICAL: PARTIAL / GARBLED / GENERIC DATA IS NOT CONTRADICTION.
+   If Source A provides a complete, precise value (e.g., a specific name, ID, or label)
+   and Source B shows only a partial, truncated, or generic version of the same item
+   (e.g., a generic word like "station" instead of the full station name, or garbled OCR
+   text, or a blurry map label), this is NOT a conflict. Source B simply failed to
+   capture the full detail. USE the precise value from the more detailed source.
+   Common causes: OCR noise on images/maps, low-resolution text extraction, truncated
+   labels in visual sources. NEVER write "there is a contradiction" when one source
+   has a precise name and another has incomplete/garbled text for the same item.
 
 5. CONFLICT RESOLUTION HIERARCHY: When a TRUE contradiction is detected (both drafts
    make explicit but incompatible claims):
@@ -748,15 +800,34 @@ Merge them into ONE unified answer.
    d) If neither has strong evidence → state "cannot be determined from the available sources."
    e) If only one draft mentions a fact and the other is silent → use the fact directly.
       Do NOT frame this as a discrepancy, inconsistency, or conflict.
+   f) If one draft says "cannot be determined" / "not mentioned explicitly" / "no data"
+      and the other provides a concrete answer → USE the concrete answer. The first
+      draft's inability to find information does NOT invalidate the second draft's
+      findings. Treat "cannot determine" as equivalent to silence, not as a competing claim.
+   g) SOURCE RELIABILITY HIERARCHY for resolving apparent conflicts:
+      Structured text from PDFs, reports, and spreadsheets > image/map OCR text.
+      Map and image OCR often captures ALL labels from the entire visual area — including
+      labels from unrelated items, other lines, or other regions of the image.
+      When a structured document (PDF report, spreadsheet) provides specific, detailed
+      information (e.g., "the adjacent entity is X") and map/image OCR shows different
+      nearby labels, PREFER the structured document. The OCR labels are spatially
+      extracted and may not represent the specific relationship being asked about.
+      Do NOT flag this as a contradiction — the OCR simply captured unrelated nearby text.
 
-6. NEVER SILENTLY MERGE CONTRADICTIONS: If station 37 is called "יוסף בורג" in one draft
-   and "ראשון לציון מרכז" in another, you MUST flag this. Possible causes include:
-   - The same number used for different items in different contexts (branch vs main line)
+6. NEVER SILENTLY MERGE CONTRADICTIONS: If entity X is given name "A" in one draft
+   and name "B" in another, you MUST flag this — UNLESS the discrepancy is explained by
+   source quality differences (e.g., structured PDF text vs. noisy map/image OCR).
+   When a specific PDF report names an entity precisely and a map/image OCR source shows
+   a different or generic name for the same position, PREFER the PDF's name — the OCR
+   likely captured a nearby unrelated label. Only flag as a true conflict when BOTH sources
+   are structured documents providing incompatible claims.
+   Possible causes of TRUE conflicts:
+   - The same identifier used for different items in different contexts
    - Data from different source files using different naming conventions
-   - One source may be using an alias or translation
-   State the conflict clearly and let the reader decide.
-   BUT: if one draft says "station 37 is in Rishon LeZion" and the other simply does
-   not mention what city station 37 is in — that is NOT a conflict. Just state the fact.
+   - One source may be using an alias, abbreviation, or translation
+   State real conflicts clearly and let the reader decide.
+   BUT: if one draft states a fact about entity X and the other simply does
+   not mention it — that is NOT a conflict. Just state the fact.
 
 7. NO LANGUAGE ESCALATION: NEVER write "infeasible", "prohibitive", "impossible" unless
    the source documents use those exact words.
@@ -767,10 +838,7 @@ Merge them into ONE unified answer.
 
 10. CITATION ACCURACY: Each [Source N] cited only for claims that source supports.
 
-11. ATTENTION COST: Multi-head attention does NOT reduce O(N^2) cost per head.
-    NEVER imply head diversity "helps manage" computational cost.
-
-12. MATH: Wrap ALL math in $...$ inline or $$...$$ display. NEVER write bare variables.
+11. MATH: Wrap ALL math in $...$ inline or $$...$$ display. NEVER write bare variables.
 
 FORBIDDEN PATTERNS:
 - "In the original analysis..." / "Later analyses..."
@@ -788,11 +856,20 @@ FORBIDDEN PATTERNS:
 - NEVER write phrases like "אי-התאמה בין המקורות" / "סתירה בין המקורות" / "לא ניתן לקבוע
   בוודאות" when one source states a fact and other sources simply do not mention it.
   Silence is not disagreement. State the fact.
+- NEVER write "לא מצוין במפורש" / "לא ניתן לקבוע" / "not mentioned explicitly" /
+  "cannot be determined" when ONE draft provides a concrete answer and the other lacks it.
+  One draft's failure to find data does not negate the other's findings. Use the concrete answer.
+- Treating PARTIAL/GARBLED OCR as contradiction: If one source says "entity X" and another
+  source shows only a generic word (like "station" / "תחנה" / "item") or garbled/truncated
+  text for the same thing, that is NOT a conflict. The second source simply has poor data
+  quality. Use the precise name from the better source and do NOT flag a contradiction.
 
 If one draft has no useful information, use the other. If both say the same thing, write it once.
 If they contradict each other on a specific entity or fact (BOTH make explicit but incompatible
 claims), disclose it clearly. If only ONE source mentions a fact and others are silent, state
 the fact confidently — absence of mention is NOT a contradiction.
+IMPORTANT: If one draft says "cannot be determined" and the other says "the answer is X" —
+the answer IS X. "Cannot determine" means that draft lacked the data, not that it disproves X.
 Write a clear, unified answer that reads as if produced from a single research synthesis."""
 
         def _sync_merge():
