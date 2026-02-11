@@ -12,27 +12,54 @@ from config.settings import get_settings
 logger = logging.getLogger(__name__)
 
 
-SYSTEM_PROMPT = """You are a helpful assistant that answers questions based on provided context.
+SYSTEM_PROMPT = """You are a helpful assistant that answers questions based STRICTLY on provided context.
 
-RULES:
-1. ONLY use information from the provided context
-2. If the answer is not in the context, say "I don't have enough information to answer that question."
-3. ALWAYS cite sources using [Source N] format where N is the source number
-4. Be concise but complete
-5. For technical questions, include relevant details
-6. When figures or images are included in the context, they will be AUTOMATICALLY DISPLAYED to the user - do NOT tell the user to "look at page X" or "see the PDF". Just reference the figure naturally (e.g., "As shown in the figure from page 14...")
-7. Focus on answering the question with the figures that ARE provided in context, not figures that might exist elsewhere
-8. CRITICAL - FIGURE RELEVANCE: Only reference figures that DIRECTLY illustrate or answer the question. If a figure is tangentially related (e.g., about a related topic but not answering the specific question), do NOT reference it. Irrelevant figures dilute the answer quality.
-9. CLAIM-EVIDENCE ALIGNMENT: Every factual claim must be directly supported by the context. Do NOT extrapolate or escalate language beyond what the documents say. NEVER use "infeasible", "prohibitive", or "impossible" unless the source document uses that exact word — prefer neutral phrasing like "limits scalability" or "becomes impractical for very long sequences".
-10. NO UNSUPPORTED DETAILS: Do not include tangentially related facts just because they appear in context. Stay focused on what the question actually asks.
-11. TRADE-OFF FRAMING: When comparing architectures (self-attention vs RNNs vs CNNs), frame as trade-offs, NOT as one being simply better or worse. E.g., "self-attention trades parallelism and global context for quadratic scaling, whereas RNNs trade scalability for sequentiality." Do NOT write comparisons that imply simple dominance.
-12. CITATION DISTRIBUTION: Each [Source N] should only be cited for claims that source actually makes. Do NOT pile multiple distinct claims onto a single citation. If a claim comes from a survey or later paper, cite that source — not the original paper.
-13. MATH FORMATTING: Write ALL mathematical expressions inside single dollar signs for inline math: $O(N^2 \\cdot d)$, $T$, $H$. Use double dollar signs for display-mode equations. EVERY variable, Big-O expression, and formula must be wrapped in $...$. NEVER write bare math like O(N^2) or T^2 d_k outside dollar signs. NEVER split a single formula across multiple $...$ blocks (wrong: $O$H T^2 d_k; correct: $O(H \\cdot T^2 \\cdot d_k)$).
+=== ABSOLUTE GROUNDING REQUIREMENTS (violating these = failure) ===
+
+G1. ZERO EXTERNAL KNOWLEDGE: Your answer must contain ZERO facts from your training data.
+    Every single claim must trace to a specific [Source N]. If a fact is not in the context,
+    it does not exist for this answer. Say "not stated in the available sources" instead.
+
+G2. ADJACENCY & SPATIAL CLAIMS: Stating that X is "adjacent to" / "next to" / "connected to" Y
+    requires the context to EXPLICITLY say so (e.g., "station 35 is directly followed by station 36"
+    or a table row showing them as consecutive). Knowing both exist on the same line/route is
+    NOT evidence of adjacency. If unsure, write: "the direct adjacency is not confirmed in the
+    provided sources."
+
+G3. NAMES, CITIES, MUNICIPALITIES: ONLY use the city/municipality name that APPEARS in the
+    data for that specific item. If station X is listed under "Rishon LeZion" in the table,
+    write "Rishon LeZion" even if you think it is in Tel Aviv. If no municipality is stated,
+    write "the municipality is not specified in the provided data."
+
+G4. NO GAP-FILLING: If the question asks for a detail and no source contains it, say so.
+    NEVER invent plausible-sounding details (underground passages, land-use designations,
+    commercial zones, specific measurements) to make the answer look complete.
+    A short accurate answer beats a long fabricated one.
+
+=== FORMATTING & CITATION RULES ===
+
+1. ALWAYS cite using [Source N] where N is the source number.
+2. Be concise but complete. Stay focused on what the question actually asks.
+3. Each [Source N] should only be cited for claims that source actually makes.
+4. Figures in context will be AUTOMATICALLY DISPLAYED — reference them naturally,
+   never tell the user to "look at page X". Only reference figures that DIRECTLY answer the question.
+5. CLAIM-EVIDENCE ALIGNMENT: Do NOT escalate language beyond the source. Prefer neutral
+   phrasing ("limits scalability") over absolutes ("infeasible", "prohibitive", "impossible")
+   unless the source uses that exact word.
+6. TRADE-OFF FRAMING: When comparing approaches, frame as trade-offs, not dominance.
+7. MATH FORMATTING: Wrap ALL math in $...$ (inline) or $$...$$ (display).
+   EVERY variable, Big-O, formula must be wrapped. NEVER write bare O(N^2) or split
+   formulas across multiple $...$ blocks.
 
 CONTEXT:
 {contexts}
 
-Answer the question based on the context above. Include citations. Figures from the context will be displayed automatically."""
+Answer the question based ONLY on the context above. Include [Source N] citations.
+Before writing your answer, mentally verify each factual claim:
+- Can I point to a specific source that states this? If no → omit or say "not stated."
+- Am I inferring adjacency/proximity without explicit evidence? If yes → say "not confirmed."
+- Am I naming a city/municipality that appears in the data for THIS item? If unsure → say "not specified."
+Figures from the context will be displayed automatically."""
 
 
 class GenerationService:
@@ -198,15 +225,32 @@ class GenerationService:
                 yield chunk.choices[0].delta.content
     
     def _format_contexts(self, contexts: List[Dict[str, Any]]) -> str:
-        """Format contexts for the prompt."""
+        """Format contexts for the prompt.
+        
+        Each source is tagged with its retrieval origin so that the LLM
+        can distinguish between document-level evidence (AI Search) and
+        knowledge-graph-level evidence (GraphRAG) when building citations.
+        """
         formatted = []
         
         for i, ctx in enumerate(contexts, 1):
             source_info = []
             
+            # Determine retrieval origin from chunk metadata
+            content_type = ctx.get("content_type", "text")
+            source_doc = ctx.get("source_document", "")
+            
+            if content_type in ("graphrag_answer", "entity", "relationship", "community_summary") \
+               or source_doc == "GraphRAG Knowledge Graph":
+                retrieval_tag = "Knowledge Graph"
+            else:
+                retrieval_tag = "Document Search"
+            
+            source_info.append(f"Retrieval: {retrieval_tag}")
+            
             # Add source document
-            if ctx.get("source_document"):
-                source_info.append(f"Document: {ctx['source_document']}")
+            if source_doc:
+                source_info.append(f"Document: {source_doc}")
             
             # Add page numbers
             if ctx.get("page_numbers"):
@@ -217,14 +261,17 @@ class GenerationService:
             if ctx.get("section_header"):
                 source_info.append(f"Section: {ctx['section_header']}")
             
-            # Add content type
-            content_type = ctx.get("content_type", "text")
-            
             # Format based on content type
             if content_type == "figure":
                 content_desc = f"[FIGURE: {ctx.get('figure_caption', 'No caption')}]\n{ctx['content']}"
             elif content_type == "table":
                 content_desc = f"[TABLE]\n{ctx['content']}"
+            elif content_type == "entity":
+                content_desc = f"[ENTITY]\n{ctx['content']}"
+            elif content_type == "relationship":
+                content_desc = f"[RELATIONSHIP]\n{ctx['content']}"
+            elif content_type == "community_summary":
+                content_desc = f"[COMMUNITY SUMMARY]\n{ctx['content']}"
             else:
                 content_desc = ctx["content"]
             
@@ -557,10 +604,15 @@ G4. MATH FORMATTING: Write ALL mathematical expressions inside $...$ delimiters.
         graphrag_answer: str,
         search_strategy: str = "hybrid",
         graphrag_mode: str = "local",
-        figure_chain_analysis: str = ""
+        figure_chain_analysis: str = "",
+        source_summaries: Dict[str, Any] | None = None
     ) -> Dict[str, Any]:
         """
         Merge two answers from AI Search and GraphRAG into a single comprehensive answer.
+        
+        Uses conflict-aware merging: detects entity-level contradictions between
+        drafts, attributes claims to source types, and either resolves with
+        reasoning or explicitly discloses the conflict to the user.
         
         Args:
             query: Original user question
@@ -569,6 +621,8 @@ G4. MATH FORMATTING: Write ALL mathematical expressions inside $...$ delimiters.
             search_strategy: Name of the AI Search strategy used
             graphrag_mode: GraphRAG mode used
             figure_chain_analysis: Optional cross-figure causal reasoning to weave in
+            source_summaries: Optional dict with metadata about what each retrieval
+                method returned (document names, chunk types, entity counts)
             
         Returns:
             Dict with merged answer, model, tokens_used
@@ -591,64 +645,154 @@ CAUTION: When integrating, preserve the distinctions in the analysis. If it says
 "without reducing cost", keep that qualifier. Do NOT editorialize learned head patterns
 as computational savings — they are representational, not computational."""
 
+        # Build optional source summary block
+        source_summary_block = ""
+        if source_summaries:
+            parts = []
+            search_docs = source_summaries.get("search_documents", [])
+            search_types = source_summaries.get("search_content_types", {})
+            graph_entities = source_summaries.get("graphrag_entity_count", 0)
+            graph_rels = source_summaries.get("graphrag_relationship_count", 0)
+            graph_communities = source_summaries.get("graphrag_community_count", 0)
+
+            if search_docs:
+                parts.append(f"Document Search drew from: {', '.join(search_docs[:8])}")
+            if search_types:
+                type_str = ", ".join(f"{k}: {v}" for k, v in search_types.items())
+                parts.append(f"Document Search chunk types: {type_str}")
+            if graph_entities or graph_rels:
+                parts.append(
+                    f"Knowledge Graph context: {graph_entities} entities, "
+                    f"{graph_rels} relationships, {graph_communities} community reports"
+                )
+            if parts:
+                source_summary_block = "\n\n**Source Metadata (for your reasoning only — do NOT expose to user):**\n" + "\n".join(f"- {p}" for p in parts)
+
         merge_prompt = f"""You are an expert at synthesizing information into one clean, document-faithful answer.
 
-You have received two draft answers to the same question, produced by different retrieval methods.
-These are NOT two independent sources — they are two imperfect views of the SAME underlying documents.
-Your job: merge them into ONE unified answer as if you only had the documents themselves.
+=== ABSOLUTE GROUNDING REQUIREMENTS (violating these = failure) ===
 
-**Draft A:**
+G1. ZERO EXTERNAL KNOWLEDGE: The merged answer must contain ZERO facts from your training data.
+    Every claim must come from Draft A or Draft B with a [Source N] citation.
+    If neither draft states a fact, it does not exist. Write "not stated in the available sources."
+
+G2. ADJACENCY & SPATIAL CLAIMS: Stating X is "adjacent to" / "next to" / "directly connected to" Y
+    requires one of the drafts to EXPLICITLY state this direct connection. Two items existing
+    in the same system (same line, same route) is NOT evidence of adjacency.
+    If uncertain, write: "the direct adjacency is not confirmed in the sources."
+
+G3. NAMES, CITIES, MUNICIPALITIES: ONLY use the city/municipality name that the drafts
+    attribute to a specific item. If a draft says station X belongs to "Rishon LeZion",
+    use that — even if you believe it is in Tel Aviv. If neither draft states a municipality,
+    write "not specified in the available sources."
+
+G4. NO GAP-FILLING: If the question asks for a detail and neither draft provides it,
+    say so explicitly. NEVER invent plausible-sounding details (underground passages,
+    land-use designations, commercial zones, zoning categories, specific measurements)
+    to make the answer look complete. A short accurate answer beats a long fabricated one.
+
+=== MERGE INSTRUCTIONS ===
+
+You have received two draft answers to the same question from different retrieval methods:
+- **Draft A** was produced from **Document Search** — it retrieved specific text chunks,
+  tables, and figures directly from uploaded documents (PDFs, Excel, Word). Its citations
+  are grounded in exact passages from specific pages and sections.
+- **Draft B** was produced from a **Knowledge Graph** — it synthesized information from
+  entity-relationship triples and community summaries extracted from the same documents.
+  Its claims reflect aggregated/inferred knowledge, not verbatim text.
+
+Both drafts are imperfect views of the SAME underlying documents.
+Merge them into ONE unified answer.
+
+**Draft A (Document Search — {search_strategy}):**
 {search_answer}
 
-**Draft B:**
+**Draft B (Knowledge Graph — {graphrag_mode} search):**
 {graphrag_answer}
-{figure_chain_block}
-CRITICAL RULES:
+{figure_chain_block}{source_summary_block}
 
-1. SINGLE UNIFIED NARRATIVE: Write ONE flowing answer organized by CONCEPT, not by source. Even if the question asks about "original" vs "later" analyses, organize your answer around the concepts (e.g., complexity, memory, solutions) — NOT around a timeline of analyses. NEVER split into "original analysis" vs "later analyses", "initial findings" vs "further analyses", or any temporal/source-based structure that mirrors the two drafts. The reader must not be able to tell that two drafts existed.
+=== CONFLICT-AWARE MERGE RULES ===
 
-2. DOCUMENT-BASED CITATIONS ONLY: Use [Source N] references from the drafts. NEVER write "(AI Search)", "(GraphRAG)", "the original paper", "later analyses", "one analysis", "the other analysis" or any phrase that maps to Draft A vs Draft B.
+1. SINGLE UNIFIED NARRATIVE: Write ONE flowing answer organized by CONCEPT, not by source.
+   NEVER split into "original analysis" vs "later analyses" or any structure that mirrors
+   the two drafts. The reader must not be able to tell that two drafts existed.
 
-3. ONE FACT = ONE STATEMENT: If both drafts state the same fact (even in different notation like O(T²·D) vs O(n²·d)), write it ONCE with the most precise formulation. Do NOT present it as agreement between two sources.
+2. DOCUMENT-BASED CITATIONS ONLY: Use [Source N] references from the drafts. NEVER write
+   "(AI Search)", "(GraphRAG)", "one analysis", "the other analysis".
 
-4. NO LANGUAGE ESCALATION: Use the same strength of language as the source documents. NEVER write "infeasible", "prohibitive", "impossible" unless the documents use those exact words. Prefer neutral phrasing: "limits scalability", "becomes impractical for very long sequences".
+3. ONE FACT = ONE STATEMENT: If both drafts state the same fact, write it ONCE with the
+   most precise formulation.
 
-5. STAY ON TOPIC: Only include information that directly answers the question. Omit tangential details.
+4. CONFLICT DETECTION: Before writing, scan for **entity-level contradictions** —
+   cases where the drafts assign DIFFERENT values to the SAME entity. Common patterns:
+   - Same ID (e.g., "station 37") but different names ("יוסף בורג" vs "ראשון לציון מרכז")
+   - Same name but different attributes (different city, different status)
+   - Same relationship but different direction or target
+   - Different counts or measurements for the same item
+   ⚠️ CRITICAL: ABSENCE IS NOT CONTRADICTION. If Draft A states a fact and Draft B
+   simply does not mention it, that is NOT a conflict — it is supplementary information.
+   Only flag a conflict when both drafts make EXPLICIT but INCOMPATIBLE claims about
+   the same entity or attribute. "Source X says Y, Source Z does not mention it" is
+   NEVER a contradiction — just use the information from Source X.
 
-6. PRESERVE CITATIONS: Keep [Source N] references where they support specific claims.
+5. CONFLICT RESOLUTION HIERARCHY: When a TRUE contradiction is detected (both drafts
+   make explicit but incompatible claims):
+   a) If Draft A cites a SPECIFIC page/section with a verbatim passage → prefer Draft A
+      (document text is primary evidence).
+   b) If Draft B provides entity-relationship context that Draft A lacks → use Draft B
+      to supplement, but do NOT let it override verbatim document text.
+   c) If both cite specific sources but disagree → DISCLOSE the conflict:
+      Write: "Note: the sources contain an inconsistency — [source X] states [...]
+      while [source Y] states [...]." Do NOT silently pick one or hedge with vague
+      language like "there is ambiguity" without stating what the actual conflict is.
+   d) If neither has strong evidence → state "cannot be determined from the available sources."
+   e) If only one draft mentions a fact and the other is silent → use the fact directly.
+      Do NOT frame this as a discrepancy, inconsistency, or conflict.
 
-7. TRADE-OFF FRAMING: When comparing architectures (e.g., self-attention vs RNNs vs CNNs), always frame as trade-offs. Self-attention trades parallelism and global context for quadratic scaling; RNNs trade scalability for sequentiality; CNNs trade scalability for locality. NEVER imply one architecture is simply "worse" — present the design trade-off.
+6. NEVER SILENTLY MERGE CONTRADICTIONS: If station 37 is called "יוסף בורג" in one draft
+   and "ראשון לציון מרכז" in another, you MUST flag this. Possible causes include:
+   - The same number used for different items in different contexts (branch vs main line)
+   - Data from different source files using different naming conventions
+   - One source may be using an alias or translation
+   State the conflict clearly and let the reader decide.
+   BUT: if one draft says "station 37 is in Rishon LeZion" and the other simply does
+   not mention what city station 37 is in — that is NOT a conflict. Just state the fact.
 
-8. CITATION ACCURACY: Each [Source N] should only be cited for claims that source actually supports. Do NOT overload one citation with many distinct claims. If the original paper [Source 1] defines the complexity but a survey [Source 3] discusses scalability implications, cite them separately for their respective claims.
+7. NO LANGUAGE ESCALATION: NEVER write "infeasible", "prohibitive", "impossible" unless
+   the source documents use those exact words.
 
-9. ATTENTION COST PRECISION: Multi-head attention splits the model dimension into h heads
-   but each head STILL computes dense N×N attention. Multi-head increases representational
-   capacity, NOT reduces cost. If describing head diversity or specialization patterns,
-   NEVER imply they "help manage" or "relate to reducing" computational cost. The quadratic
-   O(N²) cost per head is unchanged by what the heads learn. ARCHITECTURAL sparsity
-   (band/dilated/block patterns that skip entries) is fundamentally different from heads
-   that happen to learn sparse-looking weight distributions inside dense attention.
+8. STAY ON TOPIC: Only include information that directly answers the question.
 
-10. MATH FORMATTING (CRITICAL): The frontend renders LaTeX via KaTeX.
-   - EVERY mathematical expression MUST be inside $...$ for inline or $$...$$ for display.
-   - Each formula must be ONE complete $...$ block. NEVER split across multiple blocks.
-   - Use \\cdot for multiplication, \\times for cross products, \\frac for fractions.
-   - CORRECT examples: $O(N^2 \\cdot d_k)$, $H$ heads, $N \\times N$ matrix, $Q$, $K$, $V$
-   - WRONG examples: O(N^2), $O$N^2 d_k, $O$H N^2 d_k$$, bare N or bare H
-   - EVERY variable name (Q, K, V, N, H, d_k, T) must be wrapped: $Q$, $K$, $V$, $N$, $H$, $d_k$, $T$
+9. TRADE-OFF FRAMING: When comparing approaches, frame as trade-offs, not dominance.
 
-FORBIDDEN PATTERNS (do NOT use any of these):
+10. CITATION ACCURACY: Each [Source N] cited only for claims that source supports.
+
+11. ATTENTION COST: Multi-head attention does NOT reduce O(N^2) cost per head.
+    NEVER imply head diversity "helps manage" computational cost.
+
+12. MATH: Wrap ALL math in $...$ inline or $$...$$ display. NEVER write bare variables.
+
+FORBIDDEN PATTERNS:
 - "In the original analysis..." / "Later analyses..."
-- "The initial/first analysis..." / "Further/subsequent analyses..."
 - "One perspective..." / "Another perspective..."
 - "Both sources/analyses agree..."
-- "infeasible" / "prohibitive" / "impossible" (unless quoting the document)
-- Any structure that maps paragraph-by-paragraph to Draft A then Draft B
-- "head diversity/specialization helps manage computational cost"
-- "resembles sparse attention strategies" (when describing learned head patterns)
-- "head pruning reduces the quadratic cost" (heads compute dense attention regardless)
+- "infeasible" / "prohibitive" / "impossible" (unless quoting)
+- Any paragraph structure that maps to Draft A then Draft B
+- Fabricated details not in either draft
+- Silently choosing one value when drafts contradict each other
+- Vague hedging ("there is some ambiguity") without stating WHAT the conflict is
+- Treating SILENCE as contradiction: "Source X says Y, but other sources don't mention it"
+  is NOT a conflict. NEVER write "there is a discrepancy" or "there is an inconsistency"
+  when one source provides a fact and others are simply silent about it.
+  Just state the fact with the citation from the source that provides it.
+- NEVER write phrases like "אי-התאמה בין המקורות" / "סתירה בין המקורות" / "לא ניתן לקבוע
+  בוודאות" when one source states a fact and other sources simply do not mention it.
+  Silence is not disagreement. State the fact.
 
 If one draft has no useful information, use the other. If both say the same thing, write it once.
+If they contradict each other on a specific entity or fact (BOTH make explicit but incompatible
+claims), disclose it clearly. If only ONE source mentions a fact and others are silent, state
+the fact confidently — absence of mention is NOT a contradiction.
 Write a clear, unified answer that reads as if produced from a single research synthesis."""
 
         def _sync_merge():

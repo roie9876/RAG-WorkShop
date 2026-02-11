@@ -403,6 +403,39 @@ async def execute_query(request: QueryRequest):
             except Exception as fc_err:
                 logger.warning(f"Figure chain analysis failed (non-fatal): {fc_err}")
 
+            # Build source summaries for conflict-aware merge
+            source_summaries = {}
+            try:
+                # AI Search metadata
+                search_doc_names = list({c.get("source_document") or c.get("file_name", "")
+                                         for c in search_chunks if c.get("source_document") or c.get("file_name")})
+                search_content_types = {}
+                for c in search_chunks:
+                    ct = c.get("content_type", "text")
+                    search_content_types[ct] = search_content_types.get(ct, 0) + 1
+
+                # GraphRAG metadata
+                graphrag_entity_count = sum(
+                    1 for c in graphrag_chunks if c.get("content_type") == "entity"
+                )
+                graphrag_rel_count = sum(
+                    1 for c in graphrag_chunks if c.get("content_type") == "relationship"
+                )
+                graphrag_community_count = sum(
+                    1 for c in graphrag_chunks if c.get("content_type") == "community_summary"
+                )
+
+                source_summaries = {
+                    "search_documents": search_doc_names,
+                    "search_content_types": search_content_types,
+                    "graphrag_entity_count": graphrag_entity_count,
+                    "graphrag_relationship_count": graphrag_rel_count,
+                    "graphrag_community_count": graphrag_community_count,
+                }
+                logger.info(f"Source summaries for merge: {source_summaries}")
+            except Exception as ss_err:
+                logger.warning(f"Failed to build source summaries (non-fatal): {ss_err}")
+
             if need_figure_chain:
                 # Run figure chain LLM and merge LLM IN PARALLEL
                 # The merge without figure chain takes the same time,
@@ -424,7 +457,8 @@ async def execute_query(request: QueryRequest):
                         graphrag_answer=graphrag_answer,
                         search_strategy=request.combined_base_strategy,
                         graphrag_mode=request.graphrag_mode,
-                        figure_chain_analysis=""  # No chain yet
+                        figure_chain_analysis="",  # No chain yet
+                        source_summaries=source_summaries
                     )
 
                 fig_chain_result, merge_no_chain = await _asyncio.gather(
@@ -452,7 +486,8 @@ async def execute_query(request: QueryRequest):
                     graphrag_answer=graphrag_answer,
                     search_strategy=request.combined_base_strategy,
                     graphrag_mode=request.graphrag_mode,
-                    figure_chain_analysis=""
+                    figure_chain_analysis="",
+                    source_summaries=source_summaries
                 )
                 stage_times["merge_llm"] = int((_time.time() - t_merge) * 1000)
 

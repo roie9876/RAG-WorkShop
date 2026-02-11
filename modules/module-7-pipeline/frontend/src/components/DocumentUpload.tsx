@@ -694,7 +694,7 @@ export function DocumentUpload() {
               Drag & drop files here, or click to browse
             </p>
             <p className="text-base text-muted-foreground/75 mt-2">
-              Supports PDF, DOCX, XLSX, PPTX • <span className="font-medium">Multiple files supported</span>
+              Supports PDF, DOCX, XLSX, PPTX, JPG, PNG, BMP, TIFF • <span className="font-medium">Multiple files supported</span>
             </p>
           </>
         )}

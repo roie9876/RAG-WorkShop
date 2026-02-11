@@ -135,6 +135,8 @@ class DocumentProcessor:
                 "2. All visible text, labels, numbers, and identifiers",
                 "3. Key entities: place names, station names, product names, people, dates",
                 "4. The purpose or meaning of the image in context",
+                "5. Relationships between entities — how are elements connected, grouped, or ordered?",
+                "   Write explicit sentences like: '[Entity A] is connected to [Entity B]'",
                 "",
                 "Write the description in the SAME LANGUAGE as the text visible in the image.",
                 "If the image contains Hebrew text, respond in Hebrew.",
@@ -175,7 +177,7 @@ class DocumentProcessor:
                         ]
                     }
                 ],
-                max_tokens=500
+                max_tokens=2000  # Increased for complex figures with many entities
             )
             
             description = response.choices[0].message.content.strip()
@@ -339,10 +341,15 @@ class DocumentProcessor:
         ocr_text = await self._extract_ocr_from_image(content, filename)
         logger.info(f"   ✅ Extracted {len(ocr_text)} characters via OCR")
         
-        # 2. Generate description with GPT-4V
-        logger.info("Step 2: Generating description with GPT-4V Vision...")
+        # 2. Generate description with GPT-4V (Pass 1: comprehensive description)
+        logger.info("Step 2a: Generating description with GPT-4V Vision...")
         vision_description = await self._generate_image_description(content, filename, ocr_text)
         logger.info(f"   ✅ Generated description: {vision_description[:100]}...")
+        
+        # 2b. Generate entity-relationship prose (Pass 2: structured for GraphRAG)
+        logger.info("Step 2b: Generating entity-relationship prose with GPT-4V...")
+        entity_prose = await self._generate_entity_relationship_prose(content, filename, vision_description)
+        logger.info(f"   ✅ Generated entity prose: {len(entity_prose)} chars")
         
         # 3. Upload image to Blob Storage
         logger.info("Step 3: Uploading image to Blob Storage...")
@@ -354,14 +361,22 @@ class DocumentProcessor:
         # 4. Create a single figure chunk with combined content
         logger.info("Step 4: Creating figure chunk...")
         
-        # Combine OCR text and vision description for rich searchability
-        combined_content = f"""Image: {filename}
-
-OCR Extracted Text:
-{ocr_text if ocr_text else "(No text detected)"}
-
-AI Visual Description:
-{vision_description}"""
+        # Combine content with MOST VALUABLE FIRST for embedding.
+        # Embedding models truncate at ~8K tokens — put entity prose and
+        # AI description before raw OCR so truncation cuts OCR (least valuable).
+        content_parts = [f"Image: {filename}"]
+        
+        if entity_prose:
+            content_parts.append(f"\nEntity-Relationship Analysis:\n{entity_prose}")
+        
+        content_parts.append(f"\nAI Visual Description:\n{vision_description}")
+        
+        if ocr_text:
+            content_parts.append(f"\nOCR Extracted Text:\n{ocr_text}")
+        else:
+            content_parts.append("\nOCR Extracted Text:\n(No text detected)")
+        
+        combined_content = "\n".join(content_parts)
         
         chunk = {
             "id": f"{doc_id}_image_000",
@@ -543,7 +558,7 @@ Be thorough - this description will be used for semantic search."""
                         ]
                     }
                 ],
-                max_tokens=2000  # Allow longer descriptions for complex images
+                max_tokens=4096  # Large budget for complex images (maps, schematics, diagrams)
             )
             
             description = response.choices[0].message.content.strip()
@@ -553,6 +568,97 @@ Be thorough - this description will be used for semantic search."""
         except Exception as e:
             logger.warning(f"Failed to generate image description: {e}")
             return f"Image file: {filename}. OCR text: {ocr_text[:500]}" if ocr_text else f"Image file: {filename}"
+
+    async def _generate_entity_relationship_prose(
+        self,
+        content: bytes,
+        filename: str,
+        description: str
+    ) -> str:
+        """
+        Generate entity-relationship prose from an image using GPT-4V.
+        
+        This is a SECOND vision pass specifically designed to produce natural-language
+        sentences that GraphRAG's entity extractor can parse. The output format is
+        explicit: "Entity A is connected to Entity B", "Component X feeds into Component Y".
+        
+        This is domain-agnostic — works for transit maps, electronic schematics,
+        medical diagrams, org charts, mechanical drawings, etc.
+        
+        Args:
+            content: Image bytes
+            filename: Filename for context
+            description: The description from Pass 1 (provides context)
+            
+        Returns:
+            Prose text with explicit entity-relationship sentences
+        """
+        if not self.openai_client:
+            return ""
+        
+        try:
+            image_b64 = base64.b64encode(content).decode('utf-8')
+            ext = filename.lower().split('.')[-1] if '.' in filename else 'png'
+            mime_map = {
+                "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                "png": "image/png", "bmp": "image/bmp",
+                "tiff": "image/tiff", "tif": "image/tiff",
+            }
+            mime_type = mime_map.get(ext, "image/png")
+            
+            prompt = f"""You previously described this image as:
+---
+{description[:2000]}
+---
+
+Now, extract ALL entities and relationships visible in this image.
+Write in COMPLETE SENTENCES using the pattern:
+"[Entity A] is connected to / leads to / contains / feeds into [Entity B]."
+
+Rules:
+1. List EVERY distinct entity you can identify (names, labels, nodes, components, stations, items).
+2. For EACH pair of entities that have a visible connection (line, arrow, path, adjacency, containment), write one sentence describing that relationship.
+3. If entities are grouped (by color, region, box, branch), state the grouping: "[Entity X] belongs to [Group Y]."
+4. If there is a sequence or ordering, state it: "[A] comes before [B]" or "[A] is followed by [B]."
+5. Write in the SAME LANGUAGE as the text in the image.
+6. Do NOT summarize — be exhaustive. List every entity and every connection.
+7. Use bullet points (•) for listing entities and relationships. Do NOT use numbered lists
+   (1, 2, 3...) because those numbers could be confused with actual identifiers (station
+   numbers, component IDs, etc.) that appear in the image. Only use numbers that are
+   actually visible in the image itself.
+8. Use the EXACT names/labels visible in the image. If the image shows an ID or number
+   next to a name (e.g., "Station 37 - Yosef Burg"), include it as-is. Do NOT assign
+   your own sequential numbers to entities.
+
+Start with a section listing all entities, then list all relationships."""
+
+            response = self.openai_client.chat.completions.create(
+                model=self.settings.azure_openai_deployment,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{image_b64}",
+                                    "detail": "high"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=4096
+            )
+            
+            prose = response.choices[0].message.content.strip()
+            logger.info(f"Generated entity-relationship prose ({len(prose)} chars)")
+            return prose
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate entity-relationship prose: {e}")
+            return ""
 
     async def _export_to_graphrag(self, chunks: List[Dict[str, Any]], filename: str) -> Dict[str, Any]:
         """
@@ -607,17 +713,13 @@ Be thorough - this description will be used for semantic search."""
             result["index_status"] = "started"
             result["message"] = "GraphRAG indexing started in background. This may take 30-60 minutes."
             
-            # Start indexing in background task (non-blocking)
-            async def run_indexing():
-                try:
-                    logger.info("Background GraphRAG indexing started...")
-                    exporter.run_graphrag_indexing()
-                    logger.info("✅ Background GraphRAG indexing complete!")
-                except Exception as e:
-                    logger.error(f"❌ Background GraphRAG indexing failed: {e}")
-            
-            # Create background task
-            asyncio.create_task(run_indexing())
+            # Use the non-blocking background indexer (Popen, no timeout)
+            # instead of run_graphrag_indexing() which blocks with a 600s timeout
+            bg_result = exporter.start_graphrag_indexing_background()
+            if bg_result.get("success"):
+                logger.info(f"✅ GraphRAG background indexing launched (PID: {bg_result.get('pid', 'unknown')})")
+            else:
+                logger.warning(f"⚠️ GraphRAG background indexing failed to start: {bg_result.get('error', 'unknown')}")
         else:
             logger.info("GraphRAG auto-indexing disabled. Run POST /api/graphrag/index to build the index.")
         

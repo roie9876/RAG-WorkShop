@@ -264,6 +264,106 @@ class GraphRAGService:
         
         return status
     
+    def _apply_search_config_overrides(self) -> None:
+        """
+        Apply runtime overrides to the loaded GraphRAG config.
+        
+        This ensures search parameters from settings.yaml are properly reflected
+        in the config object used by GraphRAG's search functions. Some parameters
+        (like drift_search sub-fields) may not map 1:1 with YAML keys, so we
+        explicitly set them here.
+        
+        This is a general-purpose enhancement: any knowledge graph with entity
+        fragmentation (aliases, translations, abbreviations) benefits from wider
+        top_k values, and any multi-hop question benefits from deeper drift search.
+        """
+        if self._config is None:
+            return
+        
+        # --- Local Search ---
+        ls = self._config.local_search
+        # Log effective config for debugging
+        logger.info(
+            f"GraphRAG local_search config: "
+            f"top_k_entities={ls.top_k_entities}, "
+            f"top_k_relationships={ls.top_k_relationships}, "
+            f"max_context_tokens={getattr(ls, 'max_context_tokens', 'N/A')}, "
+            f"text_unit_prop={ls.text_unit_prop}, "
+            f"community_prop={ls.community_prop}"
+        )
+        
+        # --- Drift Search ---
+        ds = self._config.drift_search
+        logger.info(
+            f"GraphRAG drift_search config: "
+            f"n_depth={ds.n_depth}, "
+            f"drift_k_followups={ds.drift_k_followups}, "
+            f"primer_folds={ds.primer_folds}, "
+            f"local_search_top_k_mapped_entities={ds.local_search_top_k_mapped_entities}, "
+            f"local_search_top_k_relationships={ds.local_search_top_k_relationships}"
+        )
+
+    def _log_search_context(self, context: Any, mode: str) -> None:
+        """
+        Log detailed information about what GraphRAG found in the knowledge graph.
+        
+        This helps diagnose retrieval quality issues for ANY domain by showing
+        which entities, relationships, and communities were selected.
+        """
+        if not isinstance(context, dict):
+            return
+        
+        # Log matched entities with types
+        entity_data = context.get("entities")
+        if entity_data is not None and isinstance(entity_data, pd.DataFrame) and not entity_data.empty:
+            entity_names = []
+            for _, row in entity_data.iterrows():
+                # GraphRAG context uses 'entity' column for names
+                name = ""
+                for col in ["entity", "title", "name"]:
+                    if col in row.index and row[col]:
+                        name = str(row[col])
+                        break
+                etype = row.get("type", "") if "type" in row.index else ""
+                entity_names.append(f"{name}({etype})" if etype else name)
+            logger.info(
+                f"GraphRAG {mode} matched {len(entity_data)} entities: "
+                f"{', '.join(entity_names[:15])}"
+                f"{'...' if len(entity_names) > 15 else ''}"
+            )
+        
+        # Log matched relationships (source→target)
+        rel_data = context.get("relationships")
+        if rel_data is not None and isinstance(rel_data, pd.DataFrame) and not rel_data.empty:
+            rel_pairs = []
+            for _, row in rel_data.head(10).iterrows():
+                src = row.get("source", "?")
+                tgt = row.get("target", "?")
+                rel_pairs.append(f"{src}→{tgt}")
+            logger.info(
+                f"GraphRAG {mode} matched {len(rel_data)} relationships: "
+                f"{', '.join(rel_pairs)}"
+                f"{'...' if len(rel_data) > 10 else ''}"
+            )
+        
+        # Log community reports used
+        report_data = context.get("reports")
+        if report_data is None:
+            report_data = context.get("community_reports")
+        if report_data is not None and isinstance(report_data, pd.DataFrame) and not report_data.empty:
+            titles = [str(row.get("title", "untitled")) for _, row in report_data.head(5).iterrows()]
+            logger.info(
+                f"GraphRAG {mode} used {len(report_data)} community reports: "
+                f"{', '.join(titles)}"
+            )
+        
+        # Log text units
+        tu_data = context.get("text_units")
+        if tu_data is None:
+            tu_data = context.get("sources")
+        if tu_data is not None and isinstance(tu_data, pd.DataFrame) and not tu_data.empty:
+            logger.info(f"GraphRAG {mode} used {len(tu_data)} text units")
+
     async def search(
         self,
         query: str,
@@ -289,6 +389,9 @@ class GraphRAGService:
             )
         
         self._ensure_loaded()
+        
+        # Apply and log search config
+        self._apply_search_config_overrides()
         
         logger.info(f"GraphRAG {mode} search (community_level={community_level}, response_type={response_type}): {query[:100]}...")
         
@@ -335,28 +438,15 @@ class GraphRAGService:
                 # Capture token usage from tracker
                 graphrag_token_usage = token_tracker.usage
             
-            logger.info(f"GraphRAG search returned response type: {type(response)}")
-            logger.info(f"GraphRAG search returned context type: {type(context)}")
+            # Log detailed context for debugging retrieval quality
+            self._log_search_context(context, mode)
             logger.info(f"GraphRAG internal LLM usage: {graphrag_token_usage}")
-            if isinstance(context, dict):
-                logger.info(f"Context keys: {context.keys()}")
             
             # Extract context data
-            logger.info("Extracting entities...")
             entities = self._extract_context_entities(context)
-            logger.info(f"Extracted {len(entities)} entities")
-            
-            logger.info("Extracting relationships...")
             relationships = self._extract_context_relationships(context)
-            logger.info(f"Extracted {len(relationships)} relationships")
-            
-            logger.info("Extracting community reports...")
             reports = self._extract_context_reports(context)
-            logger.info(f"Extracted {len(reports)} reports")
-            
-            logger.info("Extracting text units...")
             text_units = self._extract_context_text_units(context)
-            logger.info(f"Extracted {len(text_units)} text units")
             
             result = {
                 "response": response,
@@ -369,7 +459,11 @@ class GraphRAGService:
                 "token_usage": graphrag_token_usage
             }
             
-            logger.info(f"GraphRAG search complete: {len(result['entities'])} entities, {len(result['relationships'])} relationships")
+            logger.info(
+                f"GraphRAG search complete: {len(entities)} entities, "
+                f"{len(relationships)} relationships, {len(reports)} reports, "
+                f"{len(text_units)} text units"
+            )
             
             return result
             
@@ -395,14 +489,14 @@ class GraphRAGService:
             if entity_data.empty:
                 return entities
             for _, row in entity_data.head(20).iterrows():
-                # Try 'title' first, then 'name'
+                # GraphRAG v3 context uses 'entity' column for names
                 name = ""
-                if "title" in row.index:
-                    name = row["title"]
-                elif "name" in row.index:
-                    name = row["name"]
+                for col in ["entity", "title", "name"]:
+                    if col in row.index and row[col]:
+                        name = str(row[col])
+                        break
                 entities.append({
-                    "name": name or "",
+                    "name": name,
                     "type": row.get("type", "UNKNOWN") if "type" in row.index else "UNKNOWN",
                     "description": str(row.get("description", "") if "description" in row.index else "")[:500]
                 })
@@ -471,9 +565,9 @@ class GraphRAGService:
                 return reports
             for _, row in report_data.head(5).iterrows():
                 reports.append({
-                    "community": row.get("community", ""),
-                    "title": row.get("title", ""),
-                    "summary": str(row.get("summary", ""))[:1000]
+                    "community": row.get("community", "") if "community" in row.index else "",
+                    "title": row.get("title", "") if "title" in row.index else "",
+                    "summary": str(row.get("content", "") or row.get("summary", "") if "content" in row.index or "summary" in row.index else "")[:1000]
                 })
         # Handle list
         elif isinstance(report_data, list):

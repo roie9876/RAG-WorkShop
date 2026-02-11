@@ -100,11 +100,12 @@ community_reports:
 local_search:
   completion_model_id: default_completion_model
   embedding_model_id: default_embedding_model
-  max_tokens: 12000
+  max_context_tokens: 16000
   llm_max_tokens: 4000
-  top_k_entities: 10
-  top_k_relationships: 10
-  top_k_communities: 5
+  top_k_entities: 25
+  top_k_relationships: 25
+  text_unit_prop: 0.65
+  community_prop: 0.2
   conversation_history_max_turns: 5
 
 global_search:
@@ -118,13 +119,14 @@ global_search:
 drift_search:
   completion_model_id: default_completion_model
   embedding_model_id: default_embedding_model
-  max_tokens: 12000
-  top_k_entities: 10
-  # Performance tuning: defaults are n_depth=3, drift_k_followups=20, primer_folds=5
-  # Reducing these dramatically cuts LLM calls per query
-  n_depth: 1              # 1 iteration instead of 3 (biggest speedup)
-  drift_k_followups: 5    # 5 follow-ups instead of 20
-  primer_folds: 2         # 2 primer folds instead of 5
+  data_max_tokens: 16000
+  # Performance vs Quality tuning (defaults: n_depth=3, drift_k_followups=20, primer_folds=5)
+  # Balanced settings: enough depth for multi-hop reasoning without excessive LLM calls
+  n_depth: 2                           # 2 iterations for multi-hop entity resolution
+  drift_k_followups: 10                # 10 follow-ups for broader community coverage
+  primer_folds: 3                      # 3 primer folds for better context priming
+  local_search_top_k_mapped_entities: 25   # Match local_search top_k
+  local_search_top_k_relationships: 25     # Match local_search top_k
 
 snapshots:
   graphml: true
