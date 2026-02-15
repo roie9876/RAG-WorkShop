@@ -21,6 +21,9 @@ By the end of this module, participants will be able to:
   - [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
   - [Jupyter](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter)
 - Git
+- Azure CLI
+
+> 🆕 **מתחילים לגמרי?** ראו את [מדריך התקנת הדרישות המוקדמות](PREREQUISITES.md) – הדרכה צעד-אחר-צעד עם צילומי מסך ל-Windows ו-macOS.
 
 ### Step 1: Clone the Repository
 ```bash
@@ -112,6 +115,7 @@ All required services are available in this region with full feature support, in
 ## 📂 Files in This Module
 | File | Description |
 |------|-------------|
+| `PREREQUISITES.md` | 🆕 Step-by-step installation guide for Windows & macOS |
 | `setup.ipynb` | Interactive setup wizard - deploys Azure resources |
 | `health-check.ipynb` | Validates all connections work |
 | `cleanup.ipynb` | Remove resources when done (optional) |
