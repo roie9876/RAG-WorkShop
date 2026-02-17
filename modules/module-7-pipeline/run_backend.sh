@@ -49,6 +49,10 @@ fi
 # Install dependencies
 echo "📥 Installing dependencies..."
 ./venv/bin/pip install -r requirements.txt --quiet
+if [ $? -ne 0 ]; then
+    echo "❌ Failed to install dependencies. Check errors above."
+    exit 1
+fi
 
 # Load environment variables from root .env
 # NOTE: We use 'set -a' + source instead of 'export $(xargs)' because

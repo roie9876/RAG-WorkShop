@@ -28,7 +28,7 @@ try:
     GRAPHRAG_AVAILABLE = True
 except ImportError:
     GRAPHRAG_AVAILABLE = False
-    logger.warning("graphrag not available - install with: pip install graphrag>=2.7.0")
+    logger.warning("graphrag not available - install with: pip install graphrag==3.0.1")
 
 
 class LiteLLMTokenTracker:

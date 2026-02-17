@@ -37,9 +37,16 @@ azure-ai-agents>=1.1.0
 graphrag==3.0.1
 pyarrow>=14.0.0  # Required for reading Parquet files
 
+# Azure AI Content Understanding (preview SDK)
+azure-ai-contentunderstanding>=1.0.0b1
+
 # Image Processing
 pillow>=10.0.0
 pdf2image>=1.16.0
+
+# Data Processing (used by GraphRAG service and utility scripts)
+pandas>=2.0.0
+requests>=2.31.0
 
 # Async Support
 aiohttp>=3.9.0

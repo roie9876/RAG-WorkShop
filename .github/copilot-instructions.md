@@ -25,7 +25,7 @@ Educational workshop teaching production-grade RAG systems for complex technical
   - `azure-ai-projects>=1.0.0` (Azure AI Foundry SDK)
   - `azure-ai-agents>=1.1.0` (AI Agents SDK)
   - `openai>=2.0.0`
-  - `graphrag>=2.7.0`
+  - `graphrag==3.0.1`
 - **Content Understanding**: GA with API `2025-11-01`
 - **Content Understanding Supported Regions**: `westus`, `swedencentral`, `australiaeast`
 - **Required Model Deployments**: `gpt-4.1`, `gpt-4.1-mini`, `text-embedding-3-large`

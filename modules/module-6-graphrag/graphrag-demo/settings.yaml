@@ -1,43 +1,80 @@
 # GraphRAG Configuration for Azure OpenAI
-# For GraphRAG version 2.7.x
+# For GraphRAG version 3.0.x
 # Customized for Israel M1 Metro Line documents
 
-models:
-  default_chat_model:
-    type: azure_openai_chat
-    model: gpt-4.1
+### LLM settings ###
+completion_models:
+  default_completion_model:
+    model_provider: azure
+    model: gpt-4.1-mini
+    azure_deployment_name: gpt-4.1-mini
     api_base: https://ai-ragworkv2-vtgal6fjx3fcc.cognitiveservices.azure.com/
     api_version: "2024-12-01-preview"
-    deployment_name: gpt-4.1
+    auth_method: api_key
     api_key: ${GRAPHRAG_API_KEY}
-    auth_type: api_key
-    requests_per_minute: 60
-    tokens_per_minute: 80000
-    max_tokens: 4000
-    temperature: 0
+    retry:
+      type: exponential_backoff
+    rate_limit:
+      type: sliding_window
+      requests_per_period: 120
+      tokens_per_period: 150000
 
+embedding_models:
   default_embedding_model:
-    type: azure_openai_embedding
+    model_provider: azure
     model: text-embedding-3-large
+    azure_deployment_name: text-embedding-3-large
     api_base: https://ai-ragworkv2-vtgal6fjx3fcc.cognitiveservices.azure.com/
     api_version: "2024-12-01-preview"
-    deployment_name: text-embedding-3-large
+    auth_method: api_key
     api_key: ${GRAPHRAG_API_KEY}
-    auth_type: api_key
-    requests_per_minute: 120
-    tokens_per_minute: 120000
+    retry:
+      type: exponential_backoff
+    rate_limit:
+      type: sliding_window
+      requests_per_period: 120
+      tokens_per_period: 120000
 
+### Document processing settings ###
 input:
-  type: file
-  file_type: text
-  base_dir: input
+  type: text
 
 chunking:
   type: tokens
   size: 1200
   overlap: 100
+  encoding_model: o200k_base
+
+### Storage settings ###
+input_storage:
+  type: file
+  base_dir: "input"
+
+output_storage:
+  type: file
+  base_dir: "output"
+
+reporting:
+  type: file
+  base_dir: "logs"
+
+cache:
+  type: json
+  storage:
+    type: file
+    base_dir: "cache"
+
+vector_store:
+  type: lancedb
+  db_uri: output/lancedb
+
+### Workflow settings ###
+embed_text:
+  embedding_model_id: default_embedding_model
 
 extract_graph:
+  completion_model_id: default_completion_model
+  prompt: "prompts/extract_graph.txt"
   entity_types:
     - STATION
     - SYSTEM
@@ -46,20 +83,51 @@ extract_graph:
     - INCIDENT
   max_gleanings: 1
 
+summarize_descriptions:
+  completion_model_id: default_completion_model
+  prompt: "prompts/summarize_descriptions.txt"
+  max_length: 500
+
+extract_graph_nlp:
+  text_analyzer:
+    extractor_type: regex_english
+
 cluster_graph:
   max_cluster_size: 10
 
+extract_claims:
+  enabled: false
+
 community_reports:
+  completion_model_id: default_completion_model
+  graph_prompt: "prompts/community_report_graph.txt"
+  text_prompt: "prompts/community_report_text.txt"
   max_length: 2000
   max_input_length: 8000
 
-output:
-  type: file
-  base_dir: output
-
-reporting:
-  type: file
-  base_dir: output/reports
-
 snapshots:
   graphml: true
+  embeddings: false
+
+### Query settings ###
+local_search:
+  completion_model_id: default_completion_model
+  embedding_model_id: default_embedding_model
+  prompt: "prompts/local_search_system_prompt.txt"
+
+global_search:
+  completion_model_id: default_completion_model
+  map_prompt: "prompts/global_search_map_system_prompt.txt"
+  reduce_prompt: "prompts/global_search_reduce_system_prompt.txt"
+  knowledge_prompt: "prompts/global_search_knowledge_system_prompt.txt"
+
+drift_search:
+  completion_model_id: default_completion_model
+  embedding_model_id: default_embedding_model
+  prompt: "prompts/drift_search_system_prompt.txt"
+  reduce_prompt: "prompts/drift_search_reduce_prompt.txt"
+
+basic_search:
+  completion_model_id: default_completion_model
+  embedding_model_id: default_embedding_model
+  prompt: "prompts/basic_search_system_prompt.txt"
