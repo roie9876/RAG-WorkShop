@@ -491,32 +491,219 @@ The cost of a wrong answer varies enormously by domain.
 | Do we need **human-in-the-loop**? | Some answers must be reviewed before delivery | Route high-stakes queries (detected by classifier) to human review queue |
 | Can users **flag bad answers**? | Feedback drives improvement | Store user feedback → analyze patterns → adjust prompts, re-index, or add to evaluation set |
 
-### Quality Measurement Framework
+### 📏 How to Measure RAG Success — The Complete Guide
+
+RAG evaluation is **not** a single metric. A RAG system has two stages — **retrieval** and **generation** — and each can fail independently. You must measure both.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    WHERE THINGS CAN GO WRONG                            │
+│                                                                         │
+│   User Question                                                         │
+│        │                                                                │
+│        ▼                                                                │
+│   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐             │
+│   │  Retrieval  │ ──→ │   Context   │ ──→ │ Generation  │             │
+│   │  (Search)   │     │  (Chunks)   │     │   (LLM)     │             │
+│   └─────────────┘     └─────────────┘     └─────────────┘             │
+│        │                    │                    │                      │
+│   Can fail:            Can fail:            Can fail:                   │
+│   • Wrong chunks       • Too few chunks     • Hallucination            │
+│   • Missing chunks     • Too many (noise)   • Partial answer           │
+│   • Irrelevant         • Wrong content      • Wrong interpretation     │
+│     results              type                                           │
+│                                                                         │
+│   You MUST measure each stage separately to know where to fix!         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Stage 1: Retrieval Metrics — "Did we find the right chunks?"
+
+These metrics measure whether Azure AI Search returned the right documents **before** the LLM ever sees them.
+
+| Metric | What It Measures | How to Calculate | Good Target |
+|--------|-----------------|------------------|-------------|
+| **Precision@K** | Of the K chunks returned, how many are actually relevant? | `relevant_in_top_K / K` | >80% |
+| **Recall** | Of ALL relevant chunks in the index, how many did we find? | `found_relevant / total_relevant` | >90% |
+| **MRR** (Mean Reciprocal Rank) | How high is the first relevant chunk ranked? | `1 / rank_of_first_relevant` | >0.8 |
+| **NDCG@K** | Are the most relevant chunks ranked highest? | Normalized discounted cumulative gain | >0.85 |
+| **Hit Rate** | Did we return at least one relevant chunk? | `queries_with_hit / total_queries` | >95% |
+
+```
+   Example: User asks "What is the fare for a single metro ride?"
+
+   Retrieved chunks (top 5):
+   ┌────┬──────────────────────────────────────────────┬───────────┐
+   │ #  │ Chunk Content                                │ Relevant? │
+   ├────┼──────────────────────────────────────────────┼───────────┤
+   │ 1  │ "Metro station has 3 entrances..."           │    ❌     │
+   │ 2  │ "Single ride costs 5.90 ILS..."              │    ✅     │
+   │ 3  │ "Train frequency is every 6 minutes..."      │    ❌     │
+   │ 4  │ "Monthly pass costs 198 ILS..."              │    ✅     │
+   │ 5  │ "Station ventilation system specs..."         │    ❌     │
+   └────┴──────────────────────────────────────────────┴───────────┘
+
+   Precision@5 = 2/5 = 40% ← Not great! Too much noise
+   Precision@3 = 1/3 = 33%
+   MRR = 1/2 = 0.5 ← Answer wasn't in chunk #1
+   Hit Rate = 1 (we found at least one relevant chunk)
+
+   Improvement actions:
+   • Tune search query (hybrid vs vector)
+   • Add content_type filter
+   • Improve chunking (is pricing mixed with other content?)
+   • Enable semantic ranker to push relevant chunks higher
+```
+
+### Stage 2: Generation Metrics — "Did the LLM answer correctly?"
+
+These metrics measure the quality of the final answer **given** the retrieved context.
+
+| Metric | What It Measures | What It Catches | Good Target |
+|--------|-----------------|-----------------|-------------|
+| **Groundedness** | Is every claim in the answer supported by the retrieved context? | Hallucination — LLM making up facts not in the chunks | >90% |
+| **Faithfulness** | Does the answer accurately represent what the source says? | Distortion — LLM misinterpreting or twisting the source | >90% |
+| **Relevance** | Does the answer address the user's actual question? | Tangential — correct info but wrong topic | >85% |
+| **Completeness** | Does the answer include all important information from the context? | Partial answers — LLM skipping key details | >80% |
+| **Coherence** | Is the answer well-structured and readable? | Garbled, repetitive, or incoherent text | >90% |
+
+```
+   Example: User asks "What is the fare for a single metro ride?"
+
+   Context chunk: "A single ride on the Metro costs 5.90 ILS.
+                   Reduced fare for students is 2.95 ILS."
+
+   ┌─────────────────────────────────────────────────────────────────┐
+   │  ANSWER A (Good):                                               │
+   │  "A single metro ride costs 5.90 ILS. Students pay              │
+   │   a reduced fare of 2.95 ILS."                                  │
+   │                                                                  │
+   │  Groundedness: ✅ (all facts from context)                       │
+   │  Faithfulness: ✅ (accurately represents source)                 │
+   │  Relevance:    ✅ (answers the question)                         │
+   │  Completeness: ✅ (includes student fare too)                    │
+   ├─────────────────────────────────────────────────────────────────┤
+   │  ANSWER B (Hallucination):                                       │
+   │  "A single metro ride costs 5.90 ILS. Children                   │
+   │   under 5 ride free. Seniors get 50% discount."                  │
+   │                                                                  │
+   │  Groundedness: ❌ (children/seniors info NOT in context!)        │
+   │  Faithfulness: ⚠️ (first fact OK, rest invented)                 │
+   │  Relevance:    ✅ (topic is correct)                              │
+   │  Completeness: ❌ (missed student fare, added fake info)          │
+   ├─────────────────────────────────────────────────────────────────┤
+   │  ANSWER C (Irrelevant):                                          │
+   │  "The metro system was designed by XYZ Engineering               │
+   │   and construction began in 2019."                                │
+   │                                                                  │
+   │  Groundedness: ? (may or may not be in context)                  │
+   │  Faithfulness: ? (may be accurate but wrong topic)               │
+   │  Relevance:    ❌ (doesn't answer the fare question!)            │
+   │  Completeness: ❌ (completely missed the answer)                  │
+   └─────────────────────────────────────────────────────────────────┘
+```
+
+### Stage 3: End-to-End Metrics — "Is the system working for users?"
+
+These metrics measure the overall user experience.
+
+| Metric | What It Measures | How to Collect |
+|--------|-----------------|----------------|
+| **User satisfaction** (thumbs up/down) | Did the user find the answer helpful? | UI feedback buttons |
+| **Abandonment rate** | Did the user give up and stop asking? | Session analytics |
+| **Follow-up question rate** | Did the user need to rephrase/ask again? | Chat history analysis (lower = better) |
+| **Time to answer** | How long did the user wait? | Application telemetry |
+| **Escalation rate** | Did the user escalate to a human? | Support ticket correlation |
+| **Answer citation click rate** | Did users verify sources? | UI click tracking |
+
+### How to Evaluate Automatically with Azure AI Foundry
+
+Azure AI Foundry provides an **Evaluation SDK** that scores RAG answers automatically using GPT-4 as a judge.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    RAG Evaluation Metrics                        │
+│              Azure AI Foundry Evaluation Pipeline               │
 │                                                                 │
-│  1. Retrieval Quality                                           │
-│     • Precision@K: Are the top-K retrieved chunks relevant?     │
-│     • Recall: Did we find ALL relevant chunks?                  │
-│     • MRR (Mean Reciprocal Rank): Is the answer in chunk #1?    │
+│  INPUT:                                                         │
+│  ┌────────────────────────────────────────────────┐             │
+│  │  {                                              │             │
+│  │    "question": "What is the metro fare?",       │             │
+│  │    "context": ["chunk1...", "chunk2..."],        │             │
+│  │    "answer": "A single ride costs 5.90 ILS...", │             │
+│  │    "ground_truth": "5.90 ILS single, 2.95 ..."  │ ← optional │
+│  │  }                                              │             │
+│  └────────────────────────────────────────────────┘             │
 │                                                                 │
-│  2. Generation Quality                                          │
-│     • Groundedness: Is the answer based on retrieved context?   │
-│     • Faithfulness: Does it accurately represent the source?    │
-│     • Relevance: Does it answer the user's actual question?     │
-│     • Completeness: Is anything missing from the answer?        │
+│  EVALUATORS:                                                    │
+│  ┌──────────────┬──────────────┬──────────────────┐            │
+│  │ Groundedness │ Relevance    │ Coherence        │            │
+│  │ Score: 1-5   │ Score: 1-5   │ Score: 1-5       │            │
+│  ├──────────────┼──────────────┼──────────────────┤            │
+│  │ Faithfulness │ Fluency      │ Similarity       │            │
+│  │ Score: 1-5   │ Score: 1-5   │ Score: 0-1       │            │
+│  └──────────────┴──────────────┴──────────────────┘            │
 │                                                                 │
-│  3. User Satisfaction                                           │
-│     • Thumbs up/down ratio                                      │
-│     • "Answer not helpful" click rate                           │
-│     • Follow-up question rate (lower = better first answer)     │
-│                                                                 │
-│  Tool: Azure AI Foundry Evaluation SDK                          │
-│        (automated groundedness + relevance scoring)             │
+│  OUTPUT:                                                        │
+│  Average scores per metric + per-question breakdown             │
+│  Export to Azure AI Foundry portal for dashboards               │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### The Golden Test Set: Your Most Important Asset
+
+A golden test set is a curated collection of **question-answer pairs** with known correct answers. It's the benchmark against which you measure everything.
+
+```
+   How to build a golden test set:
+
+   1. Collect 50-100 real questions users would ask
+   2. Have a domain expert write the correct answer for each
+   3. Identify which document(s) and page(s) contain the answer
+   4. Categorize by difficulty:
+      • Simple factual (1 chunk needed)
+      • Multi-fact (2-3 chunks needed)  
+      • Cross-document (needs info from multiple docs)
+      • Table/figure (answer is in a table or image)
+      • Unanswerable (answer is NOT in any document)
+
+   ┌────┬──────────────────────────┬────────────────────┬──────────┐
+   │ #  │ Question                 │ Expected Answer    │ Category │
+   ├────┼──────────────────────────┼────────────────────┼──────────┤
+   │ 1  │ Metro fare for single    │ 5.90 ILS           │ Simple   │
+   │    │ ride?                    │                    │          │
+   │ 2  │ How many entrances does  │ 3 (North, South,   │ Simple   │
+   │    │ Station 36 have?         │ West)              │          │
+   │ 3  │ Compare ventilation      │ Station 36: X,     │ Cross-   │
+   │    │ across stations          │ Station 42: Y...   │ document │
+   │ 4  │ What's in Figure 5?     │ Architecture       │ Figure   │
+   │    │                          │ diagram showing... │          │
+   │ 5  │ What color is the CEO's │ "I don't have      │ Un-      │
+   │    │ car?                    │ this information"   │ answerable│
+   └────┴──────────────────────────┴────────────────────┴──────────┘
+
+   ⚠️  Include 10-15% UNANSWERABLE questions!
+       This tests whether your system hallucinates when it shouldn't answer.
+```
+
+### What Scores Mean — Interpreting Results
+
+| Score Range | What It Tells You | Action Required |
+|-------------|-------------------|-----------------|
+| **>90% all metrics** | Excellent — production ready | Monitor for drift, run eval weekly |
+| **80-90%** | Good — acceptable for most use cases | Identify weak areas, tune incrementally |
+| **70-80%** | Needs improvement | Common issues: wrong chunking, missing context, weak prompts |
+| **<70%** | Not production ready | Major rework needed: re-evaluate extraction, chunking, search strategy |
+
+### Common Failure Patterns and Fixes
+
+| Symptom | Root Cause | Fix |
+|---------|-----------|-----|
+| Low **groundedness** | LLM hallucinating beyond context | Improve system prompt: "Only use provided context" |
+| Low **relevance** | Wrong chunks retrieved | Tune search: hybrid mode, add semantic ranker, adjust `top` parameter |
+| Low **completeness** | Context too short or split across chunks | Increase `top` K, improve chunking to keep related info together |
+| Low **faithfulness** | LLM misinterpreting tables/figures | Better table chunking (atomic), add figure descriptions via CU |
+| High on test, low in production | Test set doesn't reflect real queries | Collect real user queries, expand golden test set |
+| Good retrieval, bad generation | System prompt too vague | Add explicit instructions: format, length, citation requirements |
 
 ---
 
