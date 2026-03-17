@@ -793,6 +793,100 @@ These metrics measure the quality of the final answer **given** the retrieved co
    └─────────────────────────────────────────────────────────────────┘
 ```
 
+#### Deep Dive: How Groundedness is Actually Measured
+
+Groundedness answers one simple question: **"Did the LLM make up anything that's NOT in the retrieved chunks?"**
+
+You take the LLM's answer and break it into individual **claims** (statements of fact). Then you check each claim against the context chunks. If a claim can be traced back to something in the context — it's grounded. If it can't — it's a hallucination.
+
+```
+   Context (what search returned):
+     "A single ride on the Metro costs 5.90 ILS.
+      Reduced fare for students is 2.95 ILS."
+
+   LLM Answer:
+     "A single metro ride costs 5.90 ILS. Children under 5 ride free.
+      Seniors get a 50% discount."
+
+   Step 1: Break the answer into individual claims:
+   ┌────┬──────────────────────────────────┬──────────────────────┐
+   │ #  │ Claim                            │ Found in context?    │
+   ├────┼──────────────────────────────────┼──────────────────────┤
+   │ 1  │ "Single ride costs 5.90 ILS"     │ ✅ YES — "costs      │
+   │    │                                  │   5.90 ILS"          │
+   │ 2  │ "Children under 5 ride free"     │ ❌ NO — nowhere in   │
+   │    │                                  │   the context!       │
+   │ 3  │ "Seniors get 50% discount"       │ ❌ NO — nowhere in   │
+   │    │                                  │   the context!       │
+   └────┴──────────────────────────────────┴──────────────────────┘
+
+   Step 2: Calculate groundedness:
+     Grounded claims: 1 out of 3
+     Groundedness = 1/3 = 33%  ← Very bad! Two hallucinations.
+```
+
+**How Azure AI Foundry does this automatically**: You don't check this by hand. Azure AI Foundry uses **GPT-4 as a judge**. You provide the question, the context (retrieved chunks), and the answer. GPT-4 reads the answer, identifies each claim, checks it against the context, and returns a score from 1 (not grounded at all) to 5 (fully grounded).
+
+| Score | Meaning | Example |
+|-------|---------|---------|
+| **5** | Every single claim is in the context | "Ride costs 5.90 ILS, students pay 2.95 ILS" |
+| **4** | Almost all claims are grounded, minor addition | "Ride costs 5.90 ILS, paid via Rav-Kav card" (card not in context but reasonable) |
+| **3** | Mix of grounded and ungrounded claims | "Ride costs 5.90 ILS. Children ride free." (50/50) |
+| **2** | Most claims are not in the context | "Children free, seniors 50% off, monthly pass 198 ILS" (mostly invented) |
+| **1** | Answer is completely made up | "The metro is free for all residents" (total hallucination) |
+
+#### Deep Dive: Groundedness vs Faithfulness — What's the Difference?
+
+People confuse these two. Here's a clear example:
+
+```
+   Context: "The metro carries 50,000 passengers daily."
+
+   Answer:  "The metro carries 500,000 passengers daily."
+                                ↑
+                             extra zero!
+
+   Groundedness: ✅ (the claim IS about something in the context — passenger numbers)
+   Faithfulness:  ❌ (the number is WRONG — 500K instead of 50K)
+```
+
+- **Groundedness** = "Did you ONLY use information from the context?" (catches invented facts)
+- **Faithfulness** = "Did you get the information RIGHT?" (catches distortion of facts)
+
+An answer can be grounded but unfaithful (it references the right source but gets the number wrong). Or it can be ungrounded but faithful to general knowledge (it adds true facts that aren't in the context).
+
+#### Two Types of Hallucination
+
+"Hallucination" is a broad term. In RAG, there are two distinct subtypes with different root causes and different fixes:
+
+```
+   ┌──────────────────────────────────────────────────────────────────┐
+   │                                                                  │
+   │  HALLUCINATION (broad term, two subtypes):                      │
+   │                                                                  │
+   │  1. FABRICATION (= ungrounded)                                  │
+   │     LLM invents facts that don't exist anywhere in the context  │
+   │     Example: Context has no passenger data →                    │
+   │              LLM says "500,000 passengers daily"                │
+   │     Caught by: Groundedness metric                              │
+   │                                                                  │
+   │  2. DISTORTION (= unfaithful)                                  │
+   │     LLM references real context but gets it wrong               │
+   │     Example: Context says "50,000" →                            │
+   │              LLM says "500,000" (wrong number)                  │
+   │     Caught by: Faithfulness metric                              │
+   │                                                                  │
+   │  Both are "hallucinations" in the broad sense.                  │
+   │  But they have DIFFERENT root causes and DIFFERENT fixes.       │
+   │                                                                  │
+   │  Fabrication fix: Better system prompt ("only use context")     │
+   │  Distortion fix:  Better chunking (tables as atomic units),     │
+   │                   lower temperature, structured output          │
+   └──────────────────────────────────────────────────────────────────┘
+```
+
+> **Key takeaway**: Groundedness alone won't catch everything. You need **both** Groundedness (catches fabrication) and Faithfulness (catches distortion) to fully detect hallucinations.
+
 ### Stage 3: End-to-End Metrics — "Is the system working for users?"
 
 These metrics measure the overall user experience.
