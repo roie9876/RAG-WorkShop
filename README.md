@@ -156,7 +156,11 @@ flowchart TB
         S7["🚀 Full<br/>Pipeline"]
     end
     
-    M0 --> M1 --> M2 --> M3 --> M4 --> M5 --> M6 --> M7
+    subgraph MD["Design"]
+        SD["🏗️ Design<br/>Considerations"]
+    end
+    
+    M0 --> M1 --> M2 --> M3 --> M4 --> M5 --> M6 --> M7 --> MD
     
     style M1 fill:#ffcdd2
     style M2 fill:#fff3e0
@@ -165,6 +169,7 @@ flowchart TB
     style M5 fill:#e8f5e9
     style M6 fill:#e3f2fd
     style M7 fill:#c8e6c9
+    style MD fill:#ff9800
 ```
 
 ---
@@ -181,6 +186,7 @@ flowchart TB
 | **Module 5** | [Search & Retrieval](modules/module-5-search/README.md) | 🧮📦🔍 Embeddings, indexing, search |
 | **Module 6** | [GraphRAG](modules/module-6-graphrag/README.md) | 🕸️ Cross-document reasoning |
 | **Module 7** | [Full Production Pipeline](modules/module-7-pipeline/README.md) | 🚀 End-to-end system with UI |
+| **Design** | [RAG Design Considerations](modules/module-design-considerations/README.md) | 🏗️ Architect's checklist |
 
 ### 🖼️ Module 7 – Full Pipeline UI
 
@@ -190,9 +196,10 @@ flowchart TB
 
 ## ⏱️ Workshop Duration
 
-**Full Workshop**: ~10 hours  
+**Full Workshop**: ~11 hours  
 **Essential Path** (Modules 0-2, 4-5): ~5.5 hours  
-**With Production Demo** (Essential + Module 7): ~7.5 hours
+**With Production Demo** (Essential + Module 7): ~7.5 hours  
+**With Design Review** (Full + Design Considerations): ~11 hours
 
 > 💡 Modules 3 and 6 are optional but recommended for advanced scenarios.
 
@@ -244,7 +251,8 @@ RAG-WorkShop/
 │   ├── module-4-chunking/      # Chunking strategies
 │   ├── module-5-search/        # Embeddings & search
 │   ├── module-6-graphrag/      # Graph reasoning
-│   └── module-7-pipeline/      # Full production pipeline
+│   ├── module-7-pipeline/      # Full production pipeline
+│   └── module-design-considerations/  # Architect's design checklist
 ├── data/                       # Sample documents
 │   ├── sample-pdfs/            # Metro station PDFs
 │   └── sample-office/          # Word, Excel, PowerPoint

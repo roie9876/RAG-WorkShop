@@ -40,6 +40,7 @@ Educational workshop teaching production-grade RAG systems for complex technical
   module-4-chunking/   # Chunking strategies + multimodal content (tables, figures, charts)
   module-5-search/     # Azure AI Search & retrieval
   module-6-graphrag/   # Cross-document reasoning
+  module-design-considerations/  # Architect's design checklist (capstone)
 /src/                  # Shared Python utilities
 /data/
   sample-pdfs/         # Technical PDFs

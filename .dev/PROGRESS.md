@@ -200,6 +200,23 @@ The workshop is now fully implemented with 7 modules (0-6) covering:
 - Chunking strategies (Module 4)
 - Search & retrieval with Agentic Retrieval (Module 5)
 - GraphRAG for cross-document reasoning (Module 6)
+- RAG Design Considerations (capstone module)
+
+### Module: Design Considerations (COMPLETE) ✅
+- [x] `README.md` - Comprehensive architect's design checklist:
+  - Scale & volume planning
+  - Data sources & format decisions
+  - Security & authorization patterns
+  - Response time & UX considerations
+  - Domain language & terminology
+  - Quality, validation & risk assessment
+  - Data freshness & update strategy
+  - Extraction & chunking strategy selection
+  - Search & retrieval strategy guide
+  - Cost optimization patterns
+  - Compliance & data residency
+  - Testing & evaluation strategy
+  - RAG Design Canvas template
 
 ### Phase 7: Polish
 - [ ] Hebrew sample documents
@@ -232,7 +249,8 @@ RAG-WorkShop/
 │   ├── module-3-content-understanding/ ✅ COMPLETE (lab.ipynb, README.md, content_understanding_result.json)
 │   ├── module-4-chunking/       ✅ COMPLETE (lab.ipynb, README.md, output/hybrid_chunks.json)
 │   ├── module-5-search/         ✅ COMPLETE (lab.ipynb with Parts 0-5 including Agentic Retrieval)
-│   └── module-6-graphrag/       ✅ COMPLETE (lab.ipynb with Parts 0-8)
+│   ├── module-6-graphrag/       ✅ COMPLETE (lab.ipynb with Parts 0-8)
+│   └── module-design-considerations/ ✅ COMPLETE (README.md - architect's checklist)
 ├── src/                         ✅ Package with implementations
 │   ├── embeddings.py            ✅ IMPLEMENTED
 │   ├── search.py                ✅ IMPLEMENTED
