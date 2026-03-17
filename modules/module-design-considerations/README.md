@@ -56,6 +56,145 @@ These numbers drive your entire architecture — from index design to pricing.
 | **Ingestion frequency**? (one-time bulk vs continuous) | Real-time needs event-driven pipeline | Azure Functions + Event Grid for continuous; batch script for one-time |
 | **Query rate**? (10/min vs 10K/sec) | High QPS needs caching, replicas, throttle handling | Azure AI Search replicas, Azure API Management for throttling |
 
+### Understanding Azure AI Search Capacity: Replicas, Partitions & Search Units
+
+Before choosing a tier, you need to understand how Azure AI Search capacity works. These three concepts determine your service's performance, storage, and cost:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    AZURE AI SEARCH CAPACITY MODEL                       │
+│                                                                         │
+│   Your search service is made up of SEARCH UNITS (SU).                 │
+│   Each search unit is a combination of replicas and partitions.        │
+│                                                                         │
+│   Formula:   Replicas  ×  Partitions  =  Search Units (billing unit)   │
+│                                                                         │
+│   Example:   3 replicas × 2 partitions = 6 SU                         │
+│              (you pay for 6 search units)                               │
+│                                                                         │
+│   Maximum:   36 SU per service (Standard tiers)                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### What is a Replica?
+
+A **replica** is a copy of your entire search index running on a dedicated instance.
+
+Think of it like **cashiers in a supermarket**: each cashier (replica) can serve a customer (query) independently. More cashiers = more customers served simultaneously = faster service.
+
+```
+                        ┌─────────────┐
+           Query A ───→ │  Replica 1  │ ──→ Results
+                        │ (full copy  │
+           Query B ───→ │  of index)  │ ──→ Results     ← 1 replica = all queries
+                        └─────────────┘        go to the same instance
+           Query C ───→     (queued)
+
+
+                        ┌─────────────┐
+           Query A ───→ │  Replica 1  │ ──→ Results
+                        └─────────────┘
+                        ┌─────────────┐
+           Query B ───→ │  Replica 2  │ ──→ Results     ← 3 replicas = queries
+                        └─────────────┘        distributed across copies
+                        ┌─────────────┐
+           Query C ───→ │  Replica 3  │ ──→ Results
+                        └─────────────┘
+```
+
+**When to add replicas:**
+- High query volume (many concurrent users)
+- Need for high availability (SLA requires 2+ replicas for read, 3+ for read/write)
+- Slow query response times under load
+
+#### What is a Partition?
+
+A **partition** is a slice of your index storage. It determines how much data your service can hold.
+
+Think of it like **shelves in a warehouse**: each shelf (partition) holds a portion of your inventory (index data). More shelves = more storage capacity. When you search, all shelves are searched in parallel.
+
+```
+   1 Partition (all data in one place):        3 Partitions (data split across three):
+
+   ┌───────────────────────┐                   ┌─────────┐ ┌─────────┐ ┌─────────┐
+   │  Docs 1-100,000       │                   │ Docs    │ │ Docs    │ │ Docs    │
+   │  (entire index)       │                   │ 1-33K   │ │ 34K-66K │ │ 67K-100K│
+   │                       │                   │         │ │         │ │         │
+   │  Storage: 25 GB       │                   │  ~8 GB  │ │  ~8 GB  │ │  ~8 GB  │
+   └───────────────────────┘                   └─────────┘ └─────────┘ └─────────┘
+                                                    ↓           ↓           ↓
+                                               searched in parallel → merged results
+```
+
+**When to add partitions:**
+- Your index is too large for the current storage
+- Indexing (write) operations are slow
+- You need more I/O throughput for large indexes
+
+#### What is a Search Unit (SU)?
+
+A **search unit** is the billing unit. It's simply `replicas × partitions`.
+
+Every service starts with **1 SU** (1 replica × 1 partition). You scale by adding replicas, partitions, or both.
+
+```
+   Example configurations and their search units:
+
+   ┌────────────┬─────────────┬────────────┬──────────────────────────────┐
+   │  Replicas  │ Partitions  │    SU      │  What you get                │
+   ├────────────┼─────────────┼────────────┼──────────────────────────────┤
+   │     1      │      1      │    1 SU    │  Minimum (dev/test)          │
+   │     2      │      1      │    2 SU    │  Query HA (SLA for reads)    │
+   │     3      │      1      │    3 SU    │  Full HA (SLA for R+W)       │
+   │     3      │      2      │    6 SU    │  HA + double storage         │
+   │     3      │      3      │    9 SU    │  HA + triple storage         │
+   │     6      │      6      │   36 SU    │  Maximum (Standard tier)     │
+   └────────────┴─────────────┴────────────┴──────────────────────────────┘
+
+   💰 Cost = SU count × per-unit price of your tier
+      (e.g., S1 at ~$250/SU/month → 6 SU = ~$1,500/month)
+```
+
+#### Tier Selection Guide
+
+| Tier | Storage per Partition | Max Partitions | Max Replicas | Max SU | Best For |
+|------|----------------------|---------------|-------------|--------|----------|
+| **Free** | 50 MB | 1 | 1 | 1 | Learning, prototyping |
+| **Basic** | 2 GB | 3 | 3 | 9 | Small workloads, dev/test |
+| **S1** | 25 GB | 12 | 12 | 36 | Most production workloads |
+| **S2** | 100 GB | 12 | 12 | 36 | Large indexes, high throughput |
+| **S3** | 200 GB | 12 | 12 | 36 | Very large indexes |
+| **L1** | 1 TB | 12 | 12 | 36 | Huge storage, fewer queries |
+| **L2** | 2 TB | 12 | 12 | 36 | Maximum storage |
+
+> **SLA Requirements:**
+> - **2+ replicas** → SLA for query (read) operations
+> - **3+ replicas** → SLA for query AND indexing (read/write) operations
+> - Partitions do **not** affect SLA — only replicas matter for availability
+
+#### Quick Decision: Replicas vs Partitions
+
+```
+   "My queries are slow"
+        └── Is your index large (>50% of partition)? 
+             ├── YES → Add PARTITIONS (more I/O for large data)
+             └── NO  → Add REPLICAS  (more capacity for concurrent queries)
+
+   "I'm getting HTTP 429 (Too many requests)"  
+        └── Add REPLICAS (more query throughput)
+
+   "I'm getting HTTP 503 (Service unavailable)"
+        └── Add REPLICAS (service overloaded)
+
+   "Index is running out of storage"
+        └── Add PARTITIONS (more storage) or upgrade TIER
+
+   "Indexing is too slow"
+        └── Add PARTITIONS (more write I/O)
+```
+
+> 📖 **Official docs**: [Estimate and manage capacity of a search service](https://learn.microsoft.com/en-us/azure/search/search-capacity-planning)
+
 ### Design Patterns by Scale
 
 ```
