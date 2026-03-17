@@ -216,6 +216,130 @@ Every service starts with **1 SU** (1 replica × 1 partition). You scale by addi
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Multi-Tenancy: Serving Multiple Customers from One RAG System
+
+If you're building a SaaS product or serving multiple departments/organizations, you must decide how to isolate tenant data in Azure AI Search. This decision affects cost, security, performance, and operational complexity.
+
+#### The Core Question
+
+> Will multiple tenants (customers, departments, business units) share the same RAG system?
+
+If yes, you need a multi-tenancy strategy. There are three patterns:
+
+#### Pattern 1: Index-per-Tenant (Shared Service)
+
+Each tenant gets their own index inside a single Azure AI Search service.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   Azure AI Search Service (S1)                  │
+│                                                                 │
+│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
+│   │  Index:       │  │  Index:       │  │  Index:       │        │
+│   │  tenant-A     │  │  tenant-B     │  │  tenant-C     │        │
+│   │  (5K docs)    │  │  (2K docs)    │  │  (10K docs)   │        │
+│   └──────────────┘  └──────────────┘  └──────────────┘         │
+│                                                                 │
+│   Shared replicas, partitions, and billing                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Pros | Cons |
+|------|------|
+| Cost-efficient (share infrastructure) | Noisy neighbor risk (one tenant's heavy queries affect others) |
+| Easy to manage (single service) | Index count limits per tier (e.g., Basic: 15, S1: 50) |
+| Good for many small tenants | Can't scale tenants independently |
+| Variable cost model | Moving indexes between services requires data copy |
+
+**Best for**: Many small tenants with similar workloads, startup SaaS products.
+
+#### Pattern 2: Service-per-Tenant (Dedicated)
+
+Each tenant gets their own Azure AI Search service.
+
+```
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Search Service A  │  │ Search Service B  │  │ Search Service C  │
+│ (Tenant A)        │  │ (Tenant B)        │  │ (Tenant C)        │
+│                   │  │                   │  │                   │
+│ Own replicas      │  │ Own replicas      │  │ Own replicas      │
+│ Own partitions    │  │ Own partitions    │  │ Own partitions    │
+│ Own billing       │  │ Own billing       │  │ Own billing       │
+└──────────────────┘  └──────────────────┘  └──────────────────┘
+```
+
+| Pros | Cons |
+|------|------|
+| Full isolation (data + performance) | Higher cost (paying per service) |
+| Independent scaling per tenant | More services to manage |
+| Meets strict compliance requirements | No resource sharing |
+| Easy regional deployment per tenant | Can't upgrade tier in-place |
+
+**Best for**: Enterprise customers with large workloads, strict compliance requirements, or global distribution.
+
+#### Pattern 3: Filter-per-Tenant (Single Index)
+
+All tenants share a single index, with a `tenant_id` field used to filter results at query time.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   Azure AI Search Service (S1)                  │
+│                                                                 │
+│   ┌─────────────────────────────────────────────────────┐       │
+│   │  Index: shared-rag-index                             │      │
+│   │                                                       │      │
+│   │  doc_1: { tenant_id: "A", content: "..." }           │      │
+│   │  doc_2: { tenant_id: "B", content: "..." }           │      │
+│   │  doc_3: { tenant_id: "A", content: "..." }           │      │
+│   │  doc_4: { tenant_id: "C", content: "..." }           │      │
+│   │                                                       │      │
+│   │  Query: search("question", filter="tenant_id eq 'A'")│      │
+│   └─────────────────────────────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Pros | Cons |
+|------|------|
+| Simplest architecture | Relevance scores computed across ALL tenants (not tenant-specific) |
+| Lowest cost (single index) | Risk of data leakage if filter is missing |
+| Easy to implement | Large index = slower queries |
+| No index count concerns | All tenants share the same schema |
+
+**Best for**: Internal multi-department use, low-risk scenarios where relevance scoring across tenants is acceptable.
+
+> **Warning**: With the filter approach, search relevance (TF-IDF, BM25) is computed across **all** tenants' data, not per-tenant. A term that's rare for Tenant A but common across all tenants won't score as high. For most RAG use cases this is acceptable, but for precision-critical search it may not be.
+
+#### Pattern 4: Hybrid (Recommended for SaaS)
+
+Combine patterns based on tenant size:
+
+```
+   ┌──────────────────────────────────────────────────────────┐
+   │                    Tenant Router                          │
+   │                                                           │
+   │   Enterprise (Tenant A, B)  →  Dedicated Service each    │
+   │   Medium (Tenant C, D, E)   →  Shared Service, own index │
+   │   Small (Tenant F-Z)        →  Shared index + filter     │
+   └──────────────────────────────────────────────────────────┘
+```
+
+#### Multi-Tenancy Decision Matrix
+
+| Factor | Filter-per-Tenant | Index-per-Tenant | Service-per-Tenant |
+|--------|-------------------|------------------|--------------------|
+| **Isolation** | Low (filter only) | Medium (separate index) | High (separate service) |
+| **Cost** | Lowest | Medium | Highest |
+| **Max tenants** | Unlimited | Limited by tier (15-200) | Limited by budget |
+| **Relevance accuracy** | Shared statistics | Per-tenant statistics | Per-tenant statistics |
+| **Compliance** | Shared service | Shared service | Full isolation |
+| **Scaling** | Uniform | Uniform | Per-tenant |
+| **Operational complexity** | Low | Medium | High |
+| **S3 HD tier** | N/A | Ideal (up to 1000 indexes) | N/A |
+
+> **S3 HD (High Density)**: A special tier designed specifically for multi-tenant scenarios. It trades partition scaling for higher index count — up to **1000 indexes** per service. Ideal for the index-per-tenant pattern with many small tenants (each index ~50-80 GB max).
+
+> 📖 **Official docs**: [Design patterns for multitenant SaaS applications](https://learn.microsoft.com/en-us/azure/search/search-modeling-multitenant-saas-applications)
+
 ---
 
 ## 2. 📁 Data Sources & Formats
