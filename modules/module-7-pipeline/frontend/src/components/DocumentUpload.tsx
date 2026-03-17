@@ -251,6 +251,7 @@ export function DocumentUpload() {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+      'text/plain': ['.txt'],
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
       'image/bmp': ['.bmp'],
@@ -694,7 +695,7 @@ export function DocumentUpload() {
               Drag & drop files here, or click to browse
             </p>
             <p className="text-base text-muted-foreground/75 mt-2">
-              Supports PDF, DOCX, XLSX, PPTX, JPG, PNG, BMP, TIFF • <span className="font-medium">Multiple files supported</span>
+              Supports PDF, DOCX, XLSX, PPTX, TXT, JPG, PNG, BMP, TIFF • <span className="font-medium">Multiple files supported</span>
             </p>
           </>
         )}

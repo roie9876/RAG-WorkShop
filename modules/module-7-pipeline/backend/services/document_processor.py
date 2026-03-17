@@ -295,6 +295,112 @@ class DocumentProcessor:
         logger.info(f"✅ Document processing complete: {result}")
         return result
     
+    async def process_text_file(
+        self,
+        blob_path: str,
+        content: bytes,
+        filename: str,
+        export_to_graphrag: bool = True,
+        auto_index_graphrag: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """
+        Process a plain-text (.txt) file.
+
+        Pipeline:
+        1. Decode text content (UTF-8 with fallback)
+        2. Split into chunks by paragraph / section boundaries
+        3. Generate embeddings and index in Azure AI Search
+        4. Optionally export for GraphRAG indexing
+
+        No Document Intelligence call is needed — the text is already readable.
+        """
+        self._auto_index_graphrag_override = auto_index_graphrag
+        doc_id = self._sanitize_doc_id(filename)
+        logger.info(f"📄 Processing text file: {filename} (doc_id={doc_id})")
+
+        # --- 1. Decode text -----------------------------------------------
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError:
+            text = content.decode("latin-1")
+        logger.info(f"   Text length: {len(text)} chars")
+
+        # --- 2. Chunk by blank-line separated paragraphs -------------------
+        MAX_CHUNK_CHARS = 20_000  # same limit as document chunks
+
+        # Split on double newlines (paragraph boundaries)
+        raw_paragraphs = re.split(r'\n{2,}', text)
+        paragraphs = [p.strip() for p in raw_paragraphs if p.strip()]
+
+        chunks: List[Dict[str, Any]] = []
+        chunk_id = 0
+        current_section = "Content"
+        buffer: List[str] = []
+        buffer_len = 0
+
+        def flush_buffer():
+            nonlocal chunk_id, buffer, buffer_len
+            if not buffer:
+                return
+            chunks.append({
+                "id": f"{doc_id}_text_{chunk_id:04d}",
+                "content": "\n\n".join(buffer),
+                "content_type": "text",
+                "source_document": filename,
+                "source_document_blob_path": blob_path,
+                "page_numbers": [],
+                "section_header": current_section,
+                "doc_id": doc_id,
+            })
+            chunk_id += 1
+            buffer = []
+            buffer_len = 0
+
+        for para in paragraphs:
+            # Heuristic: lines that look like section headers
+            # (short, no trailing period, often ALLCAPS or Title Case)
+            if len(para) < 120 and not para.endswith('.') and '\n' not in para:
+                # Treat as section header — flush current buffer first
+                flush_buffer()
+                current_section = para
+
+            if buffer_len + len(para) > MAX_CHUNK_CHARS:
+                flush_buffer()
+
+            buffer.append(para)
+            buffer_len += len(para)
+
+        flush_buffer()
+        logger.info(f"   Created {len(chunks)} text chunks")
+
+        # --- 3. Embed and index -------------------------------------------
+        from services.search_service import SearchService
+        search_service = SearchService()
+
+        await search_service.index_chunks(chunks)
+        logger.info(f"   Indexed {len(chunks)} chunks in Azure AI Search")
+
+        result: Dict[str, Any] = {
+            "chunks_created": len(chunks),
+            "chunks_indexed": len(chunks),
+            "figures_extracted": 0,
+            "processing_mode": "text_file",
+        }
+
+        # --- 4. GraphRAG export -------------------------------------------
+        if export_to_graphrag:
+            try:
+                graphrag_result = await self._export_to_graphrag(chunks, filename)
+                result["graphrag_exported"] = True
+                result["graphrag_result"] = graphrag_result
+            except Exception as e:
+                logger.warning(f"   ⚠️ GraphRAG export failed: {e}")
+                result["graphrag_exported"] = False
+                result["graphrag_error"] = str(e)
+
+        logger.info(f"✅ Text file processing complete: {result}")
+        return result
+
     async def process_image(
         self,
         blob_path: str,

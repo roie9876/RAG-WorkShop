@@ -589,14 +589,15 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
             status["progress_detail"] = self._parse_indexing_progress()
         
         # Count input documents and collect names
+        input_names = []
         if self.input_dir.exists():
             input_files = sorted(self.input_dir.glob("*.txt"))
             status["input_documents"] = len(input_files)
-            status["input_document_names"] = [
-                f.stem for f in input_files  # filename without .txt extension
-            ]
+            input_names = [f.stem for f in input_files]
+            status["input_document_names"] = input_names
         
         # Check output
+        indexed_titles = set()
         if self.output_dir.exists():
             status["output_exists"] = True
             parquet_files = list(self.output_dir.glob("*.parquet"))
@@ -606,6 +607,15 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
             # Try to count entities and relationships
             try:
                 import pandas as pd
+                
+                # Read indexed documents to compare with input
+                documents_path = self.output_dir / "documents.parquet"
+                if documents_path.exists():
+                    docs_df = pd.read_parquet(documents_path, columns=["title"])
+                    indexed_titles = set(
+                        t.replace(".txt", "") for t in docs_df["title"].tolist()
+                    )
+                    status["indexed_documents"] = len(indexed_titles)
                 
                 entities_path = self.output_dir / "entities.parquet"
                 if entities_path.exists():
@@ -634,6 +644,19 @@ GRAPHRAG_API_BASE={azure_openai_endpoint}
                 )
             except Exception as e:
                 logger.warning(f"Could not read Parquet files: {e}")
+        
+        # Per-document status: indexed vs pending
+        if input_names:
+            doc_statuses = []
+            for name in input_names:
+                doc_statuses.append({
+                    "name": name,
+                    "indexed": name in indexed_titles,
+                })
+            status["document_statuses"] = doc_statuses
+            status["pending_documents"] = [
+                name for name in input_names if name not in indexed_titles
+            ]
         
         return status
     

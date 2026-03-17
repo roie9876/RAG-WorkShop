@@ -71,10 +71,13 @@ elif [ -f "../.env" ]; then
     echo "✅ Loaded environment from ../.env"
 fi
 
+# Resolve port (allow override via BACKEND_PORT env var, default 8000)
+PORT="${BACKEND_PORT:-8000}"
+
 # Run the server
-echo "🚀 Starting FastAPI backend on http://localhost:8000"
-echo "📚 API docs at http://localhost:8000/docs"
-echo "🔗 GraphRAG endpoints at http://localhost:8000/api/graphrag"
+echo "🚀 Starting FastAPI backend on http://localhost:$PORT"
+echo "📚 API docs at http://localhost:$PORT/docs"
+echo "🔗 GraphRAG endpoints at http://localhost:$PORT/api/graphrag"
 # Use --loop asyncio to avoid conflict between uvloop and graphrag's nest_asyncio2
 # --reload watches for file changes and auto-restarts (also enables UI restart button)
-./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --loop asyncio --reload --reload-dir .
+./venv/bin/uvicorn main:app --host 0.0.0.0 --port "$PORT" --loop asyncio --reload --reload-dir .
