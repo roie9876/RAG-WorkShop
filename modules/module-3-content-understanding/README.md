@@ -57,7 +57,7 @@ By the end of this module, participants will be able to:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-> **Note:** CU provides **semantic understanding** of figures (AI descriptions), not geometric bounding boxes. If you need bounding box coordinates for figure cropping, use **Document Intelligence** (`prebuilt-layout`) which outputs figure polygons.
+> **Note:** CU provides **both** bounding box coordinates (polygon geometry via the `source` field) **and** AI-generated semantic descriptions for figures. The `prebuilt-layout` analyzer gives you bounding boxes only, while `prebuilt-documentSearch` gives you bounding boxes **plus** AI descriptions, Chart.js code, and Mermaid.js syntax.
 
 ### Why Use CU for RAG?
 
