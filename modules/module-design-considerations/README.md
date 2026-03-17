@@ -519,45 +519,235 @@ RAG evaluation is **not** a single metric. A RAG system has two stages — **ret
 
 ### Stage 1: Retrieval Metrics — "Did we find the right chunks?"
 
-These metrics measure whether Azure AI Search returned the right documents **before** the LLM ever sees them.
+These metrics measure whether Azure AI Search returned the right documents **before** the LLM ever sees them. Think of it like this: if the search brings back garbage, even the smartest LLM will give a garbage answer.
 
-| Metric | What It Measures | How to Calculate | Good Target |
-|--------|-----------------|------------------|-------------|
-| **Precision@K** | Of the K chunks returned, how many are actually relevant? | `relevant_in_top_K / K` | >80% |
-| **Recall** | Of ALL relevant chunks in the index, how many did we find? | `found_relevant / total_relevant` | >90% |
-| **MRR** (Mean Reciprocal Rank) | How high is the first relevant chunk ranked? | `1 / rank_of_first_relevant` | >0.8 |
-| **NDCG@K** | Are the most relevant chunks ranked highest? | Normalized discounted cumulative gain | >0.85 |
-| **Hit Rate** | Did we return at least one relevant chunk? | `queries_with_hit / total_queries` | >95% |
+#### Setup for All Examples Below
+
+Imagine our index has **1,000 chunks** from metro station documents. For the question **"What is the fare for a single metro ride?"**, there are exactly **3 chunks** in the entire index that contain relevant fare information:
 
 ```
-   Example: User asks "What is the fare for a single metro ride?"
+   Total chunks in index: 1,000
+   Relevant chunks (ground truth): 3 chunks contain fare info
+     • Chunk #47:  "A single ride costs 5.90 ILS..."
+     • Chunk #203: "Monthly pass costs 198 ILS. Single ride: 5.90 ILS..."
+     • Chunk #891: "Student reduced fare is 2.95 ILS for a single ride..."
 
-   Retrieved chunks (top 5):
-   ┌────┬──────────────────────────────────────────────┬───────────┐
-   │ #  │ Chunk Content                                │ Relevant? │
-   ├────┼──────────────────────────────────────────────┼───────────┤
-   │ 1  │ "Metro station has 3 entrances..."           │    ❌     │
-   │ 2  │ "Single ride costs 5.90 ILS..."              │    ✅     │
-   │ 3  │ "Train frequency is every 6 minutes..."      │    ❌     │
-   │ 4  │ "Monthly pass costs 198 ILS..."              │    ✅     │
-   │ 5  │ "Station ventilation system specs..."         │    ❌     │
-   └────┴──────────────────────────────────────────────┴───────────┘
+   We ask Azure AI Search to return top 5 results (K=5).
+   Here's what came back:
+```
 
-   Precision@5 = 2/5 = 40% ← Not great! Too much noise
-   Precision@3 = 1/3 = 33%
-   MRR = 1/2 = 0.5 ← Answer wasn't in chunk #1
-   Hit Rate = 1 (we found at least one relevant chunk)
+```
+   Azure AI Search returned these 5 chunks (ranked by relevance score):
 
-   Improvement actions:
-   • Tune search query (hybrid vs vector)
-   • Add content_type filter
-   • Improve chunking (is pricing mixed with other content?)
-   • Enable semantic ranker to push relevant chunks higher
+   ┌──────┬──────────────────────────────────────────────┬───────────┐
+   │ Rank │ Chunk Content                                │ Relevant? │
+   ├──────┼──────────────────────────────────────────────┼───────────┤
+   │  #1  │ "Metro station has 3 entrances: North,      │    ❌     │
+   │      │  South, and West..."                         │           │
+   │  #2  │ "Single ride costs 5.90 ILS. Rav-Kav card   │    ✅     │
+   │      │  required for all rides..."    (= Chunk #47) │           │
+   │  #3  │ "Train frequency is every 6 minutes during  │    ❌     │
+   │      │  rush hour..."                               │           │
+   │  #4  │ "Monthly pass costs 198 ILS. Single ride:   │    ✅     │
+   │      │  5.90 ILS..." (= Chunk #203)                 │           │
+   │  #5  │ "Station ventilation system uses 3 fans..." │    ❌     │
+   └──────┴──────────────────────────────────────────────┴───────────┘
+
+   We found 2 relevant chunks out of 5 returned.
+   But we MISSED chunk #891 (student fare) — it wasn't in the top 5.
+```
+
+Now let's calculate each metric:
+
+---
+
+#### Precision@K — "How much noise is in my results?"
+
+**Plain English**: Out of the K chunks you asked for, how many were actually useful?
+
+**Analogy**: You ordered 5 dishes at a restaurant. Only 2 were what you actually wanted. The rest were wrong orders. That's 40% precision — the kitchen is sloppy.
+
+```
+   Formula:  Precision@K = (relevant chunks in top K) / K
+
+   Precision@5 = 2 relevant / 5 returned = 0.40 = 40%
+                 ↑                          ↑
+                 chunks #2 and #4           out of 5 total results
+
+   Precision@3 = 1 relevant / 3 returned = 0.33 = 33%
+                 ↑                          ↑
+                 only chunk #2 in top 3     out of 3 total results
+```
+
+```
+   What do different Precision@5 scores feel like?
+
+   100%  ★★★★★  All 5 chunks are relevant → LLM gets perfect context
+    80%  ★★★★☆  4 of 5 relevant → Great, minimal noise
+    60%  ★★★☆☆  3 of 5 relevant → OK, some noise but workable
+    40%  ★★☆☆☆  2 of 5 relevant → Too much noise, LLM may get confused ← WE ARE HERE
+    20%  ★☆☆☆☆  1 of 5 relevant → Mostly garbage, answer quality degrades
+     0%  ☆☆☆☆☆  0 of 5 relevant → Complete miss, LLM will hallucinate
+```
+
+**Why it matters for RAG**: Every irrelevant chunk you send to the LLM is wasted tokens AND potential confusion. The LLM might pick up on irrelevant information and include it in the answer.
+
+---
+
+#### Recall — "Did we find everything?"
+
+**Plain English**: Out of ALL the relevant chunks that exist in the index, how many did we actually find?
+
+**Analogy**: There are 3 puzzle pieces you need. You found 2 of them. You're missing one. That's 67% recall — your answer might be incomplete.
+
+```
+   Formula:  Recall = (relevant chunks found) / (total relevant chunks that exist)
+
+   Recall = 2 found / 3 exist = 0.67 = 67%
+            ↑                   ↑
+            chunks #47 and #203  chunk #891 (student fare) was MISSED
+
+   We missed the student fare chunk! If the user asked specifically about
+   student fares, our answer would be incomplete.
+```
+
+```
+   What do different Recall scores feel like?
+
+   100%  Found ALL relevant chunks → Complete answer possible
+    67%  Found 2 of 3 → Answer is partially correct but missing info ← WE ARE HERE
+    33%  Found 1 of 3 → Answer is mostly incomplete
+     0%  Found nothing → LLM has no context, will hallucinate
+```
+
+**Why it matters for RAG**: Low recall means the LLM doesn't have all the information it needs. Even if it generates a good answer from what it has, the answer will be **incomplete**. The user won't know something is missing.
+
+**Precision vs Recall — The Tradeoff**:
+```
+   If you retrieve MORE chunks (K=10 instead of K=5):
+     • Recall goes UP    (more chance to find all 3 relevant chunks)
+     • Precision goes DOWN (more noise mixed in)
+
+   If you retrieve FEWER chunks (K=3 instead of K=5):
+     • Precision goes UP   (less noise)
+     • Recall goes DOWN    (might miss relevant chunks)
+
+   The sweet spot: Use hybrid search + semantic ranker to get
+   high precision AND high recall. Start with K=5, tune from there.
+```
+
+---
+
+#### MRR (Mean Reciprocal Rank) — "How quickly did we find the answer?"
+
+**Plain English**: At what position did the **first** relevant chunk appear? Higher is better.
+
+**Analogy**: You're searching for your keys. If they're in the first drawer you open, that's great (MRR=1.0). If you had to open 5 drawers before finding them, that's bad (MRR=0.2). The name "reciprocal rank" just means 1 divided by the position.
+
+```
+   Formula:  MRR = 1 / (position of first relevant chunk)
+
+   In our example, the first relevant chunk appeared at position #2:
+
+   Rank #1: "Metro station has 3 entrances..."  ← ❌ not relevant
+   Rank #2: "Single ride costs 5.90 ILS..."     ← ✅ FIRST relevant chunk!
+
+   MRR = 1/2 = 0.50
+
+   If the relevant chunk had been at rank #1:  MRR = 1/1 = 1.00 (perfect!)
+   If it had been at rank #3:                  MRR = 1/3 = 0.33
+   If it had been at rank #5:                  MRR = 1/5 = 0.20 (bad!)
+```
+
+```
+   What do different MRR scores mean?
+
+   1.00  First result is relevant → Perfect ranking
+   0.50  Relevant result at #2   → Good but not ideal        ← WE ARE HERE
+   0.33  Relevant result at #3   → User/LLM has to dig
+   0.20  Relevant result at #5   → Search ranking is poor
+```
+
+**Why it matters for RAG**: In many RAG systems, the LLM pays more attention to the first chunks (they appear first in the prompt). If the relevant chunk is buried at position #4 or #5, the LLM might rely more on the irrelevant chunks that came first.
+
+**"Mean"** in MRR means you calculate this for **many queries** and average the scores. One query might get MRR=1.0, another MRR=0.33. The average across all test queries is your MRR score.
+
+---
+
+#### Hit Rate — "Did we find ANYTHING relevant?"
+
+**Plain English**: For this query, did at least one relevant chunk appear in the results? Yes or no.
+
+```
+   Formula:  Hit Rate = 1 if any relevant chunk found, 0 if none
+
+   In our example: We found chunks #47 and #203 → Hit = 1 (yes)
+
+   Over many queries:
+   Hit Rate = (queries where we found ≥1 relevant chunk) / (total queries)
+
+   Example with 10 test queries:
+   Query 1: Found relevant chunk → Hit     ┐
+   Query 2: Found relevant chunk → Hit     │
+   Query 3: Found NOTHING relevant → Miss  │   Hit Rate = 8/10 = 80%
+   Query 4: Found relevant chunk → Hit     │
+   Query 5: Found relevant chunk → Hit     │   ⚠️ Two complete misses!
+   Query 6: Found NOTHING relevant → Miss  │   Need to investigate why.
+   Query 7: Found relevant chunk → Hit     │
+   Query 8: Found relevant chunk → Hit     │
+   Query 9: Found relevant chunk → Hit     │
+   Query 10: Found relevant chunk → Hit    ┘
+```
+
+**Why it matters for RAG**: A Hit Rate below 95% means your system regularly returns **zero** relevant context for some queries. The LLM will either hallucinate or say "I don't know" — both are bad user experiences. Investigate every miss.
+
+---
+
+#### Summary: All Retrieval Metrics for Our Example
+
+```
+   Question: "What is the fare for a single metro ride?"
+   Relevant chunks in index: 3 (chunks #47, #203, #891)
+   Returned by search (K=5): chunks ranked #1-#5
+   Relevant in results: 2 (chunks #47 at rank 2, #203 at rank 4)
+
+   ┌────────────────┬────────┬──────────────────────────────────────┐
+   │ Metric         │ Score  │ Interpretation                       │
+   ├────────────────┼────────┼──────────────────────────────────────┤
+   │ Precision@5    │ 40%    │ Too much noise (3 irrelevant chunks) │
+   │ Recall         │ 67%    │ Missed student fare chunk            │
+   │ MRR            │ 0.50   │ Best result at rank #2, not #1       │
+   │ Hit Rate       │ 100%   │ At least one relevant (good)         │
+   └────────────────┴────────┴──────────────────────────────────────┘
+
+   Diagnosis: Retrieval is WORKING but not WELL.
+   The LLM will probably give a decent answer, but:
+    • It might miss student fares (low recall)
+    • It might get confused by ventilation/entrance noise (low precision)
+    • The answer might not be the first thing it sees (MRR < 1)
+
+   Fixes to try:
+   ┌────────────────────────────────────────────────────────────────┐
+   │ Problem              │ Fix                                     │
+   ├──────────────────────┼─────────────────────────────────────────┤
+   │ Low Precision (40%)  │ Enable semantic ranker to filter noise  │
+   │                      │ Add content_type filter for "pricing"   │
+   │                      │ Improve chunking: separate pricing from │
+   │                      │ infrastructure content                  │
+   ├──────────────────────┼─────────────────────────────────────────┤
+   │ Low Recall (67%)     │ Increase K from 5 to 8                  │
+   │                      │ Check if "student fare" chunk has the   │
+   │                      │ right keywords/embedding                │
+   │                      │ Try hybrid search (vector + keyword)    │
+   ├──────────────────────┼─────────────────────────────────────────┤
+   │ Low MRR (0.50)       │ Enable semantic ranker (reranking)      │
+   │                      │ Tune vector weights vs keyword weights  │
+   └────────────────────────────────────────────────────────────────┘
 ```
 
 ### Stage 2: Generation Metrics — "Did the LLM answer correctly?"
 
-These metrics measure the quality of the final answer **given** the retrieved context.
+These metrics measure the quality of the final answer **given** the retrieved context. Even with perfect retrieval, the LLM can still mess up the answer.
 
 | Metric | What It Measures | What It Catches | Good Target |
 |--------|-----------------|-----------------|-------------|
