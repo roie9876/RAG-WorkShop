@@ -50,7 +50,7 @@ Before any technical decisions, clarify what the RAG system is actually for. Dif
 
 | Question | Why It Matters | Azure Impact |
 |----------|---------------|--------------|
-| What exact **business problem** is the RAG system solving? (fact lookup, summarization, comparison, decision support) | Architecture depends on the job to be done. Fact lookup isn't designed like summarization, comparison, or high-risk guidance | Fact lookup → hybrid retrieval + GPT-4.1-mini. Summarization → larger context windows + GPT-4.1. Comparison → GraphRAG or multi-step orchestration. High-risk → Azure AI Foundry evaluations + human-in-the-loop |
+| What exact **business problem** is the RAG system solving? (fact lookup, summarization, comparison, decision support) | Architecture depends on the job to be done. Fact lookup isn't designed like summarization, comparison, or high-risk guidance | Fact lookup → hybrid retrieval + GPT-5.4-mini/nano. Summarization → larger context windows + GPT-5.4. Comparison → GraphRAG or multi-step orchestration. High-risk → Azure AI Foundry evaluations + human-in-the-loop |
 | What does a **successful answer** look like? (short with citations, comparison table, structured JSON, executive summary, exact quote) | "Good answer" is not universal. The output contract changes retrieval granularity, prompt design, metadata needs, and evaluation criteria | Exact quotes → precise chunk boundaries + citation spans. Structured JSON → schema-constrained generation in Azure OpenAI. Comparison tables → multi-document retrieval. Parent-child chunking for both precision and readable output |
 | Who are the **user personas**, and how do they differ? (HR, engineers, executives, analysts) | Different users need different retrieval depth, terminology handling, answer format, and latency expectations | Persona-specific system prompts and orchestration paths. Search profile tuning in Azure AI Search. Synonym maps for expert/internal vocabulary |
 | What kinds of **questions** will users actually ask? (factual, troubleshooting, comparison, temporal, unanswerable) | Question patterns drive retrieval strategy more than document count alone | Factual → hybrid search. Troubleshooting → procedure-aware chunking. Comparison → multi-document retrieval. Temporal → version metadata + recency handling. Evaluation set must include each major query type |
@@ -59,12 +59,12 @@ Before any technical decisions, clarify what the RAG system is actually for. Dif
 
 | Use Case | Retrieval Style | Model | Special Requirements |
 |----------|----------------|-------|---------------------|
-| Internal FAQ / policy lookup | Hybrid search + semantic ranker | GPT-4.1-mini | Synonym maps for internal jargon |
-| Technical support assistant | Hybrid search + content type filtering | GPT-4.1-mini or GPT-4.1 | Procedure-aware chunking |
-| Contract / legal review | Precise chunk retrieval + citations | GPT-4.1 | Clause-level chunking, exact span citations, human review |
-| Cross-document comparison | GraphRAG or multi-document retrieval | GPT-4.1 | Entity extraction, structured aggregation |
-| Executive knowledge assistant | Section-level retrieval + summarization | GPT-4.1 | Larger context windows, concise output prompts |
-| High-risk decision support (medical, financial) | Hybrid + strict grounding | GPT-4.1 | Confidence controls, abstention, audit logs, human-in-the-loop |
+| Internal FAQ / policy lookup | Hybrid search + semantic ranker | GPT-5.4-nano or GPT-5.4-mini | Synonym maps for internal jargon |
+| Technical support assistant | Hybrid search + content type filtering | GPT-5.4-mini or GPT-5.3 | Procedure-aware chunking |
+| Contract / legal review | Precise chunk retrieval + citations | GPT-5.4 | Clause-level chunking, exact span citations, human review |
+| Cross-document comparison | GraphRAG or multi-document retrieval | GPT-5.4 | Entity extraction, structured aggregation |
+| Executive knowledge assistant | Section-level retrieval + summarization | GPT-5.3 or GPT-5.4 | Larger context windows, concise output prompts |
+| High-risk decision support (medical, financial) | Hybrid + strict grounding | GPT-5.4 | Confidence controls, abstention, audit logs, human-in-the-loop |
 
 ---
 
@@ -224,7 +224,7 @@ Every service starts with **1 SU** (1 replica × 1 partition). You scale by addi
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Small Scale (<1K docs, <100 users)            │
-│  Azure AI Search Basic │ Single replica │ GPT-4.1-mini          │
+│  Azure AI Search Basic │ Single replica │ GPT-5.4-nano          │
 │  Simple pipeline       │ No caching     │ Direct SDK calls      │
 ├─────────────────────────────────────────────────────────────────┤
 │                    Medium Scale (1K-100K docs, <10K users)       │
@@ -236,7 +236,7 @@ Every service starts with **1 SU** (1 replica × 1 partition). You scale by addi
 │  Azure AI Search Standard S3 │ Multiple replicas + partitions   │
 │  Azure Functions for ingestion │ Azure Redis for caching        │
 │  API Management for throttling │ Multiple indexes (sharding)    │
-│  GPT-4.1 for complex │ GPT-4.1-mini for simple (cost router)   │
+│  GPT-5.4 for complex │ GPT-5.4-mini for simple (cost router)   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -460,7 +460,7 @@ Query latency determines whether users love or abandon your system.
 
 | Question | Why It Matters | Azure Impact |
 |----------|---------------|--------------|
-| **Interactive** (<3 sec) or **batch** (minutes OK)? | Drives model choice, caching, and search tier | Interactive: GPT-4.1-mini + caching + semantic ranker. Batch: GPT-4.1 for max quality |
+| **Interactive** (<3 sec) or **batch** (minutes OK)? | Drives model choice, caching, and search tier | Interactive: GPT-5.4-mini/nano + caching + semantic ranker. Batch: GPT-5.4 for max quality |
 | Is **streaming** acceptable? | Shows partial answers while generating | Azure OpenAI supports streaming responses — reduces perceived latency significantly |
 | Should it **cite sources**? | Users need to verify answers | Store `document_name`, `page_number`, `section_header` in index — return as metadata with each chunk |
 | Are "I don't know" answers OK? | Some domains require always-attempt | System prompt design: instruct to say "I don't have enough information" vs always generating |
@@ -475,14 +475,14 @@ Typical interactive RAG query (~2-4 seconds total):
 │ Embedding query text          │  ~100ms                  │
 │ Azure AI Search (hybrid)      │  ~200-500ms              │
 │ Semantic ranker (reranking)   │  ~200-400ms              │
-│ LLM generation (GPT-4.1-mini)│  ~1-2s (streaming)       │
+│ LLM generation (GPT-5.4-mini)│  ~1-2s (streaming)       │
 │ Network overhead              │  ~100ms                  │
 ├──────────────────────────────────────────────────────────┤
 │ TOTAL                         │  ~1.5-3.5s               │
 └──────────────────────────────────────────────────────────┘
 
 Tips to reduce latency:
-  • Use GPT-4.1-mini instead of GPT-4.1 for 2-3x faster responses
+  • Use GPT-5.4-nano/mini instead of GPT-5.4 for 2-3x faster responses
   • Enable streaming to show partial answers immediately
   • Cache frequent queries with Azure Redis Cache
   • Use semantic ranker only when quality justifies the extra ~300ms
@@ -1285,7 +1285,7 @@ RAG systems have multiple cost components. Optimize each independently.
 | Cost Component | What Drives It | How to Optimize |
 |----------------|---------------|-----------------|
 | **Azure AI Search** | Tier, replicas, partitions, semantic ranker usage | Start with Basic/S1; scale up only when needed. Use semantic ranker selectively |
-| **Azure OpenAI (generation)** | Tokens per query × query volume | Use GPT-4.1-mini for simple queries, GPT-4.1 for complex. Implement a cost router |
+| **Azure OpenAI (generation)** | Tokens per query × query volume | Use GPT-5.4-nano/mini for simple queries, GPT-5.4 for complex reasoning. Implement a cost router |
 | **Azure OpenAI (embeddings)** | Number of chunks × re-embedding frequency | Embed once, store vectors. Only re-embed changed documents |
 | **Document Intelligence** | Pages processed per month | Process each document once; cache results. DI pricing is per page |
 | **Content Understanding** | Pages + AI features (descriptions, Chart.js) | Use CU only for docs that need AI descriptions; use DI for text-only docs |
@@ -1297,13 +1297,14 @@ RAG systems have multiple cost components. Optimize each independently.
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Smart Cost Router                           │
 │                                                                 │
-│  User Query → Classifier (GPT-4.1-mini, ~0.001$)               │
+│  User Query → Classifier (GPT-5.4-nano, ~0.001$)               │
 │       │                                                         │
-│       ├── Simple factual → GPT-4.1-mini   (~0.01$ per query)   │
-│       ├── Complex reasoning → GPT-4.1     (~0.05$ per query)   │
-│       └── Multi-document → GraphRAG + GPT-4.1 (~0.10$ per q)  │
+│       ├── Simple factual → GPT-5.4-nano   (~0.005$ per query)  │
+│       ├── Standard Q&A  → GPT-5.4-mini   (~0.01$ per query)   │
+│       ├── Complex reasoning → GPT-5.4     (~0.05$ per query)   │
+│       └── Multi-document → GraphRAG + GPT-5.4 (~0.10$ per q)  │
 │                                                                 │
-│  Savings: 60-80% vs using GPT-4.1 for everything               │
+│  Savings: 60-80% vs using GPT-5.4 for everything               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1412,7 +1413,8 @@ Use this template when starting a new RAG project. Fill it in with your stakehol
 │                          │                                      │
 ├──────────────────────────┼──────────────────────────────────────┤
 │  SEARCH                  │  GENERATION                         │
-│  • Type: hybrid/vector   │  • Model: GPT-4.1 / GPT-4.1-mini   │
+│  • Type: hybrid/vector   │  • Model: GPT-5.4 / 5.4-mini /     │
+│                          │    5.4-nano / 5.3                    │
 │  • Semantic ranker: Y/N  │  • Streaming: Y / N                 │
 │  • Agentic: Y / N       │  • Citation level: doc / section     │
 │  • GraphRAG: Y / N      │    / page / span                     │
