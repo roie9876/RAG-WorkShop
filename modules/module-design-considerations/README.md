@@ -44,6 +44,30 @@ Before you build a RAG system, go through each section below. For every question
 
 ---
 
+## 0. 🎯 Business Goal & Use Case Definition
+
+Before any technical decisions, clarify what the RAG system is actually for. Different use cases demand fundamentally different architectures.
+
+| Question | Why It Matters | Azure Impact |
+|----------|---------------|--------------|
+| What exact **business problem** is the RAG system solving? (fact lookup, summarization, comparison, decision support) | Architecture depends on the job to be done. Fact lookup isn't designed like summarization, comparison, or high-risk guidance | Fact lookup → hybrid retrieval + GPT-4.1-mini. Summarization → larger context windows + GPT-4.1. Comparison → GraphRAG or multi-step orchestration. High-risk → Azure AI Foundry evaluations + human-in-the-loop |
+| What does a **successful answer** look like? (short with citations, comparison table, structured JSON, executive summary, exact quote) | "Good answer" is not universal. The output contract changes retrieval granularity, prompt design, metadata needs, and evaluation criteria | Exact quotes → precise chunk boundaries + citation spans. Structured JSON → schema-constrained generation in Azure OpenAI. Comparison tables → multi-document retrieval. Parent-child chunking for both precision and readable output |
+| Who are the **user personas**, and how do they differ? (HR, engineers, executives, analysts) | Different users need different retrieval depth, terminology handling, answer format, and latency expectations | Persona-specific system prompts and orchestration paths. Search profile tuning in Azure AI Search. Synonym maps for expert/internal vocabulary |
+| What kinds of **questions** will users actually ask? (factual, troubleshooting, comparison, temporal, unanswerable) | Question patterns drive retrieval strategy more than document count alone | Factual → hybrid search. Troubleshooting → procedure-aware chunking. Comparison → multi-document retrieval. Temporal → version metadata + recency handling. Evaluation set must include each major query type |
+
+### Use Case → Architecture Map
+
+| Use Case | Retrieval Style | Model | Special Requirements |
+|----------|----------------|-------|---------------------|
+| Internal FAQ / policy lookup | Hybrid search + semantic ranker | GPT-4.1-mini | Synonym maps for internal jargon |
+| Technical support assistant | Hybrid search + content type filtering | GPT-4.1-mini or GPT-4.1 | Procedure-aware chunking |
+| Contract / legal review | Precise chunk retrieval + citations | GPT-4.1 | Clause-level chunking, exact span citations, human review |
+| Cross-document comparison | GraphRAG or multi-document retrieval | GPT-4.1 | Entity extraction, structured aggregation |
+| Executive knowledge assistant | Section-level retrieval + summarization | GPT-4.1 | Larger context windows, concise output prompts |
+| High-risk decision support (medical, financial) | Hybrid + strict grounding | GPT-4.1 | Confidence controls, abstention, audit logs, human-in-the-loop |
+
+---
+
 ## 1. 📊 Scale & Volume
 
 These numbers drive your entire architecture — from index design to pricing.
@@ -376,6 +400,16 @@ flowchart TB
     style DIRECT fill:#e8f5e9
 ```
 
+### Source Authority & Data Quality
+
+Not all data should be treated equally. Before indexing, clarify trust levels and data quality.
+
+| Question | Why It Matters | Azure Impact |
+|----------|---------------|--------------|
+| Which sources are **authoritative**, and which are only supporting context? | Retrieval and ranking should prefer authoritative sources. Conflicting answers must be resolved using source authority rules | Add `source_type`, `authority_level`, `approved_status` metadata to index. Use scoring profiles or reranking in Azure AI Search. Instruct prompt to prioritize approved sources |
+| Is the answer expected from **unstructured documents, structured records, or both**? | Pure vector search is not always the right answer — structured records may need SQL/Cosmos retrieval | Azure AI Search for unstructured content. SQL/Cosmos DB retrieval path for structured data. Separate indexes or `content_type` filtering. Agent/tool orchestration for mixed evidence |
+| How much **duplication, contradiction, or stale content** exists in the corpus? | Retrieval quality degrades badly with redundant or conflicting content | Add `version`, `effective_date`, `is_latest` fields. Filter outdated docs at query time. Ingestion pipeline logic to collapse duplicates before indexing |
+
 ---
 
 ## 3. 🔒 Security & Authorization
@@ -408,6 +442,15 @@ Security decisions are **impossible to retrofit**. Get them right from day one.
 │  ⚠️  NEVER send all documents to LLM and ask it to filter!     │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Retrieved Content Trust
+
+RAG systems are vulnerable not only through user prompts, but also through the documents they retrieve.
+
+| Question | Why It Matters | Azure Impact |
+|----------|---------------|--------------|
+| Can retrieved content contain **prompt injection**, hidden instructions, or malicious text? | Untrusted corpora require content sanitization, prompt shielding, and stricter orchestration. Agentic RAG with tools becomes riskier if retrieved content can influence tool use | Content filtering and instruction-isolation patterns. Prompt templates that treat retrieved text as **data**, not instructions. Azure AI Content Safety for sanitization pipeline. Evaluation scenarios for prompt injection resistance |
+| Is tenant isolation only **logical**, or must it also be **operational / regulatory**? | Multi-tenancy is not only a cost question — it is often a compliance, performance, and operational isolation question | Logical filtering → shared index with tenant filter. Regulatory → index-per-tenant or service-per-tenant. S3 HD for many small tenant indexes. Define noisy neighbor risk tolerance |
 
 ---
 
@@ -444,6 +487,16 @@ Tips to reduce latency:
   • Cache frequent queries with Azure Redis Cache
   • Use semantic ranker only when quality justifies the extra ~300ms
 ```
+
+### Answer Contract & Citation Design
+
+The format and behavior of the answer is a design decision, not a prompt afterthought.
+
+| Question | Why It Matters | Azure Impact |
+|----------|---------------|--------------|
+| What is the required **citation granularity**? (document-level, section, page, exact span) | Citation requirements directly affect chunking, metadata, and UI design. Fine-grained citations increase ingestion complexity but improve user trust | Store `page_number`, `section_title`, `source_url`, anchor IDs. Preserve document structure during extraction. UI must render citation metadata clearly |
+| Is this **single-shot Q&A**, multi-turn chat, or **persistent user memory** across sessions? | Conversation state changes orchestration, storage, privacy, and retrieval behavior | Stateless → simplest, safest. Multi-turn → session state + prior-turn grounding. Persistent memory → privacy governance + user memory lifecycle. Azure AI Search agentic retrieval for built-in conversation support |
+| Can we **cache** anything safely, and at what layer? (retrieval results, final answers, nothing) | Caching improves latency and cost but can create stale or cross-user leakage risks | Azure Redis Cache. Cache key must include tenant/security scope. TTL strategy based on source freshness. Per-tenant boundaries may be required |
 
 ---
 
@@ -490,6 +543,15 @@ The cost of a wrong answer varies enormously by domain.
 | How do we **measure quality**? | Need metrics to improve over time | Automated: relevance scoring, groundedness checks. Human: thumbs up/down, expert review panels |
 | Do we need **human-in-the-loop**? | Some answers must be reviewed before delivery | Route high-stakes queries (detected by classifier) to human review queue |
 | Can users **flag bad answers**? | Feedback drives improvement | Store user feedback → analyze patterns → adjust prompts, re-index, or add to evaluation set |
+
+### Conflict Handling & Abstention Design
+
+How the system behaves when evidence is weak, conflicting, or missing is a design decision — not just a prompt detail.
+
+| Question | Why It Matters | Azure Impact |
+|----------|---------------|--------------|
+| What should the system do when evidence is **weak, conflicting, or missing**? (say "I don't know", best-effort with warning, escalate to human) | Abstention-first systems need confidence thresholds. Best-effort systems need disclaimers. High-risk systems may need escalation paths | Prompt instructions for abstention. Confidence heuristics. Human review workflow. Evaluation set must include unanswerable and conflicting queries |
+| How should the system handle **conflicting sources**? (latest wins, authoritative source wins, show both, require human review) | Conflict is common in enterprise content and must be resolved intentionally, not left to LLM discretion | Metadata for `version`, `approved_status`, `effective_date`, `authority_level`. Ranking and filtering rules. Evaluation scenarios for contradiction handling |
 
 ### 📏 How to Measure RAG Success — The Complete Guide
 
@@ -1173,6 +1235,15 @@ flowchart TB
     style EMBED fill:#e8f5e9
 ```
 
+### Retrieval Unit & Hierarchical Retrieval
+
+The wrong retrieval unit causes either missing context or too much noise.
+
+| Question | Why It Matters | Azure Impact |
+|----------|---------------|--------------|
+| What is the right **retrieval unit**: chunk, full section, full document, table, figure, record, or entity? | Clause-level for contracts, section-level for policies, full table for financial data, entity/relationship for cross-document analysis | Chunk schema design in Azure AI Search. Content type metadata. GraphRAG when entity relationships are primary retrieval unit |
+| Do we need **parent-child or hierarchical retrieval**? (retrieve small chunk for precision, answer from larger section) | Flat chunking often loses context while large chunks reduce retrieval precision. Hierarchical retrieval is especially important in long documents with section structure | Store `parent_id` / `section_id` metadata. Maintain both searchable and retrievable content units. Application logic for second-hop context expansion after retrieval |
+
 ---
 
 ## 9. 🔍 Search & Retrieval Strategy
@@ -1197,6 +1268,13 @@ How you search determines what the LLM sees — and therefore the answer quality
 | "Compare X across documents" | GraphRAG | Microsoft GraphRAG + Azure AI Search |
 | Question with internal jargon | Hybrid search + synonym map | Azure AI Search synonym maps |
 | Ambiguous or vague question | Agentic retrieval with query rewriting | Azure AI Search agentic retrieval with chat history |
+
+### Query Enhancement & Reranking Design
+
+| Question | Why It Matters | Azure Impact |
+|----------|---------------|--------------|
+| Do we need **query rewriting, acronym expansion, or decomposition** before retrieval? | Poor query formulation makes even a good index look bad. Acronym-heavy environments or multi-part questions need pre-processing | Synonym maps in Azure AI Search. Query rewriting in app logic or agentic retrieval flow. Additional orchestration step before search |
+| Do we need **reranking**, and based on what criteria? (semantic relevance only, relevance + authority + recency, none) | Initial retrieval is often not enough for production quality. Authority and freshness may matter as much as semantic similarity | Azure AI Search semantic ranker for relevance. Metadata-aware custom reranking in app layer. Additional latency budget required |
 
 ---
 
@@ -1275,6 +1353,17 @@ flowchart LR
     style METRICS fill:#e8f5e9
 ```
 
+### Operations, Ownership & Feedback Loop
+
+Many RAG systems fail not at launch, but after launch due to unclear ownership and missing feedback loops.
+
+| Question | Why It Matters | Azure Impact |
+|----------|---------------|--------------|
+| Who **owns** the content quality, taxonomy, and ongoing tuning after go-live? | Without named owners, corpus quality and evaluation drift over time. Different owners may require different operational workflows | Logging dashboards + content governance workflow. Operational playbooks for reindex, rollback, and quality review. Azure Monitor for alerts |
+| How will we **detect failure** in production? (low-feedback answers, empty retrievals, grounding drops, indexing failures) | Evaluation before launch is not enough. Need observability across ingestion, retrieval, generation, and user feedback | Azure Monitor + Log Analytics. Dashboards for empty hits, citation failures, latency, feedback trends. Alert rules for indexing failures |
+| How will **user feedback** be captured and turned into system improvements? (thumbs up/down, free text, expert review, failed queries → golden set) | Feedback is one of the only reliable ways to improve real production RAG. Without this, the system stagnates | Store feedback events. Feed failed queries into Azure AI Foundry evaluation datasets. Dashboards for recurring failure patterns |
+| What are the explicit **go-live acceptance criteria**? (groundedness >85%, citation accuracy >90%, P95 latency <4s, zero tenant leakage) | "Looks good" is not a production criterion. Acceptance criteria define tuning priorities and clarify tradeoffs between quality, latency, and cost | Azure AI Foundry evaluation pipeline with defined gates. Telemetry dashboards. Release gates in CI/CD or deployment review process |
+
 ---
 
 ## 📋 RAG Design Canvas
@@ -1290,12 +1379,25 @@ Use this template when starting a new RAG project. Fill it in with your stakehol
 │  ARCHITECT: _____________    TEAM: _______________              │
 │                                                                 │
 ├──────────────────────────┬──────────────────────────────────────┤
+│  BUSINESS GOAL           │  USERS & PERSONAS                   │
+│  • Use case: __________ │  • Primary persona: __________      │
+│  • Answer contract:      │  • Query types: factual /           │
+│    short / detailed /    │    comparison / temporal /           │
+│    structured / summary  │    troubleshooting                   │
+│  • Risk level: low/med/  │  • Answer format per persona:       │
+│    high                  │    ________________________          │
+│                          │                                      │
+├──────────────────────────┼──────────────────────────────────────┤
 │  SCALE                   │  SECURITY                           │
 │  • Users: ____           │  • Auth: Entra ID / API Key         │
 │  • Documents: ____       │  • Doc-level security: Y / N        │
 │  • Avg doc size: ____    │  • PII/PHI: Y / N                   │
 │  • Query rate: ____/min  │  • Audit logging: Y / N             │
 │  • Ingestion: batch/cont │  • Network isolation: Y / N         │
+│                          │  • Content trust: trusted /          │
+│                          │    untrusted / mixed                 │
+│                          │  • Tenant isolation: logical /       │
+│                          │    index / service                   │
 │                          │                                      │
 ├──────────────────────────┼──────────────────────────────────────┤
 │  DATA SOURCES            │  EXTRACTION                         │
@@ -1303,24 +1405,42 @@ Use this template when starting a new RAG project. Fill it in with your stakehol
 │  • Formats: ___________  │  • Multimodal: Y / N                │
 │  • Languages: _________  │  • Chunking: header / semantic      │
 │  • Connectors: built-in  │  • Table handling: atomic / split   │
-│    / custom              │                                      │
+│    / custom              │  • Retrieval unit: chunk /           │
+│  • Source authority:      │    section / table / entity         │
+│    defined / undefined   │  • Hierarchical: Y / N              │
+│  • Dedup needed: Y / N  │                                      │
 │                          │                                      │
 ├──────────────────────────┼──────────────────────────────────────┤
 │  SEARCH                  │  GENERATION                         │
 │  • Type: hybrid/vector   │  • Model: GPT-4.1 / GPT-4.1-mini   │
 │  • Semantic ranker: Y/N  │  • Streaming: Y / N                 │
-│  • Agentic: Y / N       │  • Citations: Y / N                  │
-│  • GraphRAG: Y / N      │  • Max latency: ____ sec             │
-│  • Synonyms: Y / N      │  • Cost router: Y / N                │
+│  • Agentic: Y / N       │  • Citation level: doc / section     │
+│  • GraphRAG: Y / N      │    / page / span                     │
+│  • Synonyms: Y / N      │  • Max latency: ____ sec             │
+│  • Query rewriting: Y/N │  • Cost router: Y / N                │
+│  • Reranking criteria:   │  • Abstention policy: strict /      │
+│    relevance / authority │    best-effort / escalate            │
+│    / recency / none      │  • Conflict handling: latest /      │
+│                          │    authority / show both             │
 │                          │                                      │
 ├──────────────────────────┼──────────────────────────────────────┤
 │  QUALITY                 │  COMPLIANCE                         │
-│  • Risk level: low/med/  │  • Region: ________________         │
-│    high                  │  • Data residency: ________         │
-│  • Eval method: auto /   │  • CMK encryption: Y / N            │
-│    human / both          │  • Private endpoints: Y / N         │
-│  • Acceptance criteria:  │  • Log retention: ____ days         │
-│    ___________________   │                                      │
+│  • Eval method: auto /   │  • Region: ________________         │
+│    human / both          │  • Data residency: ________         │
+│  • Acceptance criteria:  │  • CMK encryption: Y / N            │
+│    ___________________   │  • Private endpoints: Y / N         │
+│  • Go-live gates defined:│  • Log retention: ____ days         │
+│    Y / N                 │                                      │
+│                          │                                      │
+├──────────────────────────┼──────────────────────────────────────┤
+│  OPERATIONS              │  CONVERSATION                       │
+│  • Content owner: _____ │  • Mode: stateless / multi-turn     │
+│  • Feedback capture:     │    / persistent memory               │
+│    thumbs / text / none  │  • Caching: retrieval / answer      │
+│  • Prod observability:   │    / none                            │
+│    Y / N                 │  • Session storage: ________        │
+│  • Failure alerting:     │                                      │
+│    Y / N                 │                                      │
 │                          │                                      │
 ├──────────────────────────┴──────────────────────────────────────┤
 │  AZURE SERVICES SELECTED                                       │
